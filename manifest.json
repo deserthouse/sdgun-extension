@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SDGun Forum Web Access",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Browse the SDGun forum (Discuz touch version) from a desktop browser: presents a mobile User-Agent to bbs.sdgun.com.cn and rewrites legacy dead links to their forum pages.",
   "author": "deser",
   "homepage_url": "https://github.com/deser/SDGun",
