@@ -4,7 +4,7 @@
   "version": "1.0.5",
   "description": "Browse the SDGun forum (Discuz touch version) from a desktop browser: presents a mobile User-Agent for requests to *.sdgun.com.cn.",
   "author": "deserthouse",
-  "homepage_url": "https://github.com/deserthouse/SDGun",
+  "homepage_url": "https://github.com/deserthouse/sdgun-web-access",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
