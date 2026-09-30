@@ -1,0 +1,74 @@
+[
+  {
+    "id": 1,
+    "priority": 3,
+    "action": {
+      "type": "redirect",
+      "regexSubstitution": "https://bbs.sdgun.com.cn/forum.php?mod=viewthread&tid=\\1&mobile=2"
+    },
+    "condition": {
+      "regexFilter": "^https?://mag1\\.sdgun\\.net/mag/wap/v1/wap/waphome/topicindex\\?(?:[^#]*&)?id=(\\d+)",
+      "resourceTypes": ["main_frame"]
+    }
+  },
+  {
+    "id": 2,
+    "priority": 3,
+    "action": {
+      "type": "redirect",
+      "regexSubstitution": "https://bbs.sdgun.com.cn/home.php?mod=space&uid=\\1&mobile=2"
+    },
+    "condition": {
+      "regexFilter": "^https?://mag1\\.sdgun\\.net/mag/wap/v1/wap/waphome/userhome\\?(?:[^#]*&)?userid=(\\d+)",
+      "resourceTypes": ["main_frame"]
+    }
+  },
+  {
+    "id": 3,
+    "priority": 3,
+    "action": {
+      "type": "redirect",
+      "regexSubstitution": "https://bbs.sdgun.com.cn/forum.php?mod=forumdisplay&fid=\\1&mobile=2"
+    },
+    "condition": {
+      "regexFilter": "^https?://mag1\\.sdgun\\.net/mag/wap/v1/wap/waphome/circlepostlist\\?(?:[^#]*&)?type_value=(\\d+)",
+      "resourceTypes": ["main_frame"]
+    }
+  },
+  {
+    "id": 4,
+    "priority": 1,
+    "action": {
+      "type": "redirect",
+      "url": "https://bbs.sdgun.com.cn/forum.php?forumlist=1&mobile=2"
+    },
+    "condition": {
+      "regexFilter": "^https://(www\\.)?sdgun\\.net/",
+      "resourceTypes": ["main_frame"]
+    }
+  },
+  {
+    "id": 5,
+    "priority": 1,
+    "action": {
+      "type": "redirect",
+      "url": "https://bbs.sdgun.com.cn/forum.php?forumlist=1&mobile=2"
+    },
+    "condition": {
+      "requestDomains": ["app.sdgun.com.cn"],
+      "resourceTypes": ["main_frame"]
+    }
+  },
+  {
+    "id": 6,
+    "priority": 1,
+    "action": {
+      "type": "redirect",
+      "url": "https://bbs.sdgun.com.cn/forum.php?forumlist=1&mobile=2"
+    },
+    "condition": {
+      "regexFilter": "^https?://mag1\\.sdgun\\.net/",
+      "resourceTypes": ["main_frame"]
+    }
+  }
+]
