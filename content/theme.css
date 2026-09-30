@@ -1,0 +1,273 @@
+/* SDGun Forum Web Access v1.1.0 - theming layer.
+   Scope: bbs.sdgun.com.cn touch template (bygsjw_3sjw).
+   Principles:
+   - Additive only: without .sdg-skin classes the page renders exactly as before.
+   - Dark mode is a targeted override of known template surfaces, NOT an invert
+     filter (keeps images true to source).
+   - All selectors mirror content/selectors.js. */
+
+/* ---------- base: modern type stack + wide reading layout ---------- */
+
+html.sdg-theme-dark {
+  color-scheme: dark;
+}
+
+body {
+  font-family: system-ui, "Segoe UI", "Microsoft YaHei", "PingFang SC",
+    "Noto Sans CJK SC", sans-serif !important;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Discuz touch hard-codes narrow content; widen reading column on desktop.
+   The template centers via body; we cap width and center every page type. */
+@media (min-width: 900px) {
+  body {
+    max-width: 860px !important;
+    margin: 0 auto !important;
+    box-shadow: 0 0 40px rgba(0, 0, 0, .08);
+  }
+  body {
+    font-size: 15px;
+    line-height: 1.65;
+  }
+  /* thread content breathes */
+  .message {
+    font-size: 15.5px !important;
+    line-height: 1.75 !important;
+    word-break: break-word;
+  }
+  .message img {
+    max-width: 100% !important;
+    height: auto !important;
+    border-radius: 6px;
+  }
+  /* thread list rows become airy cards */
+  ul.byg_threadlist_ul > li.cl {
+    padding: 14px 16px !important;
+    border-radius: 10px;
+  }
+  .list_top a.over_two {
+    font-size: 16px !important;
+    line-height: 1.45 !important;
+  }
+}
+
+/* ---------- dark mode ---------- */
+
+/* page scaffolding */
+html.sdg-theme-dark body {
+  background: #111214 !important;
+  color: #d6d3d1 !important;
+}
+html.sdg-theme-dark .header_z,
+html.sdg-theme-dark .header_c,
+html.sdg-theme-dark .hdc_xin {
+  background: #191a1d !important;
+  color: #d6d3d1 !important;
+}
+html.sdg-theme-dark a {
+  color: #7fb3ff !important;
+}
+html.sdg-theme-dark .header_z a,
+html.sdg-theme-dark .header_c a {
+  color: #d6d3d1 !important;
+}
+
+/* generic surfaces: rows, cards, panels */
+html.sdg-theme-dark ul.byg_threadlist_ul > li.cl,
+html.sdg-theme-dark .list_top,
+html.sdg-theme-dark .list_bottom,
+html.sdg-theme-dark .forumdisplay_top,
+html.sdg-theme-dark .sidenav-brand,
+html.sdg-theme-dark .bbda,
+html.sdg-theme-dark .plc,
+html.sdg-theme-dark .postlist_title,
+html.sdg-theme-dark .ntc_l,
+html.sdg-theme-dark .typeoption,
+html.sdg-theme-dark .pb,
+html.sdg-theme-dark .bm_c,
+html.sdg-theme-dark .bm {
+  background: #1a1b1e !important;
+  color: #d6d3d1 !important;
+}
+html.sdg-theme-dark ul.byg_threadlist_ul > li.cl {
+  border-bottom: 1px solid #2a2b2f !important;
+}
+
+/* text hierarchy inside known surfaces */
+html.sdg-theme-dark .grey,
+html.sdg-theme-dark .xi1, /* keep accent readable */
+html.sdg-theme-dark span,
+html.sdg-theme-dark div,
+html.sdg-theme-dark li,
+html.sdg-theme-dark td {
+  color: inherit;
+}
+/* timestamps & metadata: lift out of the dark (was near-invisible) */
+html.sdg-theme-dark .grey,
+html.sdg-theme-dark .authi .grey,
+html.sdg-theme-dark .byg_post_views {
+  color: #a3a09c !important;
+}
+html.sdg-theme-dark .message,
+html.sdg-theme-dark .message * {
+  color: #d6d3d1 !important;
+}
+html.sdg-theme-dark .post_author .authi,
+html.sdg-theme-dark .post_author .authi * {
+  color: #a8a29e !important;
+}
+html.sdg-theme-dark h1, html.sdg-theme-dark h2,
+html.sdg-theme-dark h3, html.sdg-theme-dark strong {
+  color: #eceae8 !important;
+}
+/* unified link tone in dark */
+html.sdg-theme-dark a {
+  color: #ff6b7a !important;
+}
+html.sdg-theme-dark .header_z a,
+html.sdg-theme-dark .header_c a {
+  color: #d6d3d1 !important;
+}
+
+/* floor separation: visible boundaries between posts */
+@media (min-width: 900px) {
+  div[id^="pid"] {
+    border-bottom: 1px solid rgba(127, 127, 127, .18) !important;
+    padding: 4px 0 10px !important;
+  }
+  div[id^="pid"]:hover {
+    background: rgba(127, 127, 127, .04);
+  }
+}
+html.sdg-theme-dark div[id^="pid"] {
+  border-bottom: 1px solid #2c2d31 !important;
+}
+html.sdg-theme-dark div[id^="pid"]:hover {
+  background: #1e1f23 !important;
+}
+
+/* broken-image fallback: keep layout calm while images fail (offline flaky server) */
+.message img,
+.list_img3 img {
+  background: #2a2b30;
+  min-height: 24px;
+  min-width: 24px;
+  border-radius: 6px;
+}
+html.sdg-theme-dark .message img[src*="static/image/smiley"],
+html.sdg-theme-dark .message img[src*="smiley"] {
+  background: transparent;
+}
+
+/* quote/code blocks */
+html.sdg-theme-dark .quote,
+html.sdg-theme-dark blockquote,
+html.sdg-theme-dark .blockcode {
+  background: #232326 !important;
+  color: #c9c5c1 !important;
+  border-color: #34343a !important;
+}
+
+/* forms (login, search) */
+html.sdg-theme-dark input[type=text],
+html.sdg-theme-dark input[type=password],
+html.sdg-theme-dark input[type=search],
+html.sdg-theme-dark textarea,
+html.sdg-theme-dark select {
+  background: #232326 !important;
+  color: #e7e5e4 !important;
+  border: 1px solid #3a3b40 !important;
+  border-radius: 6px;
+}
+
+/* buttons */
+html.sdg-theme-dark .btn,
+html.sdg-theme-dark button,
+html.sdg-theme-dark input[type=submit] {
+  background: #2c2d31 !important;
+  color: #e7e5e4 !important;
+  border: 1px solid #3a3b40 !important;
+}
+
+/* keep images untouched (no invert) but tone down giant white avatars bg */
+html.sdg-theme-dark .avatar {
+  background: #232326 !important;
+}
+
+/* white-on-white fixes for misc template chrome */
+html.sdg-theme-dark .pct,
+html.sdg-theme-dark .pi,
+html.sdg-theme-dark .authi,
+html.sdg-theme-dark .d,
+html.sdg-theme-dark .c,
+html.sdg-theme-dark #wp,
+html.sdg-theme-dark .wp,
+html.sdg-theme-dark .wp cl,
+html.sdg-theme-dark #ct,
+html.sdg-theme-dark .ct2,
+html.sdg-theme-dark .area,
+html.sdg-theme-dark table {
+  background-color: transparent;
+}
+
+/* --- skin-off escape hatch: neutralize everything above --- */
+html.sdg-skin-off body {
+  max-width: none !important;
+  box-shadow: none !important;
+}
+html.sdg-skin-off {
+  color-scheme: normal;
+}
+
+/* ---------- redraw-active: hide original page scaffolding ---------- */
+/* The card overlays carry their own chrome; the template header/banner and
+   other scaffolding would clash (red banner under a glass topbar). */
+html.sdg-redraw-active .header_z,
+html.sdg-redraw-active .header_c,
+html.sdg-redraw-active .header_y,
+html.sdg-redraw-active .hdc_xin,
+html.sdg-redraw-active .forumdisplay_top,
+html.sdg-redraw-active .bm_xin,
+html.sdg-redraw-active .subforumshow,
+html.sdg-redraw-active .app-download-body,
+html.sdg-redraw-active .return_xin,
+html.sdg-redraw-active .byg_return,
+html.sdg-redraw-active .footer,
+html.sdg-redraw-active .pg {
+  display: none !important;
+}
+html.sdg-redraw-active body {
+  padding-top: 0 !important;
+}
+html.sdg-redraw-active body > *:not(.sdg-host):not(script):not(style):not(link):not(noscript) {
+  display: none !important;
+}
+html.sdg-redraw-active body {
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+/* ---------- lightbox ---------- */
+
+.sdg-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  background: rgba(0, 0, 0, .88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+  animation: sdg-fade .15s ease-out;
+}
+.sdg-lightbox img {
+  max-width: 96vw;
+  max-height: 96vh;
+  border-radius: 4px;
+  box-shadow: 0 8px 48px rgba(0, 0, 0, .6);
+}
+@keyframes sdg-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

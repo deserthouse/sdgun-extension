@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  body { width: 240px; margin: 0; font: 13px/1.5 system-ui, "Segoe UI", sans-serif; color: #eee; background: #111; }
+  header { padding: 10px 14px 6px; font-weight: 600; font-size: 14px; }
+  .row { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; }
+  .row + .row { border-top: 1px solid #222; }
+  .hint { padding: 0 14px 8px; color: #888; font-size: 11px; }
+  .toggle { position: relative; width: 34px; height: 18px; flex: none; }
+  .toggle input { display: none; }
+  .toggle span { position: absolute; inset: 0; border-radius: 9px; background: #3a3a3a; transition: .15s; cursor: pointer; }
+  .toggle span::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #bbb; transition: .15s; }
+  .toggle input:checked + span { background: #2f6f3f; }
+  .toggle input:checked + span::after { left: 18px; background: #fff; }
+  .seg { display: flex; gap: 0; padding: 0 14px 8px; }
+  .seg button { flex: 1; margin: 0; padding: 5px 0; border: 1px solid #333; border-radius: 0; background: #1c1c1c; color: #aaa; font-size: 12px; cursor: pointer; }
+  .seg button:first-child { border-radius: 6px 0 0 6px; }
+  .seg button:last-child { border-radius: 0 6px 6px 0; }
+  .seg button.on { background: #2f6f3f; color: #fff; border-color: #2f6f3f; }
+  button { display: block; width: calc(100% - 28px); margin: 4px 14px 12px; padding: 7px 0; border: 0; border-radius: 6px; background: #2f6f3f; color: #fff; font-size: 13px; cursor: pointer; }
+  button:hover { background: #377f48; }
+</style>
+</head>
+<body>
+<header>SDGun 论坛助手</header>
+<div class="row">
+  <span>手机 UA 伪装</span>
+  <label class="toggle"><input type="checkbox" id="ua"><span></span></label>
+</div>
+<div class="row">
+  <span>阅读换肤</span>
+  <label class="toggle"><input type="checkbox" id="skin"><span></span></label>
+</div>
+<div class="row">
+  <span>帖子页重绘（卡片式）</span>
+  <label class="toggle"><input type="checkbox" id="redraw"><span></span></label>
+</div>
+<div class="row" style="padding-bottom:2px">
+  <span>主题</span>
+</div>
+<div class="seg" id="theme">
+  <button data-v="auto">跟随系统</button>
+  <button data-v="light">浅色</button>
+  <button data-v="dark">深色</button>
+</div>
+<p class="hint">UA 伪装仅作用于 *.sdgun.com.cn；换肤只改显示层（宽屏排版/暗色/灯箱），解析失败自动回退原版。改动后已打开的论坛页需刷新。</p>
+<button id="open">打开论坛</button>
+<script src="popup.js"></script>
+</body>
+</html>

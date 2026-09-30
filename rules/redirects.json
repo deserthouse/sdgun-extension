@@ -1,0 +1,38 @@
+[
+  {
+    "id": 204,
+    "priority": 1,
+    "action": {
+      "type": "redirect",
+      "url": "https://bbs.sdgun.com.cn/forum.php?forumlist=1&mobile=2"
+    },
+    "condition": {
+      "regexFilter": "^https://(www\\.)?sdgun\\.net/",
+      "resourceTypes": ["main_frame"]
+    }
+  },
+  {
+    "id": 205,
+    "priority": 1,
+    "action": {
+      "type": "redirect",
+      "url": "https://bbs.sdgun.com.cn/forum.php?forumlist=1&mobile=2"
+    },
+    "condition": {
+      "requestDomains": ["app.sdgun.com.cn"],
+      "resourceTypes": ["main_frame"]
+    }
+  },
+  {
+    "id": 206,
+    "priority": 1,
+    "action": {
+      "type": "redirect",
+      "url": "https://bbs.sdgun.com.cn/forum.php?forumlist=1&mobile=2"
+    },
+    "condition": {
+      "regexFilter": "^https://mag1\\.sdgun\\.net/",
+      "resourceTypes": ["main_frame"]
+    }
+  }
+]
