@@ -1,6 +1,6 @@
 // Toggle DNR static rulesets. Chrome persists enabled-state across restarts,
 // so no background worker is needed.
-const RULESETS = { ua: 'ua_rules', rd: 'redirect_rules' };
+const RULESETS = { ua: 'ua_rules' };
 
 async function reflectState() {
   const enabled = new Set(
