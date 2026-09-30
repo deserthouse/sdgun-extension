@@ -17,7 +17,7 @@
       "resourceTypes": [
         "main_frame",
         "sub_frame",
-        "xmlhttp_request",
+        "xmlhttprequest",
         "image",
         "stylesheet",
         "script",
