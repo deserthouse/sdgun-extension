@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "SDGun Forum Web Access",
-  "version": "1.0.4",
-  "description": "Browse the SDGun forum (Discuz touch version) from a desktop browser: presents a mobile User-Agent to bbs.sdgun.com.cn and rewrites legacy dead links to their forum pages.",
-  "author": "deser",
-  "homepage_url": "https://github.com/deser/SDGun",
+  "version": "1.0.5",
+  "description": "Browse the SDGun forum (Discuz touch version) from a desktop browser: presents a mobile User-Agent for requests to *.sdgun.com.cn.",
+  "author": "deserthouse",
+  "homepage_url": "https://github.com/deserthouse/SDGun",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
