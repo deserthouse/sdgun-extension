@@ -81,7 +81,21 @@
       else if (SDG.page.isForumList()) { ok = window.SDGRedraw.mountForumList(SDG, opts); how = 'forumlist'; }
     } catch (e) { ok = false; how = 'EXC ' + String(e).slice(0, 60); }
     if (ok) { clearBadge(); }
-    else if (how) { showBadge(ver + ' 重绘未命中 [' + how + '] 已回退原版'); }
+    else if (how) {
+      // 服务器抽风：bygsjw 页面常被截断成骨架（头部在、列表数据缺）。
+      // 自动重载一次重试（sessionStorage 护栏防死循环），仍失败则停回退态。
+      const looksTruncated = /mobile=\d/.test(location.search)
+        && document.querySelector('.hd, .ft, .footer')
+        && !document.querySelector('ul.byg_threadlist_ul, .postlist, .sub_forum');
+      const key = 'sdg-retry:' + location.href;
+      if (looksTruncated && !sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, '1');
+        showBadge(ver + ' 服务器响应不完整，自动重试…');
+        setTimeout(() => location.reload(), 2500);
+        return;
+      }
+      showBadge(ver + ' 重绘未命中 [' + how + '] 已回退原版');
+    }
     else { clearBadge(); }
   }
 
