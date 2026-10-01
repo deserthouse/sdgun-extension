@@ -8,7 +8,11 @@
 const SDG = {
   page: {
     // URL-based page type detection (touch version always carries mobile=2)
-    isForumList: () => /forum\.php\?(.*&)?forumlist=1/.test(location.search),
+    // forumlist=1（bygsjw 触屏版）或 forum.php?mobile=N 无 mod 参数（简易版论坛首页）
+    isForumList: () => /forum\.php\?(.*&)?forumlist=1/.test(location.search)
+      || (/forum\.php/.test(location.pathname + location.search)
+          && /mobile=\d/.test(location.search)
+          && !/(?:^|&)mod=/.test(location.search)),
     isForumDisplay: () => /mod=forumdisplay/.test(location.search),
     isViewThread: () => /mod=viewthread/.test(location.search),
     isLoginPage: () => /mod=logging/.test(location.search) && /action=login/.test(location.search),

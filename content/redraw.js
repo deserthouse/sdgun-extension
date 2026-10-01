@@ -444,8 +444,9 @@
         const rowText = ((a.closest('li') || a.closest('div') || a.parentElement).textContent || '')
           .replace(/\s+/g, ' ').trim();
         const rm = rowText.match(/回复\s*(\d+)/);
+        const href0 = (a.getAttribute('href') || '').replace(/mobile=\d+/, 'mobile=2');
         threads.push({
-          title: t, href: a.getAttribute('href'), author: '', date: '',
+          title: t, href: href0, author: '', date: '',
           replies: rm ? rm[1] : '', views: '', preview: [],
           metaRaw: rowText.slice(t.length).trim(),
         });
