@@ -13,7 +13,20 @@
       ]
     },
     "condition": {
-      "requestDomains": ["sdgun.com.cn"]
+      "requestDomains": [
+        "sdgun.com.cn"
+      ],
+      "resourceTypes": [
+        "main_frame",
+        "sub_frame",
+        "xmlhttprequest",
+        "image",
+        "stylesheet",
+        "script",
+        "font",
+        "media",
+        "other"
+      ]
     }
   }
 ]
