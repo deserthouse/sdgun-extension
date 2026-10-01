@@ -38,16 +38,17 @@
     root.classList.toggle('sdg-page-forumlist', SDG.page.isForumList());
     root.classList.toggle('sdg-page-forumdisplay', SDG.page.isForumDisplay());
     root.classList.toggle('sdg-page-viewthread', SDG.page.isViewThread());
-    // follow system switches while on auto
-    if (window.matchMedia) {
-      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-        if (prefs.theme === 'auto') applyTheme();
-      });
-    }
   }
 
   // ---- page-type tag immediately (CSS applies before prefs arrive) ----
   applyTheme();
+
+  // follow system switches while on auto（顶层注册一次，避免叠加）
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      if (prefs.theme === 'auto') applyTheme();
+    });
+  }
 
   // ---- thread/list-page redraw (Shadow DOM card view; fail-open + 诊断角标) ----
   function showBadge(msg) {
@@ -67,9 +68,35 @@
     if (b) b.remove();
   }
 
+  let lateObserver = null;
+  function watchLateContent(cb) {
+    if (lateObserver) return; // 单例：同页只观察一次
+    try {
+      lateObserver = new MutationObserver((muts) => {
+        for (const m of muts) {
+          for (const n of m.addedNodes) {
+            if (n.nodeType !== 1) continue;
+            const hit = n.matches && (n.matches('ul.byg_threadlist_ul, .postlist, .sub_forum, div.bm, div[id^="pid"]')
+              || n.querySelector && n.querySelector('ul.byg_threadlist_ul, .postlist, .sub_forum, div.bm, div[id^="pid"]'));
+            if (hit) {
+              lateObserver.disconnect();
+              lateObserver = null;
+              cb();
+              return;
+            }
+          }
+        }
+      });
+      lateObserver.observe(document.body, { childList: true, subtree: true });
+      setTimeout(() => {
+        if (lateObserver) { lateObserver.disconnect(); lateObserver = null; }
+      }, 10000);
+    } catch (e) { /* observer 不可用则放弃 */ }
+  }
+
   function applyRedraw() {
     if (!window.SDGRedraw) { showBadge('SDGun ' + (window.SDG_VER || '') + ' redraw.js 未加载'); return; }
-    if (!prefs.skin) { window.SDGRedraw.unmount(); clearBadge(); return; }
+    if (!prefs.skin || prefs.redraw === false) { window.SDGRedraw.unmount(); clearBadge(); return; }
     const opts = {
       dark: prefs.theme === 'dark' || (prefs.theme === 'auto' && systemDark()),
     };
@@ -94,6 +121,11 @@
         setTimeout(() => location.reload(), 2500);
         return;
       }
+      // P1-3：两段式响应（壳+AJAX）——内容后到，观察容器出现后重挂载一次
+      watchLateContent(() => {
+        showBadge(ver + ' 内容延迟到达，重新挂载…');
+        applyRedraw();
+      });
       showBadge(ver + ' 重绘未命中 [' + how + '] 已回退原版');
     }
     else { clearBadge(); }

@@ -18,12 +18,6 @@ const SDG = {
     isLoginPage: () => /mod=logging/.test(location.search) && /action=login/.test(location.search),
   },
 
-  forumList: {
-    // ul.byg_threadlist_ul > li.cl > div.list_top > a.over_two (fid links)
-    sectionLink: 'a[href*="mod=forumdisplay"]',
-    sectionGroupTitle: '.bbda, h3, .header_c',
-  },
-
   forumDisplay: {
     // ul.byg_threadlist_ul > li.cl rows; title in a.over_two
     threadRow: 'ul.byg_threadlist_ul > li.cl',

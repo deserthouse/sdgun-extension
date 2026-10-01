@@ -82,9 +82,7 @@ document.getElementById('diag').addEventListener('click', async () => {
         }, null, 1);
       },
     });
-    out.value = results.map(r => r.result || JSON.stringify(r.error || null)).join('
----
-');
+    out.value = results.map((r) => r.result || JSON.stringify(r.error || null)).join('\n---\n');
   } catch (e) {
     out.value = '诊断失败: ' + String(e).slice(0, 200);
   }

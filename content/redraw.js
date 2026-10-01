@@ -80,7 +80,7 @@
   function wireLightbox(shadowRoot) {
     shadowRoot.addEventListener('click', (ev) => {
       const img = ev.target.closest && ev.target.closest('img');
-      if (!img || !img.src || img.classList.contains('icon')) return;
+      if (!img || !img.src || img.classList.contains('icon') || img.classList.contains('avatar')) return;
       ev.preventDefault();
       const lb = el('div', {
         style: 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;cursor:zoom-out',
@@ -108,7 +108,7 @@
       margin: 10px 0; padding: 14px 18px;
       box-shadow: 0 1px 3px rgba(0,0,0,.04);
     }
-    .card.op { border-color: rgba(47,111,63,.45); }
+    .card.op { border-color: rgba(176,31,40,.45); }
     .head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
     .avatar { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; background: #e7e5e4; flex: none; }
     .avatar-fallback { width: 34px; height: 34px; border-radius: 50%; background: #d6d3d1; color:#57534e;
@@ -203,7 +203,9 @@
       const timeEl = node.querySelector(SDG.viewThread.date);
       const floorEl = node.querySelector(SDG.viewThread.postNumber);
       const avatarEl = node.querySelector(SDG.viewThread.authorAvatar);
+      const replyA = node.querySelector('a[href*="action=reply"]');
       floors.push({
+        replyHref: replyA ? replyA.getAttribute('href') : '',
         author: (authorEl.textContent || '').trim(),
         authorHref: authorEl.getAttribute('href') || '#',
         time: timeEl ? (timeEl.textContent || '').replace(/\s+/g, ' ').trim() : '',
@@ -312,7 +314,7 @@
       }
       head.appendChild(el('a', { class: 'author', text: f.author || '匿名', href: f.authorHref }));
       head.appendChild(el('span', { class: 'meta', text: f.time }));
-      head.appendChild(el('a', { class: 'reply', text: '回复', href: replyUrl(f) }));
+      head.appendChild(el('a', { class: 'reply', text: '回复', href: f.replyHref || replyUrl(f) }));
       head.appendChild(el('span', { class: 'floor', text: f.floor || `${i + 1}#` }));
       const body = el('div', { class: 'body' });
       try {
@@ -328,7 +330,6 @@
     });
 
     // pager: real-navigation buttons
-    const tid = (location.search.match(/tid=(\d+)/) || [])[1];
     const prev = el('button', {
       text: '上一页',
       onclick: () => navTo({ page: String(page - 1) }),
@@ -349,25 +350,15 @@
     shadow.appendChild(wrap);
 
     // hide original list, keep it in DOM for fail-open restore
-    container.style.display = 'none';
+    hideEl(container);
     const anchor0 = document.querySelector('#wp') || document.body;
     if (anchor0 !== document.body) anchor0.classList.add('sdg-host');
     anchor0.appendChild(host);
     markActive();
     hideTrailingSiblings(anchor0);
 
-    // lightbox delegation inside shadow (reuse main-document handler semantics)
-    wrap.addEventListener('click', (ev) => {
-      const img = ev.target.closest && ev.target.closest('img');
-      if (!img || !img.src) return;
-      if (!img.closest('.body')) return; // avatar clicks pass through
-      ev.preventDefault();
-      const lb = el('div', {
-        style: 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;cursor:zoom-out',
-        onclick: (e) => e.currentTarget.remove(),
-      }, [el('img', { src: img.src, style: 'max-width:96vw;max-height:96vh;border-radius:4px;' })]);
-      document.body.appendChild(lb);
-    });
+    // lightbox: 统一走 wireLightbox（含头像排除）
+    wireLightbox(shadow);
 
     return true;
   }
@@ -378,6 +369,11 @@
       if (host) host.remove();
     }
     document.documentElement.classList.remove('sdg-redraw-active');
+    // 恢复挂载期间隐藏的一切（P0-3：含简易容器/兄弟节点/legacy 列表）
+    document.querySelectorAll('[data-sdg-hidden]').forEach((n) => {
+      n.style.display = '';
+      n.removeAttribute('data-sdg-hidden');
+    });
     const c = document.querySelector('.postlist');
     if (c) c.style.display = '';
     const l = document.querySelector('ul.byg_threadlist_ul');
@@ -388,11 +384,17 @@
     document.documentElement.classList.add('sdg-redraw-active');
   }
 
+  function hideEl(n) {
+    if (!n) return;
+    n.style.display = 'none';
+    n.setAttribute('data-sdg-hidden', '1');
+  }
+
   function hideTrailingSiblings(host) {
     let n = host.nextElementSibling;
     while (n) {
       const next = n.nextElementSibling;
-      if (n.style) n.style.display = 'none';
+      hideEl(n);
       n = next;
     }
   }
@@ -430,7 +432,10 @@
     let threads = [];
     if (list) {
       threads = parseThreads(SDG);
-      if (!threads.length) return false;
+      if (!threads.length) {
+        // P1-2：真骨架（无任何帖子锚点）交给 boot 重试；版块空/结构变体则渲染空态
+        if (!document.querySelector('a[href*="mod=viewthread"]')) return false;
+      }
     } else {
       // 简易模板变体：无 bygsjw 列表容器，锚点防御式解析
       simpleMode = true;
@@ -557,11 +562,11 @@
     wrap.appendChild(el('div', { class: 'hint', text: 'SDGun Web Access · 重绘层（真实导航）' }));
 
     shadow.appendChild(wrap);
-    if (list) list.style.display = 'none';
+    if (list) hideEl(list);
     else if (simpleMode) {
       const firstA = document.querySelector('a[href*="mod=viewthread"]');
       const container = firstA ? (firstA.closest('ul') || firstA.closest('div')) : null;
-      if (container && container !== document.body) container.style.display = 'none';
+      if (container && container !== document.body) hideEl(container);
     }
     const anchor = document.querySelector('#wp') || document.body;
     if (anchor !== document.body) anchor.classList.add('sdg-host');
@@ -588,7 +593,7 @@
         const nums = [...li.querySelectorAll('.forum_num, .num_em, em, span')].map((n) => (n.textContent || '').replace(/\s+/g, '')).filter((s) => /[\d]/.test(s) && s.length <= 8);
         if (fid) secs.push({ fid, name: nm, icon: icon ? icon.getAttribute('src') : '', nums });
       });
-      if (name || secs.length) data.push({ name: name.trim(), secs });
+      if (secs.length) data.push({ name: name.trim(), secs });
     });
 
     // profile 2: Discuz 标准移动模板（div.bm / .bm_h 分组 / .bm_c 版块，用户实机样本 2026-10-01）
@@ -638,7 +643,7 @@
     if (!data.length) return false;
     // 简易变体的原列表容器（如 #forumlist）在渲染后隐藏
     const legacyList = document.getElementById('forumlist');
-    if (legacyList) legacyList.style.display = 'none';
+    if (legacyList) hideEl(legacyList);
 
     const host = document.createElement('div');
     host.id = 'sdg-redraw-list';
@@ -671,7 +676,7 @@
 
     shadow.appendChild(wrap);
     // 隐藏原列表但保留结构
-    document.querySelectorAll('ul.byg_threadlist_ul, .sub_forum').forEach((n) => { n.style.display = 'none'; });
+    document.querySelectorAll('ul.byg_threadlist_ul, .sub_forum').forEach(hideEl);
     const anchor = document.querySelector('#wp') || document.body;
     if (anchor !== document.body) anchor.classList.add('sdg-host');
     anchor.appendChild(host);
