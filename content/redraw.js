@@ -591,7 +591,25 @@
       if (name || secs.length) data.push({ name: name.trim(), secs });
     });
 
-    // profile 2: 简易模板变体（无 bygsjw 容器）——h2 为分组，forumdisplay 锚点归属其前最近的 h2
+    // profile 2: Discuz 标准移动模板（div.bm / .bm_h 分组 / .bm_c 版块，用户实机样本 2026-10-01）
+    if (!data.length) {
+      document.querySelectorAll('div.bm').forEach((bm) => {
+        const nameEl = bm.querySelector('.bm_h');
+        const name = nameEl ? (nameEl.textContent || '').replace(/\s+/g, ' ').trim() : '';
+        const secs = [];
+        bm.querySelectorAll('a[href*="mod=forumdisplay"]').forEach((a) => {
+          const fid = (a.getAttribute('href').match(/fid=(\d+)/) || [])[1];
+          if (!fid) return;
+          const nm = (a.textContent || '').replace(/\s+/g, ' ').trim();
+          const cntEl = a.parentElement.querySelector('.xg1');
+          const cnt = cntEl ? (cntEl.textContent || '').replace(/[()（）\s]/g, '') : '';
+          secs.push({ fid, name: nm, icon: '', nums: cnt ? [cnt] : [] });
+        });
+        if (name || secs.length) data.push({ name, secs });
+      });
+    }
+
+    // profile 3: h2 分组走查（其他未知变体兜底）
     if (!data.length) {
       const els = document.querySelectorAll('h2, a[href*="forumdisplay"]');
       let cur = null;
@@ -662,6 +680,8 @@
     return true;
   }
 
-  window.SDG_VER = '1.4.1';
+  let SDG_VER = 'dev';
+  try { SDG_VER = chrome.runtime.getManifest().version; } catch (e) { /* file:// 测试床 */ }
+  window.SDG_VER = SDG_VER;
   window.SDGRedraw = { mount, mountForumDisplay, mountForumList, unmount };
 })();
