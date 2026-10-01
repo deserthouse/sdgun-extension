@@ -426,12 +426,41 @@
 
   function mountForumDisplay(SDG, opts) {
     const list = document.querySelector('ul.byg_threadlist_ul');
-    if (!list) return false;
-    const threads = parseThreads(SDG);
-    if (!threads.length) return false;
+    let simpleMode = false;
+    let threads = [];
+    if (list) {
+      threads = parseThreads(SDG);
+      if (!threads.length) return false;
+    } else {
+      // 简易模板变体：无 bygsjw 列表容器，锚点防御式解析
+      simpleMode = true;
+      const seen = new Set();
+      [...document.querySelectorAll('a[href*="mod=viewthread"]')].forEach((a) => {
+        const tid = (a.getAttribute('href').match(/tid=(\d+)/) || [])[1];
+        if (!tid || seen.has(tid)) return;
+        const t = (a.textContent || '').replace(/\s+/g, ' ').trim();
+        if (t.length < 6 || /^(上一页|下一页|\d+)$/.test(t)) return;
+        seen.add(tid);
+        const rowText = ((a.closest('li') || a.closest('div') || a.parentElement).textContent || '')
+          .replace(/\s+/g, ' ').trim();
+        const rm = rowText.match(/回复\s*(\d+)/);
+        threads.push({
+          title: t, href: a.getAttribute('href'), author: '', date: '',
+          replies: rm ? rm[1] : '', views: '', preview: [],
+          metaRaw: rowText.slice(t.length).trim(),
+        });
+      });
+      if (!threads.length) return false;
+    }
 
     const hf = document.querySelector('.header_font');
-    const boardName = hf ? (hf.textContent || '').trim() : '';
+    let boardName = hf ? (hf.textContent || '').trim() : '';
+    if (!boardName) {
+      const crumb = [...document.querySelectorAll('a,div,span')].map((n) => (n.textContent || '').trim())
+        .find((t) => /^论坛\s*>/.test(t));
+      const bm = crumb ? crumb.match(/论坛\s*>\s*([^>\n]{2,20})/) : null;
+      boardName = bm ? bm[1].trim() : ((document.title || '').split('-')[0].replace(/SDGun/i, '').trim() || '版块');
+    }
 
     // 筛选链接：从被隐藏的脚手架提取（真实导航）
     const filterLinks = [];
@@ -495,7 +524,8 @@
       const meta = [];
       if (t.author) meta.push(el('a', { class: 'author', text: t.author, href: t.authorHref }));
       if (t.date) meta.push(el('span', { class: 'meta', text: t.date }));
-      meta.push(el('span', { class: 'stat', text: `回复 ${t.replies || 0} · 查看 ${t.views || 0}` }));
+      if (t.metaRaw) meta.push(el('span', { class: 'meta', text: t.metaRaw.slice(0, 60) }));
+      if (t.replies || t.views) meta.push(el('span', { class: 'stat', text: `回复 ${t.replies || 0} · 查看 ${t.views || 0}` }));
       meta.push(el('span', { class: 'floor', text: '' }));
       head.appendChild(el('div', { class: 'meta-row' }, meta));
       const card = el('div', { class: 'card' }, [head]);
@@ -510,8 +540,10 @@
     });
 
     // real-navigation pager from the template's own anchors
-    const nextA = document.querySelector(SDG.forumDisplay.nextLink);
-    const prevA = document.querySelector(SDG.forumDisplay.prevLink);
+    const nextA = document.querySelector(SDG.forumDisplay.nextLink)
+      || [...document.querySelectorAll('a')].find((a) => (a.textContent || '').trim() === '下一页');
+    const prevA = document.querySelector(SDG.forumDisplay.prevLink)
+      || [...document.querySelectorAll('a')].find((a) => (a.textContent || '').trim() === '上一页');
     const pager = el('div', { class: 'pager' });
     const prev = el('button', { text: '上一页' });
     if (prevA) prev.addEventListener('click', () => { location.href = prevA.getAttribute('href'); });
@@ -524,7 +556,12 @@
     wrap.appendChild(el('div', { class: 'hint', text: 'SDGun Web Access · 重绘层（真实导航）' }));
 
     shadow.appendChild(wrap);
-    list.style.display = 'none';
+    if (list) list.style.display = 'none';
+    else if (simpleMode) {
+      const firstA = document.querySelector('a[href*="mod=viewthread"]');
+      const container = firstA ? (firstA.closest('ul') || firstA.closest('div')) : null;
+      if (container && container !== document.body) container.style.display = 'none';
+    }
     const anchor = document.querySelector('#wp') || document.body;
     if (anchor !== document.body) anchor.classList.add('sdg-host');
     anchor.appendChild(host);
