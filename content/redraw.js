@@ -592,7 +592,7 @@
 
     // profile 2: 简易模板变体（无 bygsjw 容器）——h2 为分组，forumdisplay 锚点归属其前最近的 h2
     if (!data.length) {
-      const els = document.querySelectorAll('h2, a[href*="mod=forumdisplay"]');
+      const els = document.querySelectorAll('h2, a[href*="forumdisplay"]');
       let cur = null;
       const simple = [];
       els.forEach((n) => {
@@ -661,5 +661,6 @@
     return true;
   }
 
+  window.SDG_VER = '1.4.1';
   window.SDGRedraw = { mount, mountForumDisplay, mountForumList, unmount };
 })();

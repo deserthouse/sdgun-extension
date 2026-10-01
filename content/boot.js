@@ -49,20 +49,40 @@
   // ---- page-type tag immediately (CSS applies before prefs arrive) ----
   applyTheme();
 
-  // ---- thread-page redraw (Shadow DOM card view; fail-open) ----
+  // ---- thread/list-page redraw (Shadow DOM card view; fail-open + 诊断角标) ----
+  function showBadge(msg) {
+    try {
+      let b = document.getElementById('sdg-diag-badge');
+      if (!b) {
+        b = document.createElement('div');
+        b.id = 'sdg-diag-badge';
+        b.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:2147483646;background:rgba(176,31,40,.92);color:#fff;font:11px/1.4 system-ui,sans-serif;padding:4px 8px;border-radius:6px;pointer-events:none;';
+        (document.body || document.documentElement).appendChild(b);
+      }
+      b.textContent = msg;
+    } catch (e) { /* ignore */ }
+  }
+  function clearBadge() {
+    const b = document.getElementById('sdg-diag-badge');
+    if (b) b.remove();
+  }
+
   function applyRedraw() {
-    if (!window.SDGRedraw) return;
-    if (!prefs.skin) { window.SDGRedraw.unmount(); return; }
+    if (!window.SDGRedraw) { showBadge('SDGun ' + (window.SDG_VER || '') + ' redraw.js 未加载'); return; }
+    if (!prefs.skin) { window.SDGRedraw.unmount(); clearBadge(); return; }
     const opts = {
       dark: prefs.theme === 'dark' || (prefs.theme === 'auto' && systemDark()),
     };
-    let ok = false;
+    const ver = 'v' + (window.SDG_VER || '');
+    let ok = false, how = '';
     try {
-      if (SDG.page.isViewThread()) ok = window.SDGRedraw.mount(SDG, opts);
-      else if (SDG.page.isForumDisplay()) ok = window.SDGRedraw.mountForumDisplay(SDG, opts);
-      else if (SDG.page.isForumList()) ok = window.SDGRedraw.mountForumList(SDG, opts);
-    } catch (e) { ok = false; }
-    if (!ok) window.SDGRedraw.unmount(); // fail-open
+      if (SDG.page.isViewThread()) { ok = window.SDGRedraw.mount(SDG, opts); how = 'viewthread'; }
+      else if (SDG.page.isForumDisplay()) { ok = window.SDGRedraw.mountForumDisplay(SDG, opts); how = 'forumdisplay'; }
+      else if (SDG.page.isForumList()) { ok = window.SDGRedraw.mountForumList(SDG, opts); how = 'forumlist'; }
+    } catch (e) { ok = false; how = 'EXC ' + String(e).slice(0, 60); }
+    if (ok) { clearBadge(); }
+    else if (how) { showBadge(ver + ' 重绘未命中 [' + how + '] 已回退原版'); }
+    else { clearBadge(); }
   }
 
   // ---- image lightbox (delegated; works for content added later too) ----

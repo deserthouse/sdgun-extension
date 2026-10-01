@@ -4,6 +4,7 @@
 const RULESETS = { ua: 'ua_rules' };
 
 async function reflectState() {
+  document.getElementById('ver').textContent = 'v' + chrome.runtime.getManifest().version;
   const enabled = new Set(
     (await chrome.declarativeNetRequest.getEnabledRulesets()).map(String),
   );
