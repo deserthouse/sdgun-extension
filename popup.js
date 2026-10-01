@@ -48,3 +48,44 @@ document.getElementById('open').addEventListener('click', () =>
   chrome.tabs.create({ url: 'https://bbs.sdgun.com.cn/forum.php?forumlist=1&mobile=2' }));
 
 reflectState();
+
+// 诊断：读取当前活动论坛标签页的注入状态（MAIN world 可见信息）
+document.getElementById('diag').addEventListener('click', async () => {
+  const out = document.getElementById('diagout');
+  out.style.display = 'block';
+  out.value = '采集中…';
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !/sdgun\.com\.cn/.test(tab.url || '')) {
+      out.value = '当前活动标签页不是论坛页面。请先打开 bbs.sdgun.com.cn 再点诊断。URL=' + (tab ? tab.url : '?');
+      return;
+    }
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id, allFrames: true },
+      func: () => {
+        const html = document.documentElement;
+        const bodyStyle = getComputedStyle(document.body);
+        const anchors = {
+          forumdisplay: document.querySelectorAll('a[href*="mod=forumdisplay"]').length,
+          viewthread: document.querySelectorAll('a[href*="mod=viewthread"]').length,
+          filter: document.querySelectorAll('a[href*="filter="]').length,
+        };
+        return JSON.stringify({
+          href: location.href.slice(0, 90),
+          htmlClass: html.className || '(空)',
+          bodyBg: bodyStyle.backgroundColor,
+          hostList: !!document.getElementById('sdg-redraw-list'),
+          hostThread: !!document.getElementById('sdg-redraw-host'),
+          badge: !!document.getElementById('sdg-diag-badge'),
+          anchors,
+          title: document.title.slice(0, 40),
+        }, null, 1);
+      },
+    });
+    out.value = results.map(r => r.result || JSON.stringify(r.error || null)).join('
+---
+');
+  } catch (e) {
+    out.value = '诊断失败: ' + String(e).slice(0, 200);
+  }
+});
