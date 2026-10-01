@@ -536,10 +536,9 @@
 
   // ---------- forumlist: grouped section cards ----------
   function mountForumList(SDG, opts) {
-    const groups = [...document.querySelectorAll('div[data-byginto]')];
-    if (!groups.length) return false;
-    const data = [];
-    groups.forEach((g) => {
+    // profile 1: bygsjw 富模板（分组容器 data-byginto）
+    let data = [];
+    document.querySelectorAll('div[data-byginto]').forEach((g) => {
       const name = (g.querySelector('h2 a') || {}).textContent || '';
       const secs = [];
       g.querySelectorAll('li.cl').forEach((li) => {
@@ -553,7 +552,37 @@
       });
       if (name || secs.length) data.push({ name: name.trim(), secs });
     });
+
+    // profile 2: 简易模板变体（无 bygsjw 容器）——h2 为分组，forumdisplay 锚点归属其前最近的 h2
+    if (!data.length) {
+      const els = document.querySelectorAll('h2, a[href*="mod=forumdisplay"]');
+      let cur = null;
+      const simple = [];
+      els.forEach((n) => {
+        if (n.tagName === 'H2') {
+          if (cur && cur.secs.length) simple.push(cur);
+          const nm = (n.textContent || '').replace(/\s+/g, ' ').trim();
+          cur = nm ? { name: nm, secs: [] } : null;
+          return;
+        }
+        if (!cur) return;
+        const href = n.getAttribute('href') || '';
+        const fid = (href.match(/fid=(\d+)/) || [])[1];
+        if (!fid) return;
+        const name = (n.textContent || '').replace(/\s+/g, ' ').trim();
+        if (!name) return;
+        const parentTxt = (n.parentElement ? n.parentElement.textContent : '') || '';
+        const cnt = (parentTxt.match(/\((\d+)\)/) || [])[1];
+        const icon = n.querySelector ? n.querySelector('img') : null;
+        cur.secs.push({ fid, name, icon: icon ? icon.getAttribute('src') : '', nums: cnt ? [cnt] : [] });
+      });
+      if (cur && cur.secs.length) simple.push(cur);
+      data = simple;
+    }
     if (!data.length) return false;
+    // 简易变体的原列表容器（如 #forumlist）在渲染后隐藏
+    const legacyList = document.getElementById('forumlist');
+    if (legacyList) legacyList.style.display = 'none';
 
     const host = document.createElement('div');
     host.id = 'sdg-redraw-list';
