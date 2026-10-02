@@ -52,6 +52,18 @@ const SDG = {
     toolbar: '.postlist_title',
   },
 
+  util: {
+    contentAnchor: '#wp',
+    boardHeaderFont: '.header_font',
+    boardBreadcrumb: '论坛\\s*>\\s*([^>\\n]{2,20})',
+    pagerNextByClass: 'a.nxt',
+    pagerPrevByClass: 'a.prev',
+    pagerNextByText: '下一页',
+    pagerPrevByText: '上一页',
+    filterLinks: 'a[href*="filter="], a[href*="orderby="]',
+    viewthreadAnchor: 'a[href*="mod=viewthread"]',
+  },
+
   common: {
     // page scaffolding
     body: 'body',

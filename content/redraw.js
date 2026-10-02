@@ -242,6 +242,45 @@
     location.href = u.toString(); // real navigation - original page handles it
   }
 
+  // ---------- DOM 辅助（方法引用 SDG.util 选择器串） ----------
+  const util = {
+    contentAnchor() {
+      return document.querySelector(SDG.util.contentAnchor) || document.body;
+    },
+    boardName() {
+      const hf = document.querySelector(SDG.util.boardHeaderFont);
+      if (hf) return (hf.textContent || '').trim();
+      const crumb = [...document.querySelectorAll('a,div,span')]
+        .map((n) => (n.textContent || '').trim())
+        .find((t) => new RegExp(SDG.util.boardBreadcrumb).test(t));
+      const m = crumb ? crumb.match(new RegExp(SDG.util.boardBreadcrumb)) : null;
+      return m ? m[1].trim()
+        : ((document.title || '').split('-')[0].replace(/SDGun/i, '').trim() || '版块');
+    },
+    pagerAnchor(kind) {
+      const byClass = document.querySelector(kind === 'next' ? SDG.util.pagerNextByClass
+        : SDG.util.pagerPrevByClass);
+      if (byClass) return byClass;
+      const text = kind === 'next' ? SDG.util.pagerNextByText : SDG.util.pagerPrevByText;
+      return [...document.querySelectorAll('a')].find((a) => (a.textContent || '').trim() === text);
+    },
+    collectFilters() {
+      const out = [];
+      document.querySelectorAll(SDG.util.filterLinks).forEach((a) => {
+        const label = (a.textContent || '').trim();
+        const href = a.getAttribute('href');
+        if (label && label.length <= 8 && href && !out.some((f) => f.label === label)) {
+          out.push({ label, href });
+        }
+      });
+      return out;
+    },
+    threadContainer() {
+      const firstA = document.querySelector(SDG.util.viewthreadAnchor);
+      return firstA ? (firstA.closest('ul') || firstA.closest('div')) : null;
+    },
+  };
+
   function mount(SDG, opts) {
     const container = document.querySelector(SDG.viewThread.container);
     if (!container) return false;
@@ -459,14 +498,7 @@
       if (!threads.length) return false;
     }
 
-    const hf = document.querySelector('.header_font');
-    let boardName = hf ? (hf.textContent || '').trim() : '';
-    if (!boardName) {
-      const crumb = [...document.querySelectorAll('a,div,span')].map((n) => (n.textContent || '').trim())
-        .find((t) => /^论坛\s*>/.test(t));
-      const bm = crumb ? crumb.match(/论坛\s*>\s*([^>\n]{2,20})/) : null;
-      boardName = bm ? bm[1].trim() : ((document.title || '').split('-')[0].replace(/SDGun/i, '').trim() || '版块');
-    }
+    const boardName = util.boardName();
 
     // 筛选链接：从被隐藏的脚手架提取（真实导航）
     const filterLinks = [];
@@ -581,8 +613,8 @@
   function mountForumList(SDG, opts) {
     // profile 1: bygsjw 富模板（分组容器 data-byginto）
     let data = [];
-    document.querySelectorAll('div[data-byginto]').forEach((g) => {
-      const name = (g.querySelector('h2 a') || {}).textContent || '';
+    document.querySelectorAll(SDG.forumList.group).forEach((g) => {
+      const name = (g.querySelector(SDG.forumList.groupName) || {}).textContent || '';
       const secs = [];
       g.querySelectorAll('li.cl').forEach((li) => {
         const a = li.querySelector('a[href*="mod=forumdisplay"]');
@@ -616,7 +648,7 @@
 
     // profile 3: h2 分组走查（其他未知变体兜底）
     if (!data.length) {
-      const els = document.querySelectorAll('h2, a[href*="forumdisplay"]');
+      const els = document.querySelectorAll(SDG.h2walk.groupHeader + ', ' + SDG.h2walk.sectionLink);
       let cur = null;
       const simple = [];
       els.forEach((n) => {
