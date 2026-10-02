@@ -52,6 +52,18 @@ const SDG = {
     toolbar: '.postlist_title',
   },
 
+  // 重绘激活时需隐藏的模板脚手架（逐变体枚举；白名单化替代霰弹枪隐藏）
+  scaffold: {
+    // Discuz 标准移动模板（mobile=1 简易首页）
+    standard: ['.hd', '.pd2', '.bm', '.footer'],
+    // bygsjw 富模板（版块列表 + 帖子列表 + 帖子页共通头部/页脚）
+    bygsjw: ['.header_z', '.header_c', '.header_y', '.hdc_xin', '.forumdisplay_top',
+             '.bm_xin', '.subforumshow', '.footer', '.pg', '.return_xin', '.byg_return',
+             '.postlist_title', '#mask'],
+    // 壳+AJAX 骨架变体
+    shell: ['.hd', '.ft', '.footer'],
+  },
+
   util: {
     contentAnchor: '#wp',
     boardHeaderFont: '.header_font',
