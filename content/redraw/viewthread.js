@@ -8,14 +8,34 @@
     const V = SDG.viewThread;
     const floors = [];
     const nodes = document.querySelectorAll(V.floor);
+
+    // fid 兜底来源：viewthread URL 通常无 fid——从页面链接（发帖/回帖）提取
+    let pageFid = (location.search.match(/fid=(\d+)/) || [])[1] || '';
+    if (!pageFid) {
+      const fidA = document.querySelector('a[href*="mod=post"]');
+      if (fidA) pageFid = (fidA.getAttribute('href').match(/fid=(\d+)/) || [])[1] || '';
+    }
+
     nodes.forEach((node) => {
-      const authorEl = node.querySelector(V.author);
-      const contentEl = node.querySelector(V.content);
-      if (!authorEl || !contentEl) return;
-      const timeEl = node.querySelector(V.date);
-      const floorEl = node.querySelector(V.postNumber);
+      let authorEl = node.querySelector(V.author);
+      let contentEl = node.querySelector(V.content);
+      let timeEl = node.querySelector(V.date);
+      let floorEl = node.querySelector(V.postNumber);
       const avatarEl = node.querySelector(V.authorAvatar);
-      const replyA = node.querySelector(V.replyAnchor);
+      let replyA = node.querySelector(V.replyAnchor);
+
+      // mobile=1 标准移动模板：内容在楼层头的兄弟节点（#postmessage_{pid}），头部元素形态不同
+      const pid = (node.id || '').replace('pid', '');
+      if (!authorEl || !contentEl) {
+        authorEl = node.querySelector('a[href*="mod=space"]');
+        contentEl = pid ? document.getElementById('postmessage_' + pid) : null;
+        timeEl = node.querySelector('em[id^="authorposton"] font, em[id^="authorposton"]');
+        floorEl = node.querySelector('em');
+        if (contentEl && pid && pageFid) {
+          replyA = null; // 无每楼回复链接，构造兜底（replyUrl 用 pageFid）
+        }
+      }
+      if (!authorEl || !contentEl) return;
       floors.push({
         replyHref: replyA ? replyA.getAttribute('href') : '',
         author: (authorEl.textContent || '').trim(),
@@ -24,7 +44,8 @@
         floor: floorEl ? (floorEl.textContent || '').trim() : '',
         avatar: avatarEl ? avatarEl.getAttribute('src') : '',
         content: contentEl,
-        pid: (node.id || '').replace('pid', ''),
+        pid,
+        fid: pageFid,
       });
     });
     return floors;
@@ -35,9 +56,9 @@
   }
 
   function replyUrl(f) {
-    const fid = (location.search.match(/fid=(\d+)/) || [])[1] || '';
+    const fid = f.fid || (location.search.match(/fid=(\d+)/) || [])[1] || '';
     const tid = (location.search.match(/tid=(\d+)/) || [])[1] || '';
-    return `forum.php?mod=post&action=reply&fid=${fid}&tid=${tid}&reppost=${f.pid}&extra=&mobile=2`;
+    return `forum.php?mod=post&action=reply&fid=${fid}&tid=${tid}&reppost=${f.pid}&extra=&mobile=1`;
   }
 
   function currentPage() {
@@ -56,16 +77,28 @@
 
   function mount(SDG, opts) {
     const B = window.SDGRedrawBase;
-    const container = document.querySelector(SDG.viewThread.container);
+    let container = document.querySelector(SDG.viewThread.container);
+    // mobile=1 标准移动模板：无 .postlist 容器——楼层头 div[id^=pid] 的共同父级即容器
+    if (!container) {
+      const first = document.querySelector(SDG.viewThread.floor);
+      container = first ? first.parentElement : null;
+    }
     if (!container) return false;
 
     const floors = parseFloors(SDG);
     if (!floors.length) return false; // fail-open: nothing parsed
 
     // 帖子标题：优先 h2（真实标题），排除工具栏文字（.postlist_title 里混着 全部回复/只看楼主）
+    // mobile=1 无 h2：title 形如 "板名+帖子标题SDGUN,..."——去板名取后半（用第一个楼层正文前缀比对不可靠，直接截断站名后缀）
     const h2el = container.querySelector('h2');
-    const title = h2el ? (h2el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80)
-      : (document.title || '').split('-')[0].trim();
+    let title;
+    if (h2el) {
+      title = (h2el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+    } else {
+      const raw = (document.title || '').split('-')[0].trim();
+      const cut = raw.indexOf('SDGUN,');
+      title = (cut > 0 ? raw.slice(0, cut) : raw).trim().slice(0, 80);
+    }
 
     const host = document.createElement('div');
     host.id = 'sdg-redraw-host';
