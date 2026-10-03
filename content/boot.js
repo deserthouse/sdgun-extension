@@ -107,7 +107,14 @@
       else if (SDG.page.isForumDisplay()) { ok = window.SDGRedraw.mountForumDisplay(SDG, opts); how = 'forumdisplay'; }
       else if (SDG.page.isForumList()) { ok = window.SDGRedraw.mountForumList(SDG, opts); how = 'forumlist'; }
     } catch (e) { ok = false; how = 'EXC ' + String(e).slice(0, 60); }
-    if (ok) { clearBadge(); }
+    if (ok) {
+      clearBadge();
+      // 内容页成功渲染 → 清丢参恢复预算，下一次被服务器踢回时有全额恢复机会
+      try {
+        Object.keys(sessionStorage).filter((k) => k.indexOf('sdg_rs:') === 0)
+          .forEach((k) => sessionStorage.removeItem(k));
+      } catch (e) { /* ignore */ }
+    }
     else if (how) {
       // 服务器抽风：bygsjw 页面常被截断成骨架（头部在、列表数据缺）。
       // 自动重载一次重试（sessionStorage 护栏防死循环），仍失败则停回退态。
