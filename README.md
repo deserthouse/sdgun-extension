@@ -2,7 +2,7 @@
 
 桌面浏览器访问 SDGun 论坛的社区扩展：UA 伪装 + 现代化卡片界面（Manifest V3，Chrome / Edge / Brave 等 Chromium 系浏览器通用）。
 
-论坛 `bbs.sdgun.com.cn` 通过服务端插件（closedonpc）屏蔽 PC 浏览器的 User-Agent，只放行移动端。本扩展一方面在网络层把发往 `*.sdgun.com.cn` 的请求改写为手机 UA（入口能力），另一方面在页面层把 Discuz 触屏版重绘为现代卡片式界面（v1.3.0 全部功能可在弹窗开关）：
+论坛 `bbs.sdgun.com.cn` 通过服务端插件（closedonpc）屏蔽 PC 浏览器的 User-Agent，只放行移动端。本扩展一方面在网络层把发往 `*.sdgun.com.cn` 的请求改写为手机 UA（入口能力），另一方面在页面层把 Discuz 触屏版重绘为现代卡片式界面（全部功能可在弹窗开关）：
 
 | 页面 | 效果 |
 |---|---|
@@ -22,14 +22,12 @@
 
 ## 工作原理
 
-- `rules/ua.json`：`declarativeNetRequest` 静态规则，把 `*.sdgun.com.cn` 请求的 User-Agent 改写为 Android Chrome UA；
-- `content/`：三个 content script——`selectors.js`（触屏版选择器集中表，模板改版只改这里）、`redraw.js`（Shadow DOM 卡片重绘层，样式隔离）、`boot.js`（偏好与页面类型路由）；
+- `rules/ua.json`：`declarativeNetRequest` 静态规则，把 `*.sdgun.com.cn` 请求的 User-Agent 改写为 Android Chrome UA（仅此一域）；
+- `content/navguard.js`（document_start）：导航守卫——记录内容页参数上下文，纠正论坛脚本的丢参跳转，把门户死端直送论坛列表；
+- `content/touchemu.js`（document_start、MAIN world）：补齐桌面浏览器的触摸能力特征（`ontouchend`），使论坛触屏模板不把桌面降级到丢参的简易版——仅影响展示形态，不改变可访问的内容；
+- `content/selectors.js`（触屏版选择器集中表，模板改版只改这里）+ `content/redraw/`（base 共享层 + 帖子页/帖子列表/版块列表三页面模块，Shadow DOM 卡片重绘层，样式隔离、fail-open）+ `content/boot.js`（偏好开关与页面类型路由），document_end 注入；
 - `chrome.storage.sync` 仅存储你的显示偏好（主题/开关），无其他任何数据进出；
-- 交互全部走真实页面导航（翻页/筛选/回帖均为真实 URL），**扩展自身不发起任何额外请求、不构造任何协议**；权限仅 `*.sdgun.com.cn` 域。
-
-## 隐私
-
-不收集、不上传、不分享任何数据；无统计、无埋点、无远程代码。详见 `PRIVACY.md`。
+- 交互全部走真实页面导航（翻页/筛选/回帖均为真实 URL），**扩展自身不发起任何额外请求、不构造任何协议**；权限仅 `*.sdgun.com.cn` 单域 + 本地偏好存储（`storage`）与弹窗「诊断当前页」按钮（`scripting`，按需读取注入状态）。
 
 ## 构建与自测
 
