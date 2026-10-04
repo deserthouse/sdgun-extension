@@ -41,15 +41,20 @@ python tools/extension_build.py --test
 
 ## 说明与免责（Disclaimer）
 
-- **本扩展是论坛网页的客户端外壳**：扩展内展示的全部内容与全部交互，均来自并发生在用户浏览器与 bbs.sdgun.com.cn 官方页面之间，等同于用户自行在浏览器中打开该网站。本扩展不产生、不修改、不存储、不中转任何论坛内容。
-- **非官方**：本扩展与 SDGun 论坛及其运营方无任何关联，未获其授权或认可，仓库不含任何论坛资源。
-- UA 伪装仅用于绕过论坛对 PC 端的**展示**限制，不涉及绕过任何权限、付费或访问控制；所有数据均为任何手机浏览器无需凭据即可公开访问的内容。
-- **AS IS / 免责**：在适用法律允许的最大范围内，本扩展按「现状」提供，不作任何明示或默示担保；开发者对本扩展及论坛内容不承担任何责任。使用本扩展即表示使用者同意自行遵守论坛规则并承担其使用行为的一切后果。
-- 平台用户协议可能禁止第三方客户端，本声明即对此事实的披露。
+**本扩展只起到外观美化的作用**：它将论坛自有的移动端触屏版页面在桌面浏览器中重新排版呈现，不提供任何页面内容之外的额外能力。本扩展的全部效用，等同于在手机上用浏览器直接访问 bbs.sdgun.com.cn——你能看到的一切内容、能进行的一切操作，与手机浏览器直接访问完全一致。
+
+- **不存储任何数据**：不收集、不存储、不上传、不分享任何用户数据与论坛内容；无统计、无埋点、无远程代码。唯一的本地数据是界面偏好（主题与功能开关，由浏览器自身保存），详见 `PRIVACY.md`。
+- **不提供任何逆向、破解服务**：不逆向论坛程序或协议，不破解任何权限、付费墙或访问控制；UA 改写仅用于解除论坛对 PC 端的展示限制，其呈现的全部内容均为任何手机浏览器无需凭据即可公开访问的内容。
+- **不侵犯任何版权**：本仓库不含任何论坛素材或资源，不复制、不分发任何受版权保护的内容；扩展内展示的一切内容版权归原权利人所有。
+- **不承担任何法律责任**：在适用法律允许的最大范围内，本扩展按「现状」（AS IS）提供，不作任何明示或默示担保；因使用本扩展产生的一切后果由使用者自行承担，开发者不承担任何责任。使用即表示同意自行遵守论坛规则。
+- **非官方**：本扩展与 SDGun 论坛及其运营方无任何关联，未获其授权或认可。
+- 论坛平台协议可能限制第三方客户端的存在，本声明即对这一事实的如实披露。
+
+**Disclaimer**: This extension is a purely cosmetic layer over the forum's own mobile pages; its effect is identical to visiting bbs.sdgun.com.cn directly in a browser on a phone. It stores no user data, provides no reverse-engineering or cracking services, infringes no copyright, and is provided AS IS without warranty of any kind — the developers assume no legal liability for its use. Unofficial; not affiliated with SDGun.
 
 ## AI 使用披露（AI Disclosure）
 
-本扩展的代码由 AI 辅助编写，经人类审阅、验收与决策（AI-assisted development with human review and acceptance）。
+本项目的全部代码由 AI 编写，不含任何人类编写成分；人类负责提出需求、审阅与验收（All code in this project is AI-written; humans define requirements and provide review and acceptance）。
 
 ---
 
