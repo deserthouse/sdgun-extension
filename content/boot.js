@@ -117,10 +117,13 @@
     }
     else if (how) {
       // 服务器抽风：bygsjw 页面常被截断成骨架（头部在、列表数据缺）。
+      // 两种骨架：容器整个缺失；容器在但内部无数据（.sub_forum 无任何版块链接——2026-10-04 实测形态）。
       // 自动重载一次重试（sessionStorage 护栏防死循环），仍失败则停回退态。
+      const containerEmpty = !!document.querySelector('.sub_forum')
+        && !document.querySelector('.sub_forum a[href*="forumdisplay"]');
       const looksTruncated = /mobile=\d/.test(location.search)
         && document.querySelector('.hd, .ft, .footer')
-        && !document.querySelector('ul.byg_threadlist_ul, .postlist, .sub_forum');
+        && (!document.querySelector('ul.byg_threadlist_ul, .postlist, .sub_forum') || containerEmpty);
       const key = 'sdg-retry:' + location.href;
       if (looksTruncated && !sessionStorage.getItem(key)) {
         sessionStorage.setItem(key, '1');
