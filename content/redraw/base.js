@@ -212,11 +212,13 @@
 
   // ---------- 挂载/卸载 ----------
   function unmount() {
-    for (const id of ['sdg-redraw-host', 'sdg-redraw-list']) {
+    for (const id of ['sdg-redraw-host', 'sdg-redraw-list', 'sdg-sidebar']) {
       const host = document.getElementById(id);
       if (host) host.remove();
     }
     document.documentElement.classList.remove('sdg-redraw-active');
+    document.documentElement.classList.remove('sdg-sb-on'); // 侧栏布局标记
+    document.querySelectorAll('style.sdg-sb-style').forEach((s) => s.remove());
     // 恢复挂载期间隐藏的一切（含简易容器/兄弟节点/legacy 列表）
     document.querySelectorAll('[data-sdg-hidden]').forEach((n) => {
       n.style.display = '';

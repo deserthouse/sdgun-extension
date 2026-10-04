@@ -102,6 +102,8 @@
     };
     const ver = 'v' + (window.SDG_VER || '');
     let ok = false, how = '';
+    // 幂等：重挂载前先卸载（主题切换经 onChanged 会重跑本函数，否则 host 叠层）
+    try { window.SDGRedraw.unmount(); } catch (e) { /* ignore */ }
     try {
       if (SDG.page.isViewThread()) { ok = window.SDGRedraw.mount(SDG, opts); how = 'viewthread'; }
       else if (SDG.page.isForumDisplay()) { ok = window.SDGRedraw.mountForumDisplay(SDG, opts); how = 'forumdisplay'; }
@@ -109,6 +111,12 @@
     } catch (e) { ok = false; how = 'EXC ' + String(e).slice(0, 60); }
     if (ok) {
       clearBadge();
+      // Batch2：左栏论坛树导航（树取会话缓存；主题切换经重挂载刷新配色/按钮文案）
+      try {
+        if (window.SDGRedraw.mountSidebar) {
+          window.SDGRedraw.mountSidebar({ dark: opts.dark, theme: prefs.theme });
+        }
+      } catch (e) { /* 侧栏失败不影响主内容 */ }
       // 内容页成功渲染 → 清丢参恢复预算，下一次被服务器踢回时有全额恢复机会
       try {
         Object.keys(sessionStorage).filter((k) => k.indexOf('sdg_rs:') === 0)

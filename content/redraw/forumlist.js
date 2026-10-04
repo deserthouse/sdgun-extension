@@ -126,7 +126,117 @@
     B.markActive();
     B.util.hideScaffold('standard');
     B.hideTrailingSiblings(anchor);
+    // Batch2 内容河：异步加载（不阻塞主渲染）
+    loadRiver(el, wrap, opts);
     return true;
+  }
+
+  // ---------- 内容河：最近回复（fid=39 最新 10 帖；每会话自动 1 请求 + 缓存 + 手动刷新） ----------
+  const RIVER_CSS = `
+    .river { background:#fff; border:1px solid rgba(0,0,0,.08); border-radius:12px;
+      padding:4px 0; margin:14px 0; }
+    .river .rhead { display:flex; align-items:center; padding:8px 16px 6px; }
+    .river .rhead .rt { font-weight:700; font-size:14.5px; color:#1c1917; flex:1; }
+    .river .rhead button { border:none; background:none; color:#a8a29e; font-size:12px;
+      cursor:pointer; padding:2px 6px; }
+    .river .rhead button:hover { color:#b01f28; }
+    .river a.ritem { display:flex; gap:10px; padding:6px 16px; font-size:13.5px;
+      color:#44403c; text-decoration:none; }
+    .river a.ritem:hover { background:#fafaf9; color:#b01f28; }
+    .river a.ritem .rt2 { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .river a.ritem .rd { flex:none; color:#a8a29e; font-size:12px; }
+    .river .rempty { padding:6px 16px 12px; color:#a8a29e; font-size:12.5px; }
+    :host(.dark) .river { background:#1a1b1e; border-color:#2c2d31; }
+    :host(.dark) .river .rhead .rt { color:#eceae8; }
+    :host(.dark) .river a.ritem { color:#d6d3d1; }
+    :host(.dark) .river a.ritem:hover { background:#1e1f23; color:#ff6b7a; }
+  `;
+  const RIVER_FID = 39;      // 站务公告——站方公告流，作为"最近动态"源
+  const RIVER_URL = `forum.php?mod=forumdisplay&fid=${RIVER_FID}&mobile=2`;
+
+  function parseRiverItems(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const items = [];
+    const seen = new Set();
+    doc.querySelectorAll('ul.byg_threadlist_ul > li.cl, li.cl').forEach((li) => {
+      const a = li.querySelector('a[href*="mod=viewthread"]');
+      if (!a) return;
+      const tid = (a.getAttribute('href').match(/tid=(\d+)/) || [])[1];
+      const t = (a.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!tid || seen.has(tid) || t.length < 6) return;
+      seen.add(tid);
+      items.push({ t: t.slice(0, 60), href: a.getAttribute('href') });
+    });
+    return items.slice(0, 10);
+  }
+
+  function renderRiver(box, el, items, opts) {
+    box.textContent = '';
+    const head = el('div', { class: 'rhead' }, [
+      el('span', { class: 'rt', text: '最近回复' }),
+    ]);
+    const rf = el('button', { text: '刷新', title: '重新获取（手动）' });
+    rf.addEventListener('click', () => {
+      try { sessionStorage.removeItem('sdg_river_done'); } catch (e) { /* */ }
+      loadRiver(el, box.closest('.wrap'), opts, true);
+    });
+    head.appendChild(rf);
+    box.appendChild(head);
+    if (!items.length) {
+      box.appendChild(el('div', { class: 'rempty', text: '暂未获取到（服务器不稳时常见）' }));
+      return;
+    }
+    items.forEach((it) => {
+      const a = el('a', { class: 'ritem', href: it.href });
+      a.appendChild(el('span', { class: 'rt2', text: it.t }));
+      a.appendChild(el('span', { class: 'rd', text: '' }));
+      box.appendChild(a);
+    });
+  }
+
+  function loadRiver(el, wrap, opts, force) {
+    if (!wrap) return;
+    try {
+      // 已有区块（刷新路径）则复用；否则插到筛选行/分组标题之前
+      let box = wrap.querySelector('.river');
+      const fresh = !box;
+      if (fresh) {
+        box = el('div', { class: 'river' });
+        const styleHost = box; // 样式走主 style 元素外挂：插入 RIVER_CSS 一次
+        wrap.insertBefore(box, wrap.querySelector('.group-title, .card, .hint'));
+      }
+      // 样式（一次性）
+      const host = wrap.getRootNode().host;
+      if (host && !host.dataset.riverCss) {
+        host.dataset.riverCss = '1';
+        const st = document.createElement('style');
+        st.textContent = RIVER_CSS;
+        host.shadowRoot.appendChild(st);
+      }
+      // 缓存优先
+      let items = [];
+      try {
+        const raw = sessionStorage.getItem('sdg_river_cache');
+        if (raw) items = JSON.parse(raw).items || [];
+      } catch (e) { /* */ }
+      const done = force ? false : !!sessionStorage.getItem('sdg_river_done');
+      if (items.length) renderRiver(box, el, items, opts);
+      if (done) return;
+      // 会话内首次：拉取（同源、复用页面 Cookie，限 1 次自动请求）
+      sessionStorage.setItem('sdg_river_done', '1');
+      fetch(RIVER_URL, { credentials: 'same-origin' })
+        .then((r) => r.text())
+        .then((html) => {
+          const parsed = parseRiverItems(html);
+          if (parsed.length) {
+            try { sessionStorage.setItem('sdg_river_cache', JSON.stringify({ t: Date.now(), items: parsed })); } catch (e) { /* */ }
+            renderRiver(box, el, parsed, opts);
+          } else if (!items.length) {
+            renderRiver(box, el, [], opts); // 空态（服务器壳）
+          }
+        })
+        .catch(() => { if (!items.length) renderRiver(box, el, [], opts); });
+    } catch (e) { /* 内容河失败静默 */ }
   }
 
   window.SDGRedraw = window.SDGRedraw || {};
