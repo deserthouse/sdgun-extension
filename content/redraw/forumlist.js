@@ -5,7 +5,7 @@
   'use strict';
   const B = window.SDGRedrawBase;
 
-  function mountForumList(SDG, opts) {
+  function mountForumList(SDG, opts, cachedGroups) {
     // profile 1: bygsjw 富模板（分组容器 data-byginto）
     let data = [];
     document.querySelectorAll(SDG.forumList.group).forEach((g) => {
@@ -67,7 +67,20 @@
       if (cur && cur.secs.length) simple.push(cur);
       data = simple;
     }
+    // P0-2：live 解析为空 + 会话缓存可用 → 渲染缓存树（服务器壳态降级，标注缓存）
+    let fromCache = false;
+    if (!data.length && cachedGroups && cachedGroups.length) {
+      data = cachedGroups;
+      fromCache = true;
+    }
     if (!data.length) return false;
+    // live 解析成功 → 写会话缓存（供壳态降级用）
+    if (!fromCache) {
+      try {
+        sessionStorage.setItem('sdg_tree_cache',
+          JSON.stringify({ t: Date.now(), groups: data.map((g) => ({ name: g.name, secs: g.secs })) }));
+      } catch (e) { /* 存储满则跳过 */ }
+    }
     // 简易变体的原列表容器（如 #forumlist）在渲染后隐藏
     const legacyList = document.getElementById(SDG.legacyListId);
     if (legacyList) B.hideEl(legacyList);
@@ -100,7 +113,9 @@
       });
       wrap.appendChild(card);
     });
-    wrap.appendChild(el('div', { class: 'hint', text: 'SDGun Web Access · 重绘层' }));
+    wrap.appendChild(el('div', { class: 'hint',
+      text: fromCache ? 'SDGun Web Access · 缓存内容（服务器未响应完整页面，点击卡片重新加载）'
+                      : 'SDGun Web Access · 重绘层' }));
 
     shadow.appendChild(wrap);
     // 隐藏原列表但保留结构

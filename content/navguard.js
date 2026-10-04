@@ -18,7 +18,8 @@
 
     const params = new URLSearchParams(location.search);
     const mod = params.get('mod');
-    const mobile = params.get('mobile');
+    // mobile=yes：misc.php?mod=mobile 选择器的落点形态（2026-10-04 测绘发现），按简易版同款处理
+    const mobile = params.get('mobile') === 'yes' ? '1' : params.get('mobile');
     const SKEY = 'sdg_nav_ctx';
 
     // ---- 内容页：记录上下文，不跳转 ----

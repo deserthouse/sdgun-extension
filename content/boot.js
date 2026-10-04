@@ -116,20 +116,30 @@
       } catch (e) { /* ignore */ }
     }
     else if (how) {
-      // 服务器抽风：bygsjw 页面常被截断成骨架（头部在、列表数据缺）。
-      // 两种骨架：容器整个缺失；容器在但内部无数据（.sub_forum 无任何版块链接——2026-10-04 实测形态）。
-      // 自动重载一次重试（sessionStorage 护栏防死循环），仍失败则停回退态。
-      const containerEmpty = !!document.querySelector('.sub_forum')
-        && !document.querySelector('.sub_forum a[href*="forumdisplay"]');
-      const looksTruncated = /mobile=\d/.test(location.search)
-        && document.querySelector('.hd, .ft, .footer')
-        && (!document.querySelector('ul.byg_threadlist_ul, .postlist, .sub_forum') || containerEmpty);
+      // 服务器抽风：bygsjw 页面常被截断成骨架/空壳（脚手架在、内容缺——两类形态，v1.7 统一判定）。
+      // 自动重载一次重试（sessionStorage 护栏防死循环），仍失败则试论坛树缓存，再失败停回退态。
+      const looksEmpty = (window.SDGRedrawBase && window.SDGRedrawBase.util.looksEmpty
+        && /mobile=\d/.test(location.search)) ? window.SDGRedrawBase.util.looksEmpty(how) : false;
       const key = 'sdg-retry:' + location.href;
-      if (looksTruncated && !sessionStorage.getItem(key)) {
+      if (looksEmpty && !sessionStorage.getItem(key)) {
         sessionStorage.setItem(key, '1');
         showBadge(ver + ' 服务器响应不完整，自动重试…');
         setTimeout(() => location.reload(), 2500);
         return;
+      }
+      // P0-2 论坛树缓存：壳态重试耗尽后，用会话内缓存树渲染（标注缓存），不再白屏
+      if (how === 'forumlist') {
+        try {
+          const raw = sessionStorage.getItem('sdg_tree_cache');
+          if (raw) {
+            const cache = JSON.parse(raw);
+            if (cache && cache.groups && cache.groups.length
+                && window.SDGRedraw.mountForumList(SDG, opts, cache.groups)) {
+              clearBadge();
+              return;
+            }
+          }
+        } catch (e) { /* 缓存损坏则走回退 */ }
       }
       // P1-3：两段式响应（壳+AJAX）——内容后到，观察容器出现后重挂载一次
       watchLateContent(() => {

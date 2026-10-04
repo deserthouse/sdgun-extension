@@ -270,6 +270,22 @@
       const list = groups[variant] || groups.standard || [];
       list.forEach((sel) => document.querySelectorAll(sel).forEach(hideEl));
     },
+    // 空壳判定（2026-10-04 全页覆盖，按页型）：脚手架在场 + 该页型内容签名缺失 = 服务器壳响应。
+    // 按页型隔离签名——m1 帖子页的 div.bm 里也有 forumdisplay 面包屑，全局 OR 链会误判（单测抓出）。
+    // kind: 'forumlist' | 'forumdisplay' | 'viewthread'
+    looksEmpty(kind) {
+      if (!document.querySelector('.hd, .ft, .footer')) return false; // 结构都不在：非壳（错误页另管）
+      if (kind === 'forumlist') {
+        return !document.querySelector('.sub_forum a[href*="forumdisplay"], div.bm a[href*="mod=forumdisplay"]');
+      }
+      if (kind === 'forumdisplay') {
+        return !document.querySelector('a[href*="mod=viewthread"], a[href*="tid="]');
+      }
+      if (kind === 'viewthread') {
+        return !document.querySelector('[id^="postmessage_"], div[id^="pid"]');
+      }
+      return false;
+    },
   };
 
   window.SDGRedrawBase = {
