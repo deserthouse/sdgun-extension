@@ -117,6 +117,12 @@
           window.SDGRedraw.mountSidebar({ dark: opts.dark, theme: prefs.theme });
         }
       } catch (e) { /* 侧栏失败不影响主内容 */ }
+      // Batch3：帖子页右栏（楼主卡+楼层速览，仅 viewthread 有 lastFloors）
+      try {
+        if (how === 'viewthread' && window.SDGRedraw.mountRail) {
+          window.SDGRedraw.mountRail({ dark: opts.dark });
+        }
+      } catch (e) { /* 右栏失败不影响主内容 */ }
       // 内容页成功渲染 → 清丢参恢复预算，下一次被服务器踢回时有全额恢复机会
       try {
         Object.keys(sessionStorage).filter((k) => k.indexOf('sdg_rs:') === 0)

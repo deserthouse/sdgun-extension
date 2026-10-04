@@ -252,6 +252,8 @@
     B.hideTrailingSiblings(anchor0);
 
     B.wireLightbox(shadow);
+    // Batch3：导出楼层数据供右栏（楼主卡+速览）使用
+    try { window.SDGRedraw.lastFloors = floors; } catch (e) { /* ignore */ }
 
     return true;
   }
