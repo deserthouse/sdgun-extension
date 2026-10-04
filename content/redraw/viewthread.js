@@ -1,8 +1,42 @@
-// redraw/viewthread.js — 帖子详情页卡片重绘（parseFloors + mount）。
+// redraw/viewthread.js — 帖子详情页重绘（parseFloors + mount）。
 // 依赖：redraw/base.js（先加载）。挂载入口挂到 window.SDGRedraw.mount。
+// 渲染：v1.8 楼层双列（蓝图 L2）——左头像列 72px + 右内容列；楼主楼层徽标+左边条（全部 OP 楼，
+// 非仅首楼）；回复钮沉底右对齐。
 (function () {
   'use strict';
   const B = window.SDGRedrawBase;
+
+  // 楼层双列样式（追加在共享 CSS 之后；.body 等内容样式复用 base 层）
+  const FLOOR_CSS = `
+    .fcard { display:flex; gap:14px; background:#fff; border:1px solid rgba(0,0,0,.08);
+      border-radius:12px; padding:14px 16px; margin:10px 0; }
+    .fcard.opf { border-left:3px solid #b01f28; }
+    .fcard.flash { outline: 2px solid #b01f28; outline-offset: -2px; }
+    .fava { flex:none; width:72px; display:flex; flex-direction:column; align-items:center; gap:6px; }
+    .fava img { width:64px; height:64px; border-radius:12px; object-fit:cover; background:#e7e5e4; }
+    .fava .afb { width:64px; height:64px; border-radius:12px; background:#d6d3d1; color:#57534e;
+      display:flex; align-items:center; justify-content:center; font-size:26px; font-weight:700; }
+    .fmain { flex:1; min-width:0; display:flex; flex-direction:column; }
+    .fhead { display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
+    .fhead .author { font-weight:600; color:#1c1917; text-decoration:none; font-size:14.5px; }
+    .fhead .author:hover { color:#b01f28; }
+    .badge-op { font-size:11px; font-weight:700; color:#fff; background:#b01f28;
+      border-radius:4px; padding:1px 7px; letter-spacing:.5px; flex:none; }
+    .fhead .meta { color:#a8a29e; font-size:12px; }
+    .fhead .floor { margin-left:auto; color:#a8a29e; font-size:12.5px; flex:none; }
+    .ffoot { display:flex; justify-content:flex-end; margin-top:10px; }
+    .ffoot .reply { font-size:12px; color:#a8a29e; text-decoration:none;
+      border:1px solid rgba(0,0,0,.12); border-radius:6px; padding:3px 12px; }
+    .ffoot .reply:hover { color:#b01f28; border-color:#b01f28; }
+    :host(.dark) .fcard { background:#1a1b1e; border-color:#2c2d31; }
+    :host(.dark) .fcard.opf { border-left-color:#ff6b7a; }
+    :host(.dark) .fava img, :host(.dark) .fava .afb { background:#232326; }
+    :host(.dark) .fhead .author { color:#e7e5e4; }
+    :host(.dark) .fhead .author:hover { color:#ff6b7a; }
+    :host(.dark) .badge-op { background:#ff6b7a; color:#1a1b1e; }
+    :host(.dark) .ffoot .reply { color:#78716c; border-color:#3a3b40; }
+    :host(.dark) .ffoot .reply:hover { color:#ff6b7a; border-color:#ff6b7a; }
+  `;
 
   function parseFloors(SDG) {
     const V = SDG.viewThread;
@@ -105,7 +139,7 @@
     host.classList.add('sdg-host');
     const shadow = host.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
-    style.textContent = B.CSS;
+    style.textContent = B.CSS + FLOOR_CSS;
     shadow.appendChild(style);
     if (opts.dark) host.classList.add('dark');
 
@@ -152,17 +186,25 @@
     wrap.appendChild(tools);
 
     floors.forEach((f, i) => {
-      const head = el('div', { class: 'head' });
-      if (f.avatar) {
-        head.appendChild(el('img', { class: 'avatar', src: f.avatar, alt: '' }));
-      } else {
-        const fb = f.author ? f.author[0].toUpperCase() : '?';
-        head.appendChild(el('div', { class: 'avatar-fallback', text: fb }));
-      }
+      const isOp = opUid && (f.authorHref.match(/uid=(\d+)/) || [])[1] === opUid;
+      const card = el('div', { class: 'fcard' + (isOp ? ' opf' : '') });
+      card.setAttribute('data-floor', String(floorNum(f) || i + 1));
+
+      // 左：头像列（72px）
+      const ava = el('div', { class: 'fava' });
+      if (f.avatar) ava.appendChild(el('img', { src: f.avatar, alt: '', loading: 'lazy' }));
+      else ava.appendChild(el('div', { class: 'afb', text: f.author ? f.author[0].toUpperCase() : '?' }));
+      card.appendChild(ava);
+
+      // 右：内容列（头行 → 正文 → 底行）
+      const main = el('div', { class: 'fmain' });
+      const head = el('div', { class: 'fhead' });
       head.appendChild(el('a', { class: 'author', text: f.author || '匿名', href: f.authorHref }));
+      if (isOp) head.appendChild(el('span', { class: 'badge-op', text: '楼主' }));
       head.appendChild(el('span', { class: 'meta', text: f.time }));
-      head.appendChild(el('a', { class: 'reply', text: '回复', href: f.replyHref || replyUrl(f) }));
       head.appendChild(el('span', { class: 'floor', text: f.floor || `${i + 1}#` }));
+      main.appendChild(head);
+
       const body = el('div', { class: 'body' });
       try {
         body.appendChild(f.content.cloneNode(true));
@@ -171,8 +213,13 @@
           img.decoding = 'async';
         });
       } catch (e) { /* skip floor content */ }
-      const card = el('div', { class: 'card' + (i === 0 ? ' op' : '') }, [head, body]);
-      card.setAttribute('data-floor', String(floorNum(f) || i + 1));
+      main.appendChild(body);
+
+      const foot = el('div', { class: 'ffoot' });
+      foot.appendChild(el('a', { class: 'reply', text: '回复', href: f.replyHref || replyUrl(f) }));
+      main.appendChild(foot);
+
+      card.appendChild(main);
       wrap.appendChild(card);
     });
 

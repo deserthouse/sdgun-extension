@@ -1,9 +1,45 @@
-// redraw/forumdisplay.js — 帖子列表页卡片流重绘（parseThreads + mountForumDisplay）。
+// redraw/forumdisplay.js — 帖子列表页重绘（parseThreads + mountForumDisplay）。
 // 依赖：redraw/base.js（先加载）。挂载入口挂到 window.SDGRedraw.mountForumDisplay。
 // 双 profile：bygsjw 富模板（ul.byg_threadlist_ul）→ 简易模板变体（锚点防御式解析）。
+// 渲染：v1.8 起行式列表（PC 密度，layout_blueprint L1）——缩略图+标题+作者时间+右对齐统计，
+// 悬停标题浮出预览图；字段缺失逐项降级（服务器多形态，解析产出为准）。
 (function () {
   'use strict';
   const B = window.SDGRedrawBase;
+
+  // 行式列表样式（追加在共享 LIST_CSS 之后；暗色跟 :host(.dark) 约定）
+  const ROW_CSS = `
+    .rows { margin-top: 4px; }
+    .trow { position:relative; display:flex; align-items:center; gap:12px;
+      background:#fff; border:1px solid rgba(0,0,0,.08); border-radius:10px;
+      padding:9px 14px; margin:7px 0; }
+    .trow .thumb { width:52px; height:52px; border-radius:8px; object-fit:cover;
+      flex:none; background:#f5f5f4; }
+    .trow .main { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+    .trow .t { font-size:14.5px; font-weight:600; color:#1c1917; text-decoration:none;
+      line-height:1.4; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .trow .t:hover { color:#b01f28; }
+    .trow .sub { font-size:12px; color:#a8a29e; display:flex; gap:10px; min-width:0; }
+    .trow .sub a { color:#78716c; text-decoration:none; }
+    .trow .sub a:hover { color:#b01f28; }
+    .trow .sub .d { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .trow .stats { flex:none; text-align:right; font-size:12px; color:#a8a29e; line-height:1.5; }
+    .trow .stats b { display:block; font-size:14px; color:#57534e; font-weight:600; }
+    .trow .hoverp { display:none; position:absolute; right:8px; top:calc(100% + 4px); z-index:60;
+      background:#fff; border:1px solid rgba(0,0,0,.12); border-radius:10px; padding:6px;
+      box-shadow:0 8px 24px rgba(0,0,0,.14); gap:4px; }
+    .trow .hoverp img { width:150px; height:100px; object-fit:cover; border-radius:6px; background:#f5f5f4; }
+    .trow:hover .hoverp { display:flex; }
+    :host(.dark) .trow { background:#1a1b1e; border-color:#2c2d31; }
+    :host(.dark) .trow .t { color:#e7e5e4; }
+    :host(.dark) .trow .t:hover { color:#ff6b7a; }
+    :host(.dark) .trow .thumb, :host(.dark) .trow .hoverp img { background:#232326; }
+    :host(.dark) .trow .sub, :host(.dark) .trow .stats { color:#78716c; }
+    :host(.dark) .trow .sub a { color:#a8a29e; }
+    :host(.dark) .trow .sub a:hover { color:#ff6b7a; }
+    :host(.dark) .trow .stats b { color:#d6d3d1; }
+    :host(.dark) .trow .hoverp { background:#1c1d21; border-color:#3a3b40; }
+  `;
 
   function parseThreads(SDG) {
     const F = SDG.forumDisplay;
@@ -78,7 +114,7 @@
     host.classList.add('sdg-host');
     const shadow = host.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
-    style.textContent = B.LIST_CSS;
+    style.textContent = B.LIST_CSS + ROW_CSS;
     shadow.appendChild(style);
     if (opts.dark) host.classList.add('dark');
 
@@ -118,41 +154,53 @@
       return true;
     }
 
-    const pager = el('div', { class: 'pager' });
     const nextA = B.util.pagerAnchor('next');
     const prevA = B.util.pagerAnchor('prev');
-    const prev = el('button', { text: '上一页' });
-    if (prevA) prev.addEventListener('click', () => { location.href = prevA.getAttribute('href'); });
-    else prev.disabled = true;
-    const next = el('button', { text: '下一页' });
-    if (nextA) next.addEventListener('click', () => { location.href = nextA.getAttribute('href'); });
-    else next.disabled = true;
-    pager.appendChild(prev); pager.appendChild(next);
+    // 工厂：cloneNode 不复制监听器，顶/底两份分页各自新建
+    const makePager = () => {
+      const box = el('div', { class: 'pager' });
+      const pv = el('button', { text: '上一页' });
+      if (prevA) pv.addEventListener('click', () => { location.href = prevA.getAttribute('href'); });
+      else pv.disabled = true;
+      const nx = el('button', { text: '下一页' });
+      if (nextA) nx.addEventListener('click', () => { location.href = nextA.getAttribute('href'); });
+      else nx.disabled = true;
+      box.appendChild(pv); box.appendChild(nx);
+      return box;
+    };
 
-    const page = B ? 1 : 1; // 占位（卡片流不显示页码，保留结构）
-
+    // 行式列表（蓝图 L1：PC 密度；顶部+底部双分页）
+    wrap.appendChild(makePager());
+    const rowsBox = el('div', { class: 'rows' });
     threads.forEach((t) => {
-      const head = el('div', { class: 'head' }, [
-        el('a', { class: 'title', text: t.title || '(无题)', href: t.href }),
-      ]);
-      const meta = [];
-      if (t.author) meta.push(el('a', { class: 'author', text: t.author, href: t.authorHref }));
-      if (t.date) meta.push(el('span', { class: 'meta', text: t.date }));
-      if (t.replies || t.views) meta.push(el('span', { class: 'stat', text: `回复 ${t.replies || 0} · 查看 ${t.views || 0}` }));
-      meta.push(el('span', { class: 'floor', text: '' }));
-      head.appendChild(el('div', { class: 'meta-row' }, meta));
-      const card = el('div', { class: 'card' }, [head]);
+      const row = el('div', { class: 'trow' });
       if (t.preview && t.preview.length) {
-        const pv = el('div', { class: 'preview' + (t.preview.length > 1 ? ' grid' : '') });
-        t.preview.slice(0, 3).forEach((src) => {
-          pv.appendChild(el('img', { src, alt: '', loading: 'lazy' }));
-        });
-        card.appendChild(pv);
+        row.appendChild(el('img', { class: 'thumb', src: t.preview[0], alt: '', loading: 'lazy' }));
       }
-      wrap.appendChild(card);
+      const main = el('div', { class: 'main' });
+      main.appendChild(el('a', { class: 't', text: t.title || '(无题)', href: t.href }));
+      const sub = el('div', { class: 'sub' });
+      if (t.author) sub.appendChild(el('a', { text: t.author, href: t.authorHref || '#' }));
+      if (t.date) sub.appendChild(el('span', { class: 'd', text: t.date }));
+      main.appendChild(sub);
+      row.appendChild(main);
+      if (t.replies || t.views) {
+        const st = el('div', { class: 'stats' });
+        st.appendChild(el('b', { text: t.replies || '0' }));
+        st.appendChild(el('span', { text: `回复 / 查看 ${t.views || 0}` }));
+        row.appendChild(st);
+      }
+      if (t.preview && t.preview.length > 1) {
+        const hp = el('div', { class: 'hoverp' });
+        t.preview.slice(0, 3).forEach((src) => {
+          hp.appendChild(el('img', { src, alt: '', loading: 'lazy' }));
+        });
+        row.appendChild(hp);
+      }
+      rowsBox.appendChild(row);
     });
-
-    wrap.appendChild(pager);
+    wrap.appendChild(rowsBox);
+    wrap.appendChild(makePager());
     wrap.appendChild(el('div', { class: 'hint', text: 'SDGun Web Access · 重绘层（真实导航）' }));
 
     shadow.appendChild(wrap);
