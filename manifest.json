@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SDGun Forum Web Access",
-  "version": "1.6.4",
+  "version": "1.6.5",
   "description": "Browse the SDGun forum (Discuz touch version) from a desktop browser: presents a mobile User-Agent for requests to *.sdgun.com.cn and applies a modern reading theme (wide layout, dark mode, image lightbox).",
   "author": "deserthouse",
   "homepage_url": "https://github.com/deserthouse/sdgun-extension",
