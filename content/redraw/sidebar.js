@@ -8,7 +8,7 @@
   const SB_CSS = `
     :host { all:initial; display:block; box-sizing:border-box;
       position:fixed; left:0; top:0; bottom:0; width:212px; z-index:2147483000;
-      background:rgba(250,250,250,.97); border-right:1px solid rgba(0,0,0,.08);
+      background:rgba(250,250,250,1); border-right:1px solid rgba(0,0,0,.08);
       font-family:system-ui,"Segoe UI","Microsoft YaHei",sans-serif; font-size:13px;
       color:#292524; overflow-y:auto; padding:14px 12px; }
     :host .brand { font-weight:700; font-size:14px; color:#b01f28; text-decoration:none;
@@ -38,7 +38,7 @@
     @media (prefers-color-scheme: dark), (dark) { }
   `;
   const SB_CSS_DARK = `
-    :host { background:rgba(17,18,20,.97); border-right-color:#2c2d31; color:#d6d3d1; }
+    :host { background:rgba(17,18,20,1); border-right-color:#2c2d31; color:#d6d3d1; }
     :host a.home { color:#e7e5e4; }
     :host a.home:hover { background:rgba(255,107,122,.12); }
     :host a.bd { color:#d6d3d1; }

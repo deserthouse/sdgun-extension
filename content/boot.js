@@ -38,6 +38,8 @@
     root.classList.toggle('sdg-page-forumlist', SDG.page.isForumList());
     root.classList.toggle('sdg-page-forumdisplay', SDG.page.isForumDisplay());
     root.classList.toggle('sdg-page-viewthread', SDG.page.isViewThread());
+    // L3 登录页（member.php）：PC 排版注入钩子（theme.css 按此标签限宽居中）
+    root.classList.toggle('sdg-page-login', /\/member\.php$/.test(location.pathname));
   }
 
   // ---- page-type tag immediately (CSS applies before prefs arrive) ----
@@ -117,6 +119,17 @@
           window.SDGRedraw.mountSidebar({ dark: opts.dark, theme: prefs.theme });
         }
       } catch (e) { /* 侧栏失败不影响主内容 */ }
+      // 视觉审计修复：顶栏让位（侧栏/右栏激活时给宿主打位移类）
+      try {
+        const sbOn = document.documentElement.classList.contains('sdg-sb-on');
+        const rtOn = document.documentElement.classList.contains('sdg-rt-on');
+        for (const id of ['sdg-redraw-list', 'sdg-redraw-host']) {
+          const h = document.getElementById(id);
+          if (!h) continue;
+          h.classList.toggle('sb-shift', sbOn);
+          h.classList.toggle('rt-shift', rtOn);
+        }
+      } catch (e) { /* ignore */ }
       // Batch3：帖子页右栏（楼主卡+楼层速览，仅 viewthread 有 lastFloors）
       try {
         if (how === 'viewthread' && window.SDGRedraw.mountRail) {

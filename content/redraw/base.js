@@ -71,6 +71,11 @@
     :host(.dark) .filters .fchip { background:#1c1d21; border-color:#3a3b40; color:#a8a29e; }
     :host(.dark) .filters .fchip:hover { border-color:#ff6b7a; color:#ff6b7a; }
     :host(.dark) .empty-text { color:#78716c; }
+    /* 视觉审计修复：侧栏/右栏激活时顶栏让位（boot 加 sb-shift/rt-shift 类） */
+    :host(.sb-shift) .topbar { left: 212px; }
+    @media (max-width: 1023px) { :host(.sb-shift) .topbar { left: 0; } }
+    :host(.rt-shift) .topbar { right: 216px; }
+    @media (max-width: 1279px) { :host(.rt-shift) .topbar { right: 0; } }
   `;
 
   // ---------- 帖子页样式 ----------
@@ -164,6 +169,10 @@
     :host(.dark) .body a { color: #ff6b7a; }
     :host(.dark) .pager button { background: #1c1d21; border-color:#3a3b40; color:#d6d3d1; }
     :host(.dark) .pager button:hover { border-color:#ff6b7a; color:#ff6b7a; }
+    :host(.sb-shift) .topbar { left: 212px; }
+    @media (max-width: 1023px) { :host(.sb-shift) .topbar { left: 0; } }
+    :host(.rt-shift) .topbar { right: 216px; }
+    @media (max-width: 1279px) { :host(.rt-shift) .topbar { right: 0; } }
   `;
 
   // ---------- DOM 小工具 ----------

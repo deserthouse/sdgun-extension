@@ -271,3 +271,76 @@ html.sdg-redraw-active body {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* ===== 视觉审计修复（2026-10-04） ===== */
+
+/* L3 登录页 PC 排版：限宽居中，不再全屏拉伸（页标签由 boot 打） */
+html.sdg-page-login .wp {
+  max-width: 560px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+html.sdg-page-login form input[type="text"],
+html.sdg-page-login form input[type="password"],
+html.sdg-page-login form select {
+  max-width: 100%;
+}
+
+/* 深色下原生表单控件（登录页 select 白盒等） */
+html.sdg-theme-dark select,
+html.sdg-theme-dark input[type="text"],
+html.sdg-theme-dark input[type="password"],
+html.sdg-theme-dark input[type="email"],
+html.sdg-theme-dark textarea {
+  background: #1c1d21;
+  color: #d6d3d1;
+  border: 1px solid #3a3b40;
+}
+html.sdg-theme-dark select option {
+  background: #1c1d21;
+  color: #d6d3d1;
+}
+html.sdg-theme-dark input[type="checkbox"],
+html.sdg-theme-dark input[type="radio"] {
+  accent-color: #ff6b7a;
+  border: 1px solid #3a3b40;
+}
+
+/* 登录页自定义下拉装饰层（span_question 叠在 select 上）暗色覆盖 */
+html.sdg-theme-dark .span_question,
+html.sdg-theme-dark .sel_list,
+html.sdg-theme-dark .login_sec,
+html.sdg-theme-dark .sec {
+  background: #1c1d21 !important;
+  color: #d6d3d1 !important;
+  border-color: #3a3b40;
+}
+html.sdg-theme-dark .questionli,
+html.sdg-theme-dark .login_from li {
+  background: #1c1d21 !important;
+}
+html.sdg-theme-dark .login_from li > * {
+  background: transparent;
+}
+html.sdg-theme-dark select.sel_list {
+  -webkit-appearance: none;
+  appearance: none;
+}
+html.sdg-theme-dark .login_select::after,
+html.sdg-theme-dark .questionli::after,
+html.sdg-theme-dark .login_from li::after,
+html.sdg-theme-dark .login_select i,
+html.sdg-theme-dark .login_select em {
+  background: transparent !important;
+  background-image: none !important;
+  color: transparent !important;
+  border-left-color: transparent;
+  border-top-color: transparent;
+}
+html.sdg-theme-dark .span_question::after,
+html.sdg-theme-dark .span_question i,
+html.sdg-theme-dark .span_question em {
+  background: transparent !important;
+  background-image: none !important;
+  color: transparent !important;
+}
