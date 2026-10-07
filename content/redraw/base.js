@@ -187,6 +187,29 @@
     return n;
   }
 
+  // 克隆内容规范化（2026-10-05 用户实机截图定位）：
+  // ①移除模板编辑记录（i.pstatus"本帖最后由…编辑"——元数据噪音，与楼层时间戳重复）；
+  // ②内联 rem 字号换算为 px：站点内容用移动 rem 方案（.18rem 在 375px 手机=18px，根=100px），
+  //   PC 上根字号被 flexible.js 膨胀到数百 px，rem 原样进 Shadow DOM 会爆成巨字（.18rem→72px 实测）。
+  //   按"rem×100=设计 px"换算保留作者意图。
+  function normalizeCloned(root) {
+    if (!root) return;
+    try {
+      if (root.matches && root.matches('i.pstatus')) { root.remove(); return; }
+      root.querySelectorAll('i.pstatus').forEach((n) => n.remove());
+      // 含根元素自身（克隆根常带内联 rem 字号，querySelectorAll 不含根）
+      const all = [root, ...root.querySelectorAll('*')];
+      all.forEach((e) => {
+        const st = e.getAttribute && e.getAttribute('style');
+        if (!st || st.indexOf('rem') === -1) return;
+        e.setAttribute('style', st.replace(/(-?\d*\.?\d+)rem/g, (_, v) => {
+          return (Math.round(parseFloat(v) * 1000) / 10) + 'px';
+        }));
+      });
+    } catch (e) { /* 规范化失败不影响主内容 */ }
+  }
+
+
   function markActive() {
     document.documentElement.classList.add('sdg-redraw-active');
   }
@@ -302,7 +325,7 @@
 
   window.SDGRedrawBase = {
     LIST_CSS, CSS, el, markActive, hideEl, hideTrailingSiblings,
-    wireLightbox, unmount, util,
+    wireLightbox, unmount, util, normalizeCloned,
   };
   // unmount 挂到主命名空间（boot.js 的开关切换调用 window.SDGRedraw.unmount）
   window.SDGRedraw = window.SDGRedraw || {};

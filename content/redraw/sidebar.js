@@ -81,22 +81,37 @@
     shadow.appendChild(el('a', { class: 'home', text: '论坛首页', href: 'forum.php?forumlist=1&mobile=2' }));
 
     const curFid = (location.search.match(/fid=(\d+)/) || [])[1];
-    groups.forEach((g) => {
-      if (!g.secs || !g.secs.length) return;
-      shadow.appendChild(el('div', { class: 'grp', text: g.name || '板块' }));
-      g.secs.forEach((s) => {
-        const a = el('a', { class: 'bd' + (String(s.fid) === curFid ? ' cur' : ''),
-          href: `forum.php?mod=forumdisplay&fid=${s.fid}&mobile=2` });
-        if (s.icon) {
-          const im = el('img', { src: s.icon, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
-          a.appendChild(im);
-        }
-        a.appendChild(el('span', { class: 'nm', text: s.name || `fid${s.fid}` }));
-        shadow.appendChild(a);
-      });
-    });
-
     const foot = el('div', { class: 'foot' });
+    // 树渲染（插入到 foot 之前）；跨标签副本（storage.local）供深链/新标签无会话缓存时异步补渲染
+    function renderGroups(arr) {
+      if (!arr || !arr.length || host.dataset.treeFilled) return;
+      host.dataset.treeFilled = '1';
+      shadow.querySelectorAll('.grp, a.bd').forEach((n) => n.remove());
+      arr.forEach((g) => {
+        if (!g.secs || !g.secs.length) return;
+        const grp = el('div', { class: 'grp', text: g.name || '板块' });
+        shadow.insertBefore(grp, foot);
+        g.secs.forEach((s) => {
+          const a = el('a', { class: 'bd' + (String(s.fid) === curFid ? ' cur' : ''),
+            href: `forum.php?mod=forumdisplay&fid=${s.fid}&mobile=2` });
+          if (s.icon) {
+            const im = el('img', { src: s.icon, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
+            a.appendChild(im);
+          }
+          a.appendChild(el('span', { class: 'nm', text: s.name || `fid${s.fid}` }));
+          shadow.insertBefore(a, foot);
+        });
+      });
+    }
+    renderGroups(groups);
+    try {
+      chrome.storage.local.get({ sdg_tree_cache_ls: null }, (st) => {
+        try {
+          if (st && st.sdg_tree_cache_ls) renderGroups(JSON.parse(st.sdg_tree_cache_ls).groups);
+        } catch (e) { /* ignore */ }
+      });
+    } catch (e) { /* storage 不可用 */ }
+
     const btn = el('button', { class: 'theme', text: THEME_LABEL[(opts && opts.theme) || 'auto'] });
     btn.addEventListener('click', () => {
       try {

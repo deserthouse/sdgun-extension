@@ -207,7 +207,9 @@
 
       const body = el('div', { class: 'body' });
       try {
-        body.appendChild(f.content.cloneNode(true));
+        const clone = f.content.cloneNode(true);
+        B.normalizeCloned(clone);
+        body.appendChild(clone);
         body.querySelectorAll('img').forEach((img) => {
           img.loading = 'lazy';
           img.decoding = 'async';

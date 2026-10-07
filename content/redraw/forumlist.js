@@ -76,10 +76,12 @@
     if (!data.length) return false;
     // live 解析成功 → 写会话缓存（供壳态降级用）
     if (!fromCache) {
+      const payload = JSON.stringify({ t: Date.now(), groups: data.map((g) => ({ name: g.name, secs: g.secs })) });
       try {
-        sessionStorage.setItem('sdg_tree_cache',
-          JSON.stringify({ t: Date.now(), groups: data.map((g) => ({ name: g.name, secs: g.secs })) }));
+        sessionStorage.setItem('sdg_tree_cache', payload);
       } catch (e) { /* 存储满则跳过 */ }
+      // 跨标签持久副本（新标签深链打开时侧栏树仍可用）
+      try { chrome.storage.local.set({ sdg_tree_cache_ls: payload }); } catch (e) { /* ignore */ }
     }
     // 简易变体的原列表容器（如 #forumlist）在渲染后隐藏
     const legacyList = document.getElementById(SDG.legacyListId);
