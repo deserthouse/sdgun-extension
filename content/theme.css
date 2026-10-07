@@ -344,3 +344,28 @@ html.sdg-theme-dark .span_question em {
   background-image: none !important;
   color: transparent !important;
 }
+
+/* 搜索页 PC 排版：限宽居中（与登录页同款处理） */
+html.sdg-page-search .wp {
+  max-width: 760px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+/* flexible.js 按屏宽把 html 字号膨胀到数百 px（移动 rem 方案），直接压回会塌布局——
+   改用手机框：根字号锁 42px（=420px 设计宽/10），body 限宽居中，页面按手机原比例渲染 */
+html.sdg-page-search {
+  font-size: 42px !important;
+}
+html.sdg-page-search body {
+  max-width: 420px !important;
+  margin: 0 auto !important;
+  background: #f4f4f4 !important;
+}
+html.sdg-theme-dark.sdg-page-search body {
+  background: #111 !important;
+}
+html.sdg-page-search button,
+html.sdg-page-login button {
+  white-space: nowrap;
+}

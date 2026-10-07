@@ -38,8 +38,9 @@
     root.classList.toggle('sdg-page-forumlist', SDG.page.isForumList());
     root.classList.toggle('sdg-page-forumdisplay', SDG.page.isForumDisplay());
     root.classList.toggle('sdg-page-viewthread', SDG.page.isViewThread());
-    // L3 登录页（member.php）：PC 排版注入钩子（theme.css 按此标签限宽居中）
+    // L3 登录/搜索页（member.php / search.php）：PC 排版注入钩子（theme.css 按此标签限宽居中）
     root.classList.toggle('sdg-page-login', /\/member\.php$/.test(location.pathname));
+    root.classList.toggle('sdg-page-search', /\/search\.php$/.test(location.pathname));
   }
 
   // ---- page-type tag immediately (CSS applies before prefs arrive) ----
