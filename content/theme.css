@@ -379,3 +379,11 @@ html.sdg-page-search .hdc_xin {
   width: 420px !important;
   transform: translateX(-50%) !important;
 }
+
+/* 深色登录页白块真凶（v1.10.1 起三轮未除，本轮 elementsFromPoint 定位）：
+   .login_select .icon-arrow 是站点下拉箭头指示器，站点给它白底。
+   深色下改暗底 + 箭头文字用浅色（保留下拉可视提示） */
+html.sdg-theme-dark .login_select .icon-arrow {
+  background: #3a3b40 !important;
+  color: #d6d3d1 !important;
+}
