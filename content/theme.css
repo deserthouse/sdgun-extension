@@ -355,7 +355,9 @@ html.sdg-page-search .wp {
 /* flexible.js 按屏宽把 html 字号膨胀到数百 px（移动 rem 方案），直接压回会塌布局——
    改用手机框：根字号锁 42px（=420px 设计宽/10），body 限宽居中，页面按手机原比例渲染 */
 html.sdg-page-search {
-  font-size: 42px !important;
+  /* 站点 flexible.js 基准=视口宽/3.75（375 设计宽）。要在 PC 上按 420px 手机宽渲染，
+     根字号须为 420/3.75=112px；此前误设 42px 使全部 rem 元素等比缩水约 2.7 倍 */
+  font-size: 112px !important;
 }
 html.sdg-page-search body {
   max-width: 420px !important;
@@ -368,4 +370,12 @@ html.sdg-theme-dark.sdg-page-search body {
 html.sdg-page-search button,
 html.sdg-page-login button {
   white-space: nowrap;
+}
+/* 搜索页顶栏：fixed 但未指定 left，起点跟随 body 居中偏移而宽度取视口宽 → 右溢出。
+   锁定为与 body 同宽居中的手机框顶栏 */
+html.sdg-page-search .hdc_xin {
+  left: 50% !important;
+  right: auto !important;
+  width: 420px !important;
+  transform: translateX(-50%) !important;
 }
