@@ -12,7 +12,8 @@
       position: fixed; top: 0; left: 0; right: 0; z-index: 50;
       background: rgba(250,250,250,.92); backdrop-filter: blur(10px);
       border-bottom: 1px solid rgba(0,0,0,.08); color: #1c1917;
-      display: flex; align-items: center; padding: 10px 18px; font-size: 15px; font-weight: 600;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 10px 18px; font-size: 15px; font-weight: 600;
     }
     .topbar a { color: inherit; text-decoration: none; }
     .card { background:#fff; border:1px solid rgba(0,0,0,.08); border-radius:12px;
@@ -87,7 +88,7 @@
       position: fixed; top: 0; left: 0; right: 0; z-index: 50;
       background: rgba(250, 250, 250, .92); backdrop-filter: blur(10px);
       border-bottom: 1px solid rgba(0,0,0,.08);
-      color: #1c1917; display: flex; align-items: center; gap: 12px;
+      color: #1c1917; display: flex; align-items: center; justify-content: center; gap: 12px;
       padding: 10px 18px; font-size: 14px;
     }
     .topbar .title { font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: inherit; text-decoration: none; }

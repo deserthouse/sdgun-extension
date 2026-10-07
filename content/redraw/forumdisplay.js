@@ -10,6 +10,14 @@
   // 行式列表样式（追加在共享 LIST_CSS 之后；暗色跟 :host(.dark) 约定）
   const ROW_CSS = `
     .rows { margin-top: 4px; }
+    .crumb-home { color: #78716c; text-decoration: none; font-weight: 500; }
+    .crumb-home:hover { color: #b01f28; }
+    .crumb-sep { color: #a8a29e; font-weight: 400; }
+    .fchip.srch { margin-left: auto; border-style: dashed; }
+    .trow.bare { padding: 8px 14px; }
+    :host(.dark) .crumb-home { color: #a8a29e; }
+    :host(.dark) .crumb-home:hover { color: #ff6b7a; }
+    :host(.dark) .crumb-sep { color: #78716c; }
     .trow { position:relative; display:flex; align-items:center; gap:12px;
       background:#fff; border:1px solid rgba(0,0,0,.08); border-radius:10px;
       padding:9px 14px; margin:7px 0; }
@@ -119,8 +127,11 @@
     if (opts.dark) host.classList.add('dark');
 
     const wrap = el('div', { class: 'wrap' });
+    // 面包屑：论坛 › 板块名（首页可点回列表）
     wrap.appendChild(el('div', { class: 'topbar' }, [
-      el('a', { class: 'title', text: boardName || '版块', href: '#' }),
+      el('a', { class: 'crumb-home', text: '论坛', href: 'forum.php?forumlist=1&mobile=2' }),
+      el('span', { class: 'crumb-sep', text: '›' }),
+      el('span', { class: 'title', text: boardName || '版块' }),
     ]));
 
     // 筛选行（真实导航 chips）+ 搜索本板块入口（蓝图残余：跳真实 search.php）
@@ -134,7 +145,7 @@
       });
       const fid = (location.search.match(/fid=(\d+)/) || [])[1];
       if (fid) {
-        row.appendChild(el('a', { class: 'fchip', text: '🔍 搜索本板块',
+        row.appendChild(el('a', { class: 'fchip srch', text: '🔍 搜索本板块',
           href: `search.php?mod=forum&srchfid=${fid}&mobile=2` }));
       }
       wrap.appendChild(row);
@@ -174,11 +185,12 @@
       return box;
     };
 
-    // 行式列表（蓝图 L1：PC 密度；顶部+底部双分页）
-    wrap.appendChild(makePager());
+    // 行式列表（蓝图 L1：PC 密度；底部分页常驻，顶部仅近满页时显示）
+    if (threads.length >= 8) wrap.appendChild(makePager());
     const rowsBox = el('div', { class: 'rows' });
     threads.forEach((t) => {
-      const row = el('div', { class: 'trow' });
+      const bare = !t.author && !t.date && !t.replies && !t.views;
+      const row = el('div', { class: 'trow' + (bare ? ' bare' : '') });
       if (t.preview && t.preview.length) {
         row.appendChild(el('img', { class: 'thumb', src: t.preview[0], alt: '', loading: 'lazy' }));
       }

@@ -70,11 +70,20 @@
         }
       }
       if (!authorEl || !contentEl) return;
+      // 2026-10-08 修正：bygsjw 形态下 .grey 首个匹配是"楼号+作者"行（li.grey），
+      // 真实时间在同楼层第二个 li.grey（浏览/回复统计行）尾部。按日期模式从楼层头提取，
+      // 拿不到则置空——绝不把楼号/作者错当时间显示。
+      let time = timeEl ? (timeEl.textContent || '').replace(/\s+/g, ' ').trim() : '';
+      if (!/\d{4}-\d{1,2}-\d{1,2}/.test(time)) {
+        const headTxt = (node.querySelector('.post_author') || node).textContent || '';
+        const m = headTxt.match(/\d{4}-\d{1,2}-\d{1,2}\s+\d{1,2}:\d{2}(?::\d{2})?/);
+        time = m ? m[0] : (/^\d+#/.test(time) ? '' : time);
+      }
       floors.push({
         replyHref: replyA ? replyA.getAttribute('href') : '',
         author: (authorEl.textContent || '').trim(),
         authorHref: authorEl.getAttribute('href') || '#',
-        time: timeEl ? (timeEl.textContent || '').replace(/\s+/g, ' ').trim() : '',
+        time,
         floor: floorEl ? (floorEl.textContent || '').trim() : '',
         avatar: avatarEl ? avatarEl.getAttribute('src') : '',
         content: contentEl,

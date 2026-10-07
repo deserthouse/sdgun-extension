@@ -98,7 +98,13 @@
     if (opts.dark) host.classList.add('dark');
 
     const wrap = el('div', { class: 'wrap' });
-    wrap.appendChild(el('div', { class: 'topbar' }, [el('a', { class: 'title', text: '板块', href: '#' })]));
+    wrap.appendChild(el('div', { class: 'topbar' }, [el('a', { class: 'title', text: '论坛首页', href: '#' })]));
+    // 站点统计条（bygsjw .byg_tongji）——数据在场才渲染
+    const tongji = document.querySelector('.byg_tongji');
+    if (tongji) {
+      const txt = (tongji.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+      if (txt) wrap.appendChild(el('div', { class: 'statsbar', text: txt }));
+    }
 
     data.forEach((grp) => {
       if (!grp.secs.length) return;
@@ -106,7 +112,8 @@
       const card = el('div', { class: 'card' });
       grp.secs.forEach((s) => {
         const row = el('a', { class: 'section-row', href: `forum.php?mod=forumdisplay&fid=${s.fid}&mobile=2` });
-        if (s.icon) row.appendChild(el('img', { class: 'icon', src: s.icon, alt: '' }));
+        if (s.icon) row.appendChild(el('img', { class: 'icon', src: s.icon, alt: '',
+          onerror: function () { this.style.display = 'none'; } }));
         const mid = el('div', { class: 's-name' }, [el('span', { text: s.name })]);
         const uniq = [...new Set(s.nums)];
         if (uniq.length) mid.appendChild(el('span', { class: 'meta', text: uniq.slice(0, 2).join(' / ') }));
@@ -135,6 +142,8 @@
 
   // ---------- 内容河：最近回复（fid=39 最新 10 帖；每会话自动 1 请求 + 缓存 + 手动刷新） ----------
   const RIVER_CSS = `
+    .statsbar { text-align:center; color:#78716c; font-size:12.5px; padding:6px 0 0; letter-spacing:.3px; }
+    :host(.dark) .statsbar { color:#78716c; }
     .river { background:#fff; border:1px solid rgba(0,0,0,.08); border-radius:12px;
       padding:4px 0; margin:14px 0; }
     .river .rhead { display:flex; align-items:center; padding:8px 16px 6px; }
@@ -191,7 +200,7 @@
     items.forEach((it) => {
       const a = el('a', { class: 'ritem', href: it.href });
       a.appendChild(el('span', { class: 'rt2', text: it.t }));
-      a.appendChild(el('span', { class: 'rd', text: '' }));
+      if (it.d) a.appendChild(el('span', { class: 'rd', text: it.d }));
       box.appendChild(a);
     });
   }

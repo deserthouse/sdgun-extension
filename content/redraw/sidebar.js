@@ -6,7 +6,7 @@
   'use strict';
 
   const SB_CSS = `
-    :host { all:initial; display:block; box-sizing:border-box;
+    :host { all:initial; display:flex; flex-direction:column; box-sizing:border-box;
       position:fixed; left:0; top:0; bottom:0; width:212px; z-index:2147483000;
       background:rgba(250,250,250,1); border-right:1px solid rgba(0,0,0,.08);
       font-family:system-ui,"Segoe UI","Microsoft YaHei",sans-serif; font-size:13px;
@@ -25,12 +25,14 @@
     :host a.bd .nm { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     :host a.bd img { width:18px; height:18px; border-radius:4px; object-fit:cover; flex:none;
       background:#eee; }
-    :host .foot { margin-top:14px; border-top:1px solid rgba(0,0,0,.06); padding-top:10px; }
+    :host .foot { margin-top:auto; border-top:1px solid rgba(0,0,0,.06); padding-top:10px; }
+    :host .tree-hint { color:#a8a29e; font-size:11.5px; padding:8px 10px; line-height:1.5; }
+    :host(.dark) .tree-hint { color:#78716c; }
     :host button.theme { width:100%; border:1px solid rgba(0,0,0,.12); background:#fff;
       color:#57534e; border-radius:8px; padding:6px 0; font-size:12.5px; cursor:pointer; }
     :host button.theme:hover { border-color:#b01f28; color:#b01f28; }
     style.sdg-sb-style { }
-    .sdg-sb-on #wp { margin-left: 212px; }
+    .sdg-sb-on #wp { margin-left: 212px; width: auto !important; max-width: calc(100vw - 212px) !important; }
     @media (max-width: 1023px) {
       :host { display:none; }
       .sdg-sb-on #wp { margin-left: 0; }
@@ -82,36 +84,6 @@
 
     const curFid = (location.search.match(/fid=(\d+)/) || [])[1];
     const foot = el('div', { class: 'foot' });
-    // 树渲染（插入到 foot 之前）；跨标签副本（storage.local）供深链/新标签无会话缓存时异步补渲染
-    function renderGroups(arr) {
-      if (!arr || !arr.length || host.dataset.treeFilled) return;
-      host.dataset.treeFilled = '1';
-      shadow.querySelectorAll('.grp, a.bd').forEach((n) => n.remove());
-      arr.forEach((g) => {
-        if (!g.secs || !g.secs.length) return;
-        const grp = el('div', { class: 'grp', text: g.name || '板块' });
-        shadow.insertBefore(grp, foot);
-        g.secs.forEach((s) => {
-          const a = el('a', { class: 'bd' + (String(s.fid) === curFid ? ' cur' : ''),
-            href: `forum.php?mod=forumdisplay&fid=${s.fid}&mobile=2` });
-          if (s.icon) {
-            const im = el('img', { src: s.icon, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
-            a.appendChild(im);
-          }
-          a.appendChild(el('span', { class: 'nm', text: s.name || `fid${s.fid}` }));
-          shadow.insertBefore(a, foot);
-        });
-      });
-    }
-    renderGroups(groups);
-    try {
-      chrome.storage.local.get({ sdg_tree_cache_ls: null }, (st) => {
-        try {
-          if (st && st.sdg_tree_cache_ls) renderGroups(JSON.parse(st.sdg_tree_cache_ls).groups);
-        } catch (e) { /* ignore */ }
-      });
-    } catch (e) { /* storage 不可用 */ }
-
     const btn = el('button', { class: 'theme', text: THEME_LABEL[(opts && opts.theme) || 'auto'] });
     btn.addEventListener('click', () => {
       try {
@@ -121,7 +93,41 @@
       } catch (e) { /* storage 不可用则静默 */ }
     });
     foot.appendChild(btn);
-    shadow.appendChild(foot);
+    shadow.appendChild(foot); // 必须先入树：下方 renderGroups 的 insertBefore 以 foot 为参照
+    // 树渲染（插入到 foot 之前）；跨标签副本（storage.local）供深链/新标签无会话缓存时异步补渲染
+    function renderGroups(arr) {
+      if (!arr || !arr.length || host.dataset.treeFilled) return;
+      host.dataset.treeFilled = '1';
+      shadow.querySelectorAll('.grp, a.bd, .tree-hint').forEach((n) => n.remove());
+      arr.forEach((g) => {
+        if (!g.secs || !g.secs.length) return;
+        const grp = el('div', { class: 'grp', text: g.name || '板块' });
+        shadow.insertBefore(grp, foot);
+        g.secs.forEach((s) => {
+          const a = el('a', { class: 'bd' + (String(s.fid) === curFid ? ' cur' : ''),
+            href: `forum.php?mod=forumdisplay&fid=${s.fid}&mobile=2` });
+          if (s.icon) {
+            const im = el('img', { src: s.icon, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
+            im.addEventListener('error', () => { im.style.display = 'none'; });
+            a.appendChild(im);
+          }
+          a.appendChild(el('span', { class: 'nm', text: s.name || `fid${s.fid}` }));
+          shadow.insertBefore(a, foot);
+        });
+      });
+    }
+    renderGroups(groups);
+    if (!groups.length) {
+      const hint = el('div', { class: 'tree-hint', text: '板块树将在首次访问论坛首页后显示' });
+      shadow.insertBefore(hint, foot);
+    }
+    try {
+      chrome.storage.local.get({ sdg_tree_cache_ls: null }, (st) => {
+        try {
+          if (st && st.sdg_tree_cache_ls) renderGroups(JSON.parse(st.sdg_tree_cache_ls).groups);
+        } catch (e) { /* ignore */ }
+      });
+    } catch (e) { /* storage 不可用 */ }
 
     document.body.appendChild(host);
     // 布局标记 + 主锚点右移
@@ -129,7 +135,7 @@
     if (!document.querySelector('style.sdg-sb-style')) {
       const st = document.createElement('style');
       st.className = 'sdg-sb-style';
-      st.textContent = '.sdg-sb-on #wp { margin-left: 212px; } @media (max-width:1023px){ .sdg-sb-on #wp { margin-left:0; } }';
+      st.textContent = '.sdg-sb-on #wp { margin-left: 212px; width: auto !important; max-width: calc(100vw - 212px) !important; } @media (max-width:1023px){ .sdg-sb-on #wp { margin-left:0; max-width: 100vw !important; } }';
       (document.head || document.documentElement).appendChild(st);
     }
     return true;
