@@ -12,8 +12,19 @@
 //   4) 门户页 → 直接送论坛版块列表（每 URL 预算 2 次）。
 (function () {
   'use strict';
+  // 会话导航轨迹（诊断报告数据源，popup"复制诊断信息"读取；保留最近 8 条）
+  function navlog(entry) {
+    try {
+      const key = 'sdg_navlog';
+      const arr = JSON.parse(sessionStorage.getItem(key) || '[]');
+      arr.push(entry + ' @' + new Date().toLocaleTimeString());
+      while (arr.length > 8) arr.shift();
+      sessionStorage.setItem(key, JSON.stringify(arr));
+    } catch (e) { /* 存储不可用则跳过 */ }
+  }
   try {
     console.log('[sdg-nav] enter', location.pathname);
+    navlog('enter ' + location.pathname + location.search.slice(0, 40));
     if (!/^\/(?:forum|portal)\.php$/.test(location.pathname)) return;
 
     const params = new URLSearchParams(location.search);
@@ -44,6 +55,7 @@
       const p = parseInt(sessionStorage.getItem(pkey) || '0', 10);
       if (p < 2) {
         sessionStorage.setItem(pkey, String(p + 1));
+        navlog('portal→forumlist');
         location.replace(location.origin + '/forum.php?forumlist=1&mobile=2');
       }
       return;
@@ -70,6 +82,7 @@
       const n = parseInt(sessionStorage.getItem(rk) || '0', 10);
       if (n < 2) {
         sessionStorage.setItem(rk, String(n + 1));
+        navlog('restore→' + ctx.slice(0, 40));
         location.replace(location.origin + '/forum.php?' + ctx);
         return;
       }
@@ -79,6 +92,7 @@
     const m = parseInt(sessionStorage.getItem(key) || '0', 10);
     if (m >= 2) return;
     sessionStorage.setItem(key, String(m + 1));
+    navlog('normalize→forumlist');
     location.replace(location.origin + '/forum.php?forumlist=1&mobile=2');
-  } catch (e) { console.log('[sdg-nav] EXC', String(e && e.message || e)); }
+  } catch (e) { console.log('[sdg-nav] EXC', String(e && e.message || e)); navlog('EXC ' + String(e && e.message || e).slice(0, 60)); }
 })();

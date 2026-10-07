@@ -123,7 +123,7 @@
       el('a', { class: 'title', text: boardName || '版块', href: '#' }),
     ]));
 
-    // 筛选行（真实导航 chips）
+    // 筛选行（真实导航 chips）+ 搜索本板块入口（蓝图残余：跳真实 search.php）
     if (filterLinks.length) {
       const row = el('div', { class: 'filters' });
       const seen = new Set();
@@ -132,6 +132,11 @@
         seen.add(label);
         row.appendChild(el('a', { class: 'fchip', text: label, href }));
       });
+      const fid = (location.search.match(/fid=(\d+)/) || [])[1];
+      if (fid) {
+        row.appendChild(el('a', { class: 'fchip', text: '🔍 搜索本板块',
+          href: `search.php?mod=forum&srchfid=${fid}&mobile=2` }));
+      }
       wrap.appendChild(row);
     }
 

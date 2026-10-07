@@ -46,8 +46,10 @@
   <button data-v="dark">深色</button>
 </div>
 <p class="hint">UA 伪装仅作用于 *.sdgun.com.cn；换肤只改显示层（宽屏排版/暗色/灯箱），解析失败自动回退原版。改动后已打开的论坛页需刷新。</p>
+<div id="status" class="hint" style="display:none;padding:6px 14px 8px;border-top:1px solid #222"></div>
 <button id="diag" style="background:#444">诊断当前论坛页</button>
 <textarea id="diagout" readonly style="display:none;width:calc(100% - 28px);margin:0 14px 8px;height:150px;font:10px/1.3 monospace;color:#9f9;background:#0a0a0a;border:1px solid #333"></textarea>
+<button id="copydiag" style="display:none;background:#444">复制诊断信息</button>
 <button id="open">打开论坛</button>
 <script src="popup.js"></script>
 </body>
