@@ -6,42 +6,47 @@
   'use strict';
 
   const RT_CSS = `
-    :host { all:initial; display:block; box-sizing:border-box;
-      position:fixed; right:8px; top:60px; width:200px; max-height:calc(100vh - 76px);
-      overflow-y:auto; z-index:2147483000;
-      background:rgba(250,250,250,.97); border:1px solid rgba(0,0,0,.08); border-radius:12px;
-      font-family:system-ui,"Segoe UI","Microsoft YaHei",sans-serif; font-size:12.5px;
-      color:#292524; padding:12px; }
-    :host .opcard { display:flex; flex-direction:column; align-items:center; gap:6px;
-      padding-bottom:10px; border-bottom:1px solid rgba(0,0,0,.06); }
-    :host .opcard img { width:56px; height:56px; border-radius:12px; object-fit:cover; background:#e7e5e4; }
-    :host .opcard .afb { width:56px; height:56px; border-radius:12px; background:#d6d3d1;
-      color:#57534e; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:700; }
-    :host .opcard a { font-weight:700; color:#1c1917; text-decoration:none; font-size:13.5px; }
-    :host .opcard a:hover { color:#b01f28; }
-    :host .opcard .cnt { color:#a8a29e; font-size:11.5px; }
-    :host .sect { font-size:11px; font-weight:700; color:#a8a29e; margin:10px 2px 6px; letter-spacing:.5px; }
-    :host .chips { display:flex; flex-wrap:wrap; gap:4px; }
-    :host .chips button { border:1px solid rgba(0,0,0,.12); background:#fff; color:#57534e;
-      border-radius:6px; padding:2px 8px; font-size:11.5px; cursor:pointer; }
-    :host .chips button:hover { border-color:#b01f28; color:#b01f28; }
-    :host(.dark) { background:rgba(23,24,27,.97); border-color:#2c2d31; color:#d6d3d1; }
-    :host(.dark) .opcard { border-bottom-color:#2c2d31; }
-    :host(.dark) .opcard img, :host(.dark) .opcard .afb { background:#232326; }
-    :host(.dark) .opcard a { color:#e7e5e4; }
-    :host(.dark) .opcard a:hover { color:#ff6b7a; }
-    :host(.dark) .chips button { background:#1c1d21; border-color:#3a3b40; color:#a8a29e; }
-    :host(.dark) .chips button:hover { border-color:#ff6b7a; color:#ff6b7a; }
-    @media (max-width: 1279px) { :host { display:none; } }
+    :host { all: initial; display: block; box-sizing: border-box;
+      --surface: #ffffff; --surface2: #f1efee; --border: rgba(0,0,0,.08); --border2: rgba(0,0,0,.14);
+      --text: #1c1917; --text2: #57534e; --text3: #a8a29e; --accent: #b01f28;
+      position: fixed; right: 14px; top: 64px; width: 264px; max-height: calc(100vh - 80px);
+      overflow-y: auto; z-index: 2147483000;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+      font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 13px;
+      color: var(--text); padding: 14px; }
+    :host .sect { font-size: 11.5px; font-weight: 700; color: var(--text3); margin: 2px 2px 8px; letter-spacing: .8px; }
+    :host a.nitem { display: block; padding: 6px 6px; border-radius: 8px;
+      color: var(--text2); text-decoration: none; font-size: 13px; line-height: 1.5;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: background .12s; }
+    :host a.nitem:hover { background: var(--surface2); color: var(--accent); }
+    :host a.nmore { display: block; margin-top: 8px; padding: 6px; border-top: 1px solid var(--border);
+      color: var(--accent); text-decoration: none; font-size: 12.5px; font-weight: 600; }
+    :host a.nmore:hover { text-decoration: underline; }
+    :host .opcard { display: flex; flex-direction: column; align-items: center; gap: 6px;
+      padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+    :host .opcard img { width: 56px; height: 56px; border-radius: 14px; object-fit: cover; background: var(--surface2); }
+    :host .opcard .afb { width: 56px; height: 56px; border-radius: 14px; background: var(--surface2);
+      color: var(--text2); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; }
+    :host .opcard a { font-weight: 700; color: var(--text); text-decoration: none; font-size: 13.5px; }
+    :host .opcard a:hover { color: var(--accent); }
+    :host .opcard .cnt { color: var(--text3); font-size: 11.5px; }
+    :host .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+    :host .chips button { border: 1px solid var(--border2); background: var(--surface); color: var(--text2);
+      border-radius: 7px; padding: 2px 8px; font-size: 11.5px; cursor: pointer; }
+    :host .chips button:hover { border-color: var(--accent); color: var(--accent); }
+    @media (max-width: 1399px) { :host { display: none; } }
   `;
-  const PAGE_CSS = `
-    .sdg-rt-on #wp { margin-right: 216px; }
-    @media (max-width: 1279px) { .sdg-rt-on #wp { margin-right: 0; } }
+  const RT_DARK = `
+    :host { --surface: #17181b; --surface2: #222329; --border: #26272c; --border2: #34353b;
+      --text: #e7e5e4; --text2: #a8a29e; --text3: #78716c; --accent: #ff6b7a; }
   `;
 
   function mountRail(opts) {
     const existing = document.getElementById('sdg-rail');
     if (existing) existing.remove();
+    // 帖子页：楼主卡+楼层速览（原逻辑）；列表页：公告卡（复用内容河缓存，消灭右侧空白）
+    const isThread = /mod=viewthread/.test(location.search);
+    if (!isThread) return mountNoticeRail(opts);
     const floors = (window.SDGRedraw || {}).lastFloors;
     if (!floors || !floors.length) return false;
 
@@ -58,7 +63,7 @@
     if (opts && opts.dark) host.classList.add('dark');
     const shadow = host.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
-    style.textContent = RT_CSS + (opts && opts.dark ? '' : '');
+    style.textContent = RT_CSS + (opts && opts.dark ? RT_DARK : '');
     shadow.appendChild(style);
 
     const el = (tag, attrs) => {
@@ -99,12 +104,48 @@
 
     document.body.appendChild(host);
     document.documentElement.classList.add('sdg-rt-on');
-    if (!document.querySelector('style.sdg-rt-style')) {
-      const st = document.createElement('style');
-      st.className = 'sdg-rt-style';
-      st.textContent = PAGE_CSS;
-      (document.head || document.documentElement).appendChild(st);
-    }
+    return true;
+  }
+
+  // 列表页右栏：公告卡（数据=内容河缓存 fid=39 最新帖；无缓存则隐藏右栏）
+  function mountNoticeRail(opts) {
+    let items = [];
+    try {
+      const raw = sessionStorage.getItem('sdg_river_cache');
+      if (raw) items = (JSON.parse(raw).items || []).slice(0, 8);
+    } catch (e) { /* ignore */ }
+    if (!items.length) return false;
+
+    const host = document.createElement('div');
+    host.id = 'sdg-rail';
+    host.className = 'sdg-host';
+    if (opts && opts.dark) host.classList.add('dark');
+    const shadow = host.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+    style.textContent = RT_CSS + (opts && opts.dark ? RT_DARK : '');
+    shadow.appendChild(style);
+
+    const el = (tag, attrs) => {
+      const n = document.createElement(tag);
+      for (const k of Object.keys(attrs || {})) {
+        if (k === 'text') n.textContent = attrs[k];
+        else n.setAttribute(k, attrs[k]);
+      }
+      return n;
+    };
+
+    shadow.appendChild(el('div', { class: 'sect', text: '最新公告' }));
+    items.forEach((it) => {
+      const a = el('a', { class: 'nitem', href: it.href });
+      a.appendChild(el('span', { class: 'nt', text: it.t }));
+      shadow.appendChild(a);
+    });
+    const more = el('a', { class: 'nmore', text: '进入站务公告 ›',
+      href: 'forum.php?mod=forumdisplay&fid=39&mobile=2' });
+    shadow.appendChild(more);
+
+    document.body.appendChild(host);
+    document.documentElement.classList.add('sdg-rt-on');
     return true;
   }
 

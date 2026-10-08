@@ -168,9 +168,9 @@
           h.classList.toggle('rt-shift', rtOn);
         }
       } catch (e) { /* ignore */ }
-      // Batch3：帖子页右栏（楼主卡+楼层速览，仅 viewthread 有 lastFloors）
+      // 右栏：帖子页=楼主卡+速览；列表页=公告卡（river 缓存）——v1.15 消灭右侧空白
       try {
-        if (how === 'viewthread' && window.SDGRedraw.mountRail) {
+        if (window.SDGRedraw.mountRail) {
           window.SDGRedraw.mountRail({ dark: opts.dark });
         }
       } catch (e) { /* 右栏失败不影响主内容 */ }

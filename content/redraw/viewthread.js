@@ -9,43 +9,35 @@
   // 楼层双列样式（追加在共享 CSS 之后；.body 等内容样式复用 base 层）
   const FLOOR_CSS = `
     .reply-main { display:flex; justify-content:center; margin:16px 0 4px; }
-    .reply-main .reply-btn { display:inline-block; border:1px solid #b01f28; color:#b01f28;
-      border-radius:10px; padding:10px 46px; font-size:14.5px; font-weight:600; text-decoration:none; }
-    .reply-main .reply-btn:hover { background:#b01f28; color:#fff; }
+    .reply-main .reply-btn { display:inline-block; border:1px solid var(--accent); color:var(--accent);
+      border-radius:12px; padding:10px 48px; font-size:15px; font-weight:600; text-decoration:none; transition:all .12s; }
+    .reply-main .reply-btn:hover { background:var(--accent); color:#fff; }
     :host(.dark) .reply-main .reply-btn { border-color:#ff6b7a; color:#ff6b7a; }
     :host(.dark) .reply-main .reply-btn:hover { background:#ff6b7a; color:#1a1b1e; }
-    .crumb-home { color:#78716c; text-decoration:none; font-weight:500; flex:none; }
-    .crumb-home:hover { color:#b01f28; }
+    .crumb-home { color:var(--text3); text-decoration:none; font-weight:500; flex:none; }
+    .crumb-home:hover { color:var(--accent); }
     :host(.dark) .crumb-home { color:#a8a29e; }
     :host(.dark) .crumb-home:hover { color:#ff6b7a; }
-    .fcard { display:flex; gap:14px; background:#fff; border:1px solid rgba(0,0,0,.08);
-      border-radius:12px; padding:14px 16px; margin:10px 0; }
-    .fcard.opf { border-left:3px solid #b01f28; }
-    .fcard.flash { outline: 2px solid #b01f28; outline-offset: -2px; }
+    .fcard { display:flex; gap:14px; background:var(--surface); border:1px solid var(--border);
+      border-radius:var(--radius); padding:14px 18px; margin:10px 0; }
+    .fcard.opf { border-left:3px solid var(--accent); }
+    .fcard.flash { outline: 2px solid var(--accent); outline-offset: -2px; }
     .fava { flex:none; width:72px; display:flex; flex-direction:column; align-items:center; gap:6px; }
-    .fava img { width:64px; height:64px; border-radius:12px; object-fit:cover; background:#e7e5e4; }
-    .fava .afb { width:64px; height:64px; border-radius:12px; background:#d6d3d1; color:#57534e;
+    .fava img { width:64px; height:64px; border-radius:14px; object-fit:cover; background:var(--surface2); }
+    .fava .afb { width:64px; height:64px; border-radius:14px; background:var(--surface2); color:var(--text2);
       display:flex; align-items:center; justify-content:center; font-size:26px; font-weight:700; }
     .fmain { flex:1; min-width:0; display:flex; flex-direction:column; }
     .fhead { display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
-    .fhead .author { font-weight:600; color:#1c1917; text-decoration:none; font-size:14.5px; }
-    .fhead .author:hover { color:#b01f28; }
-    .badge-op { font-size:11px; font-weight:700; color:#fff; background:#b01f28;
-      border-radius:4px; padding:1px 7px; letter-spacing:.5px; flex:none; }
-    .fhead .meta { color:#a8a29e; font-size:12px; }
-    .fhead .floor { margin-left:auto; color:#a8a29e; font-size:12.5px; flex:none; }
+    .fhead .author { font-weight:600; color:var(--text); text-decoration:none; font-size:15px; }
+    .fhead .author:hover { color:var(--accent); }
+    .badge-op { font-size:11px; font-weight:700; color:var(--surface); background:var(--accent);
+      border-radius:5px; padding:1px 8px; letter-spacing:.5px; flex:none; }
+    .fhead .meta { color:var(--text3); font-size:12.5px; }
+    .fhead .floor { margin-left:auto; color:var(--text3); font-size:12.5px; flex:none; }
     .ffoot { display:flex; justify-content:flex-end; margin-top:10px; }
-    .ffoot .reply { font-size:12px; color:#a8a29e; text-decoration:none;
-      border:1px solid rgba(0,0,0,.12); border-radius:6px; padding:3px 12px; }
-    .ffoot .reply:hover { color:#b01f28; border-color:#b01f28; }
-    :host(.dark) .fcard { background:#1a1b1e; border-color:#2c2d31; }
-    :host(.dark) .fcard.opf { border-left-color:#ff6b7a; }
-    :host(.dark) .fava img, :host(.dark) .fava .afb { background:#232326; }
-    :host(.dark) .fhead .author { color:#e7e5e4; }
-    :host(.dark) .fhead .author:hover { color:#ff6b7a; }
-    :host(.dark) .badge-op { background:#ff6b7a; color:#1a1b1e; }
-    :host(.dark) .ffoot .reply { color:#78716c; border-color:#3a3b40; }
-    :host(.dark) .ffoot .reply:hover { color:#ff6b7a; border-color:#ff6b7a; }
+    .ffoot .reply { font-size:12.5px; color:var(--text3); text-decoration:none;
+      border:1px solid var(--border2); border-radius:999px; padding:3px 14px; }
+    .ffoot .reply:hover { color:var(--accent); border-color:var(--accent); }
   `;
 
   function parseFloors(SDG) {
@@ -174,7 +166,7 @@
       href: `forum.php?mod=forumdisplay&fid=${backFid}&mobile=2` }));
     topItems.push(el('a', { class: 'title', text: title, href: '#' }));
     topItems.push(el('span', { class: 'page', text: `第 ${page} 页` }));
-    wrap.appendChild(el('div', { class: 'topbar' }, topItems));
+    wrap.appendChild(el('div', { class: 'topbar' }, [el('div', { class: 'tb-in' }, topItems)]));
 
     // 工具行：只看楼主（真实导航）+ 跳楼（页内滚动或翻页导航）
     const tools = el('div', { class: 'tools' });

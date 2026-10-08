@@ -387,3 +387,24 @@ html.sdg-theme-dark .login_select .icon-arrow {
   background: #3a3b40 !important;
   color: #d6d3d1 !important;
 }
+
+/* ===== 版式系统（v1.15.0 设计重构）：侧栏/右栏激活时主容器自动收缩 =====
+   此前规则散在 sidebar.js / rightrail.js 各自注入且互不知情；
+   模板 #wp 是 rem 定宽，必须 width:auto 才能被 margin 挤压生效 */
+html.sdg-sb-on #wp,
+html.sdg-rt-on #wp,
+html.sdg-sb-on body.bg_xin,
+html.sdg-rt-on body.bg_xin {
+  width: auto !important;
+  max-width: none !important;
+  box-sizing: border-box;
+}
+html.sdg-sb-on #wp { margin-left: 212px !important; }
+html.sdg-rt-on #wp { margin-right: 220px !important; }
+@media (max-width: 1023px) { html.sdg-sb-on #wp { margin-left: 0 !important; } }
+@media (max-width: 1399px) { html.sdg-rt-on #wp { margin-right: 0 !important; } }
+
+/* 浅色重绘态页面底色：淡灰衬托白卡（深色已有 #131417） */
+html.sdg-redraw-active:not(.sdg-theme-dark) body {
+  background: #f4f3f2 !important;
+}

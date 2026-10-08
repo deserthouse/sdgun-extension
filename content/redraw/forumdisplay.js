@@ -7,46 +7,33 @@
   'use strict';
   const B = window.SDGRedrawBase;
 
-  // 行式列表样式（追加在共享 LIST_CSS 之后；暗色跟 :host(.dark) 约定）
+  // B 式行卡样式（v1.15 设计系统；令牌继承 base LIST_CSS）
   const ROW_CSS = `
     .rows { margin-top: 4px; }
-    .crumb-home { color: #78716c; text-decoration: none; font-weight: 500; }
-    .crumb-home:hover { color: #b01f28; }
-    .crumb-sep { color: #a8a29e; font-weight: 400; }
+    .trow { position: relative; display: flex; align-items: center; gap: 14px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 12px 18px; margin: 8px 0; text-decoration: none;
+      transition: background .12s, border-color .12s; }
+    .trow:hover { background: var(--surface2); border-color: var(--border2); }
+    .trow .thumb { width: 88px; height: 60px; border-radius: 10px; object-fit: cover;
+      flex: none; background: var(--surface2); }
+    .trow .main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+    .trow .t { font-size: 16px; font-weight: 600; color: var(--text); text-decoration: none;
+      line-height: 1.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .trow:hover .t { color: var(--accent); }
+    .trow .sub { font-size: 13px; color: var(--text3); display: flex; gap: 12px; min-width: 0; }
+    .trow .sub a { color: var(--text2); text-decoration: none; }
+    .trow .sub a:hover { color: var(--accent); }
+    .trow .sub .d { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .trow .stats { flex: none; text-align: right; font-size: 12.5px; color: var(--text3); line-height: 1.5; }
+    .trow .stats b { display: block; font-size: 15px; color: var(--text2); font-weight: 600; }
+    .trow .hoverp { display: none; position: absolute; right: 8px; top: calc(100% + 4px); z-index: 60;
+      background: var(--surface); border: 1px solid var(--border2); border-radius: 12px; padding: 6px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.14); gap: 4px; }
+    .trow .hoverp img { width: 150px; height: 100px; object-fit: cover; border-radius: 8px; background: var(--surface2); }
+    .trow:hover .hoverp { display: flex; }
+    .trow.bare { padding: 9px 18px; margin: 6px 0; }
     .fchip.srch { margin-left: auto; border-style: dashed; }
-    .trow.bare { padding: 4px 14px; margin: 3px 0; }
-    :host(.dark) .crumb-home { color: #a8a29e; }
-    :host(.dark) .crumb-home:hover { color: #ff6b7a; }
-    :host(.dark) .crumb-sep { color: #78716c; }
-    .trow { position:relative; display:flex; align-items:center; gap:12px;
-      background:#fff; border:1px solid rgba(0,0,0,.08); border-radius:10px;
-      padding:9px 14px; margin:7px 0; }
-    .trow .thumb { width:52px; height:52px; border-radius:8px; object-fit:cover;
-      flex:none; background:#f5f5f4; }
-    .trow .main { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
-    .trow .t { font-size:14.5px; font-weight:600; color:#1c1917; text-decoration:none;
-      line-height:1.4; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .trow .t:hover { color:#b01f28; }
-    .trow .sub { font-size:12px; color:#a8a29e; display:flex; gap:10px; min-width:0; }
-    .trow .sub a { color:#78716c; text-decoration:none; }
-    .trow .sub a:hover { color:#b01f28; }
-    .trow .sub .d { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .trow .stats { flex:none; text-align:right; font-size:12px; color:#a8a29e; line-height:1.5; }
-    .trow .stats b { display:block; font-size:14px; color:#57534e; font-weight:600; }
-    .trow .hoverp { display:none; position:absolute; right:8px; top:calc(100% + 4px); z-index:60;
-      background:#fff; border:1px solid rgba(0,0,0,.12); border-radius:10px; padding:6px;
-      box-shadow:0 8px 24px rgba(0,0,0,.14); gap:4px; }
-    .trow .hoverp img { width:150px; height:100px; object-fit:cover; border-radius:6px; background:#f5f5f4; }
-    .trow:hover .hoverp { display:flex; }
-    :host(.dark) .trow { background:#1a1b1e; border-color:#2c2d31; }
-    :host(.dark) .trow .t { color:#e7e5e4; }
-    :host(.dark) .trow .t:hover { color:#ff6b7a; }
-    :host(.dark) .trow .thumb, :host(.dark) .trow .hoverp img { background:#232326; }
-    :host(.dark) .trow .sub, :host(.dark) .trow .stats { color:#78716c; }
-    :host(.dark) .trow .sub a { color:#a8a29e; }
-    :host(.dark) .trow .sub a:hover { color:#ff6b7a; }
-    :host(.dark) .trow .stats b { color:#d6d3d1; }
-    :host(.dark) .trow .hoverp { background:#1c1d21; border-color:#3a3b40; }
   `;
 
   function parseThreads(SDG) {
@@ -129,9 +116,11 @@
     const wrap = el('div', { class: 'wrap' });
     // 面包屑：论坛 › 板块名（首页可点回列表）
     wrap.appendChild(el('div', { class: 'topbar' }, [
-      el('a', { class: 'crumb-home', text: '论坛', href: 'forum.php?forumlist=1&mobile=2' }),
-      el('span', { class: 'crumb-sep', text: '›' }),
-      el('span', { class: 'title', text: boardName || '版块' }),
+      el('div', { class: 'tb-in' }, [
+        el('a', { class: 'crumb-home', text: '论坛', href: 'forum.php?forumlist=1&mobile=2' }),
+        el('span', { class: 'crumb-sep', text: '›' }),
+        el('span', { class: 'title', text: boardName || '版块' }),
+      ]),
     ]));
 
     // 筛选行（真实导航 chips）+ 搜索本板块入口（蓝图残余：跳真实 search.php）

@@ -6,52 +6,40 @@
   'use strict';
 
   const SB_CSS = `
-    :host { all:initial; display:flex; flex-direction:column; box-sizing:border-box;
-      position:fixed; left:0; top:0; bottom:0; width:212px; z-index:2147483000;
-      background:rgba(250,250,250,1); border-right:1px solid rgba(0,0,0,.08);
-      font-family:system-ui,"Segoe UI","Microsoft YaHei",sans-serif; font-size:13px;
-      color:#292524; overflow-y:auto; padding:14px 12px; }
-    :host .brand { font-weight:700; font-size:14px; color:#b01f28; text-decoration:none;
-      display:block; margin-bottom:10px; }
-    :host a.home { display:block; padding:6px 10px; border-radius:8px;
-      color:#44403c; text-decoration:none; font-weight:600; margin-bottom:8px; }
-    :host a.home:hover { background:rgba(176,31,40,.08); }
-    :host a.home.quick { font-weight:500; font-size:12.5px; padding:4px 10px; color:#78716c; }
-    :host .grp { font-size:11.5px; font-weight:700; color:#a8a29e; margin:10px 4px 4px;
-      letter-spacing:.5px; }
-    :host a.bd { display:flex; align-items:center; gap:8px; padding:5px 10px;
-      border-radius:8px; color:#44403c; text-decoration:none; }
-    :host a.bd:hover { background:#f5f5f4; }
-    :host a.bd.cur { background:rgba(176,31,40,.1); color:#b01f28; font-weight:600; }
-    :host a.bd .nm { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    :host a.bd img { width:18px; height:18px; border-radius:4px; object-fit:cover; flex:none;
-      background:#eee; }
-    :host .foot { margin-top:auto; border-top:1px solid rgba(0,0,0,.06); padding-top:10px; }
-    :host .tree-hint { color:#a8a29e; font-size:11.5px; padding:8px 10px; line-height:1.5; }
-    :host(.dark) .tree-hint { color:#78716c; }
-    :host button.theme { width:100%; border:1px solid rgba(0,0,0,.12); background:#fff;
-      color:#57534e; border-radius:8px; padding:6px 0; font-size:12.5px; cursor:pointer; }
-    :host button.theme:hover { border-color:#b01f28; color:#b01f28; }
-    style.sdg-sb-style { }
-    .sdg-sb-on #wp { margin-left: 212px; width: auto !important; max-width: calc(100vw - 212px) !important; }
-    @media (max-width: 1023px) {
-      :host { display:none; }
-      .sdg-sb-on #wp { margin-left: 0; }
-    }
-    @media (prefers-color-scheme: dark), (dark) { }
+    :host { all: initial; display: flex; flex-direction: column; box-sizing: border-box;
+      position: fixed; left: 0; top: 0; bottom: 0; width: 216px; z-index: 2147483000;
+      --surface: #ffffff; --surface2: #f1efee; --border: rgba(0,0,0,.08); --border2: rgba(0,0,0,.14);
+      --text: #1c1917; --text2: #57534e; --text3: #a8a29e; --accent: #b01f28;
+      background: var(--surface); border-right: 1px solid var(--border);
+      font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 13px;
+      color: var(--text); overflow-y: auto; padding: 16px 12px 14px; }
+    :host .brand { font-weight: 800; font-size: 15px; color: var(--accent); text-decoration: none;
+      display: flex; align-items: center; gap: 7px; margin: 0 6px 12px; letter-spacing: .3px; }
+    :host .brand svg { width: 17px; height: 17px; }
+    :host a.home { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 10px;
+      color: var(--text2); text-decoration: none; font-weight: 600; margin: 1px 0; transition: background .12s; }
+    :host a.home:hover { background: var(--surface2); color: var(--text); }
+    :host a.home svg { width: 15px; height: 15px; opacity: .75; flex: none; }
+    :host a.home.quick { font-weight: 500; font-size: 12.5px; padding: 5px 10px; color: var(--text3); }
+    :host .grp { font-size: 11px; font-weight: 700; color: var(--text3); margin: 14px 10px 5px;
+      letter-spacing: .8px; }
+    :host a.bd { position: relative; display: flex; align-items: center; gap: 9px; padding: 6px 10px;
+      border-radius: 10px; color: var(--text2); text-decoration: none; transition: background .12s; }
+    :host a.bd:hover { background: var(--surface2); color: var(--text); }
+    :host a.bd.cur { background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--accent); font-weight: 600; }
+    :host a.bd.cur::before { content: ""; position: absolute; left: 0; top: 7px; bottom: 7px;
+      width: 3px; border-radius: 2px; background: var(--accent); }
+    :host a.bd .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    :host a.bd img { width: 20px; height: 20px; border-radius: 6px; object-fit: cover; flex: none;
+      background: var(--surface2); }
+    :host .tree-hint { color: var(--text3); font-size: 11.5px; padding: 8px 10px; line-height: 1.5; }
+    :host .foot { margin-top: auto; border-top: 1px solid var(--border); padding-top: 10px; }
+    :host button.theme { width: 100%; border: 1px solid var(--border2); background: var(--surface);
+      color: var(--text2); border-radius: 10px; padding: 6px 0; font-size: 12px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 6px; transition: all .12s; }
+    :host button.theme:hover { border-color: var(--accent); color: var(--accent); }
+    :host button.theme svg { width: 13px; height: 13px; }
   `;
-  const SB_CSS_DARK = `
-    :host { background:rgba(17,18,20,1); border-right-color:#2c2d31; color:#d6d3d1; }
-    :host a.home { color:#e7e5e4; }
-    :host a.home:hover { background:rgba(255,107,122,.12); }
-    :host a.bd { color:#d6d3d1; }
-    :host a.bd:hover { background:#1e1f23; }
-    :host a.bd.cur { background:rgba(255,107,122,.14); color:#ff6b7a; }
-    :host .foot { border-top-color:#2c2d31; }
-    :host button.theme { background:#1c1d21; border-color:#3a3b40; color:#a8a29e; }
-    :host button.theme:hover { border-color:#ff6b7a; color:#ff6b7a; }
-  `;
-
   const THEME_LABEL = { light: '主题：浅色', dark: '主题：深色', auto: '主题：跟随系统' };
   const NEXT = { light: 'dark', dark: 'auto', auto: 'light' };
 
@@ -68,7 +56,7 @@
     host.className = 'sdg-host'; // theme.css 重绘期白名单（body > *:not(.sdg-host) 全隐藏）
     const shadow = host.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
-    style.textContent = SB_CSS + (opts && opts.dark ? SB_CSS_DARK : '');
+    style.textContent = opts && opts.dark ? SB_CSS.replace('--surface: #ffffff', '--surface: #17181b').replace('--surface2: #f1efee', '--surface2: #222329').replace('--border: rgba(0,0,0,.08)', '--border: #26272c').replace('--border2: rgba(0,0,0,.14)', '--border2: #34353b').replace('--text: #1c1917', '--text: #e7e5e4').replace('--text2: #57534e', '--text2: #a8a29e').replace('--text3: #a8a29e', '--text3: #78716c').replace('--accent: #b01f28', '--accent: #ff6b7a') : SB_CSS;
     shadow.appendChild(style);
 
     const el = (tag, attrs) => {
@@ -80,15 +68,48 @@
       return n;
     };
 
-    shadow.appendChild(el('a', { class: 'brand', text: 'SDGun 导航', href: 'forum.php?forumlist=1&mobile=2' }));
-    shadow.appendChild(el('a', { class: 'home', text: '论坛首页', href: 'forum.php?forumlist=1&mobile=2' }));
+    const svgIcon = (d) => {
+      const ns = 'http://www.w3.org/2000/svg';
+      const sv = document.createElementNS(ns, 'svg');
+      sv.setAttribute('viewBox', '0 0 24 24');
+      sv.setAttribute('fill', 'none');
+      sv.setAttribute('stroke', 'currentColor');
+      sv.setAttribute('stroke-width', '2');
+      sv.setAttribute('stroke-linecap', 'round');
+      sv.setAttribute('stroke-linejoin', 'round');
+      const path = document.createElementNS(ns, 'path');
+      path.setAttribute('d', d);
+      sv.appendChild(path);
+      return sv;
+    };
+    const ICONS = {
+      brand: 'M12 2L3 7l9 5 9-5-9-5zM3 17l9 5 9-5M3 12l9 5 9-5',
+      home: 'M3 12l9-9 9 9M5 10v10h5v-6h4v6h5V10',
+      search: 'M11 19a8 8 0 100-16 8 8 0 000 16zM21 21l-4.35-4.35',
+      user: 'M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z',
+      theme: 'M21 12.8A9 9 0 1111.2 3 7 7 0 0021 12.8z',
+    };
+    const brandEl = el('a', { class: 'brand', href: 'forum.php?forumlist=1&mobile=2' });
+    brandEl.appendChild(svgIcon(ICONS.brand));
+    brandEl.appendChild(document.createTextNode('SDGun 导航'));
+    shadow.appendChild(brandEl);
+    const homeEl = el('a', { class: 'home', href: 'forum.php?forumlist=1&mobile=2' });
+    homeEl.appendChild(svgIcon(ICONS.home));
+    homeEl.appendChild(document.createTextNode('论坛首页'));
+    shadow.appendChild(homeEl);
     // 快捷入口（真实页面导航）：全局搜索 + 登录/我的（游客态=登录页）
-    shadow.appendChild(el('a', { class: 'home quick', text: '🔍 搜索', href: 'search.php?mod=forum&mobile=2' }));
-    shadow.appendChild(el('a', { class: 'home quick', text: '👤 登录 / 我的', href: 'member.php?mod=logging&action=login&mobile=2' }));
+    const q1 = el('a', { class: 'home quick', href: 'search.php?mod=forum&mobile=2' });
+    q1.appendChild(svgIcon(ICONS.search)); q1.appendChild(document.createTextNode('搜索'));
+    shadow.appendChild(q1);
+    const q2 = el('a', { class: 'home quick', href: 'member.php?mod=logging&action=login&mobile=2' });
+    q2.appendChild(svgIcon(ICONS.user)); q2.appendChild(document.createTextNode('登录 / 我的'));
+    shadow.appendChild(q2);
 
     const curFid = (location.search.match(/fid=(\d+)/) || [])[1];
     const foot = el('div', { class: 'foot' });
-    const btn = el('button', { class: 'theme', text: THEME_LABEL[(opts && opts.theme) || 'auto'] });
+    const btn = el('button', { class: 'theme' });
+    btn.appendChild(svgIcon(ICONS.theme));
+    btn.appendChild(document.createTextNode(THEME_LABEL[(opts && opts.theme) || 'auto'].replace('主题：', '')));
     btn.addEventListener('click', () => {
       try {
         chrome.storage.sync.get({ theme: 'auto' }, (st) => {
@@ -134,14 +155,8 @@
     } catch (e) { /* storage 不可用 */ }
 
     document.body.appendChild(host);
-    // 布局标记 + 主锚点右移
+    // 布局标记（版式规则集中在 theme.css）
     document.documentElement.classList.add('sdg-sb-on');
-    if (!document.querySelector('style.sdg-sb-style')) {
-      const st = document.createElement('style');
-      st.className = 'sdg-sb-style';
-      st.textContent = '.sdg-sb-on #wp { margin-left: 212px; width: auto !important; max-width: calc(100vw - 212px) !important; } @media (max-width:1023px){ .sdg-sb-on #wp { margin-left:0; max-width: 100vw !important; } }';
-      (document.head || document.documentElement).appendChild(st);
-    }
     return true;
   }
 

@@ -98,7 +98,7 @@
     if (opts.dark) host.classList.add('dark');
 
     const wrap = el('div', { class: 'wrap' });
-    wrap.appendChild(el('div', { class: 'topbar' }, [el('a', { class: 'title', text: '论坛首页', href: '#' })]));
+    wrap.appendChild(el('div', { class: 'topbar' }, [el('div', { class: 'tb-in' }, [el('a', { class: 'title', text: '论坛首页', href: '#' })])]));
     // 站点统计条（bygsjw .byg_tongji）——数据在场才渲染
     const tongji = document.querySelector('.byg_tongji');
     if (tongji) {
@@ -142,28 +142,21 @@
 
   // ---------- 内容河：最近回复（fid=39 最新 10 帖；每会话自动 1 请求 + 缓存 + 手动刷新） ----------
   const RIVER_CSS = `
-    .statsbar { text-align:center; color:#78716c; font-size:12.5px; padding:6px 0 0; letter-spacing:.3px; }
-    :host(.dark) .statsbar { color:#78716c; }
-    .river { background:#fff; border:1px solid rgba(0,0,0,.08); border-radius:12px;
-      padding:4px 0; margin:14px 0; }
-    .river .rhead { display:flex; align-items:center; padding:8px 16px 6px; }
-    .river .rhead .rt { font-weight:700; font-size:14.5px; color:#1c1917; flex:1; }
-    .river .rhead .rt a.rboard { color:inherit; text-decoration:none; border-bottom:1px dashed #c8c4c0; }
-    .river .rhead .rt a.rboard:hover { color:#b01f28; border-bottom-color:#b01f28; }
-    :host(.dark) .river .rhead .rt a.rboard { border-bottom-color:#4a4b50; }
-    .river .rhead button { border:none; background:none; color:#a8a29e; font-size:12px;
-      cursor:pointer; padding:2px 6px; }
-    .river .rhead button:hover { color:#b01f28; }
-    .river a.ritem { display:flex; gap:10px; padding:6px 16px; font-size:13.5px;
-      color:#44403c; text-decoration:none; }
-    .river a.ritem:hover { background:#fafaf9; color:#b01f28; }
-    .river a.ritem .rt2 { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .river a.ritem .rd { flex:none; color:#a8a29e; font-size:12px; }
-    .river .rempty { padding:6px 16px 12px; color:#a8a29e; font-size:12.5px; }
-    :host(.dark) .river { background:#1a1b1e; border-color:#2c2d31; }
-    :host(.dark) .river .rhead .rt { color:#eceae8; }
-    :host(.dark) .river a.ritem { color:#d6d3d1; }
-    :host(.dark) .river a.ritem:hover { background:#1e1f23; color:#ff6b7a; }
+    .river { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 4px 0; margin: 14px 0; }
+    .river .rhead { display: flex; align-items: center; padding: 10px 18px 8px; }
+    .river .rhead .rt { font-weight: 700; font-size: 15px; color: var(--text); flex: 1; }
+    .river .rhead .rt a.rboard { color: inherit; text-decoration: none; border-bottom: 1px dashed var(--text3); }
+    .river .rhead .rt a.rboard:hover { color: var(--accent); border-bottom-color: var(--accent); }
+    .river .rhead button { border: none; background: none; color: var(--text3); font-size: 12px;
+      cursor: pointer; padding: 2px 6px; }
+    .river .rhead button:hover { color: var(--accent); }
+    .river a.ritem { display: flex; gap: 10px; padding: 7px 18px; font-size: 14px;
+      color: var(--text2); text-decoration: none; transition: background .12s; }
+    .river a.ritem:hover { background: var(--surface2); color: var(--accent); }
+    .river a.ritem .rt2 { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .river a.ritem .rd { flex: none; color: var(--text3); font-size: 12.5px; }
+    .river .rempty { padding: 6px 18px 12px; color: var(--text3); font-size: 13px; }
   `;
   const RIVER_FID = 39;      // 站务公告——站方公告流，作为"最近动态"源
   const RIVER_URL = `forum.php?mod=forumdisplay&fid=${RIVER_FID}&mobile=2`;
