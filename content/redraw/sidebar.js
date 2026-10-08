@@ -39,6 +39,8 @@
       display: flex; align-items: center; justify-content: center; gap: 6px; transition: all .12s; }
     :host button.theme:hover { border-color: var(--accent); color: var(--accent); }
     :host button.theme svg { width: 13px; height: 13px; }
+    /* 窄视口隐藏（v1.15 重写时丢失，本轮 AVD 对比在 420px 视口暴露） */
+    @media (max-width: 1023px) { :host { display: none; } }
   `;
   const THEME_LABEL = { light: '主题：浅色', dark: '主题：深色', auto: '主题：跟随系统' };
   const NEXT = { light: 'dark', dark: 'auto', auto: 'light' };
