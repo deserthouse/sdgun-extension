@@ -47,6 +47,10 @@ const SDG = {
     sectionLink: 'a[href*="mod=forumdisplay"]',
   },
 
+  // 简易模板（mobile=1）的原列表容器 id——渲染后隐藏用（2026-10-08 补：此前为静默死引用，
+  // getElementById(undefined) 不炸但简易列表容器从未被隐藏）
+  legacyListId: 'forumlist',
+
   viewThread: {
     // div.postlist > div[id^="pid"] floors; content in .message
     floor: 'div[id^="pid"]',
