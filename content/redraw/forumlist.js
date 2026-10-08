@@ -253,18 +253,22 @@
       if (done) return;
       // 会话内首次：拉取（同源、复用页面 Cookie，限 1 次自动请求）
       sessionStorage.setItem('sdg_river_done', '1');
-      fetch(RIVER_URL, { credentials: 'same-origin' })
+      const tryFetch = (attempt) => fetch(RIVER_URL, { credentials: 'same-origin' })
         .then((r) => r.text())
         .then((html) => {
           const parsed = parseRiverItems(html);
           if (parsed.length) {
             try { sessionStorage.setItem('sdg_river_cache', JSON.stringify({ t: Date.now(), items: parsed })); } catch (e) { /* */ }
             renderRiver(box, el, parsed, opts);
+          } else if (attempt === 0) {
+            // 服务器壳响应（结构在数据缺）：4 秒后自动补一枪
+            setTimeout(() => tryFetch(1), 4000);
           } else if (!items.length) {
             renderRiver(box, el, [], opts); // 空态（服务器壳）
           }
         })
-        .catch(() => { if (!items.length) renderRiver(box, el, [], opts); });
+        .catch(() => { if (attempt === 0) setTimeout(() => tryFetch(1), 4000); else if (!items.length) renderRiver(box, el, [], opts); });
+      tryFetch(0);
     } catch (e) { /* 内容河失败静默 */ }
   }
 

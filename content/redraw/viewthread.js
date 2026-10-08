@@ -8,6 +8,12 @@
 
   // 楼层双列样式（追加在共享 CSS 之后；.body 等内容样式复用 base 层）
   const FLOOR_CSS = `
+    .reply-main { display:flex; justify-content:center; margin:16px 0 4px; }
+    .reply-main .reply-btn { display:inline-block; border:1px solid #b01f28; color:#b01f28;
+      border-radius:10px; padding:10px 46px; font-size:14.5px; font-weight:600; text-decoration:none; }
+    .reply-main .reply-btn:hover { background:#b01f28; color:#fff; }
+    :host(.dark) .reply-main .reply-btn { border-color:#ff6b7a; color:#ff6b7a; }
+    :host(.dark) .reply-main .reply-btn:hover { background:#ff6b7a; color:#1a1b1e; }
     .crumb-home { color:#78716c; text-decoration:none; font-weight:500; flex:none; }
     .crumb-home:hover { color:#b01f28; }
     :host(.dark) .crumb-home { color:#a8a29e; }
@@ -252,6 +258,15 @@
     });
     prev.disabled = page <= 1;
     wrap.appendChild(el('div', { class: 'pager' }, [prev, next]));
+    // 回复本帖主入口（官方 App 底部评论框的对应物；游客点入=站点登录提示页，真实导航）
+    const replyFid = (floors[0] && floors[0].fid) || (location.search.match(/fid=(\d+)/) || [])[1] || '';
+    if (replyFid) {
+      wrap.appendChild(el('div', { class: 'reply-main' }, [
+        el('a', { class: 'reply-btn',
+          href: `forum.php?mod=post&action=reply&fid=${replyFid}&tid=${(location.search.match(/tid=(\d+)/) || [])[1] || ''}&extra=&mobile=1`,
+          text: '✏️ 回复本帖' }),
+      ]));
+    }
     wrap.appendChild(el('div', { class: 'hint', text: 'SDGun Web Access · 重绘层（真实导航）' }));
 
     wrap.addEventListener('click', (ev) => {
