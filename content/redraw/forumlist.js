@@ -107,11 +107,32 @@
 
     const wrap = el('div', { class: 'wrap' });
     wrap.appendChild(el('div', { class: 'topbar' }, [el('div', { class: 'tb-in' }, [el('a', { class: 'title', text: '论坛首页', href: '#' })])]));
-    // 站点统计条（bygsjw .byg_tongji）——数据在场才渲染
+    // 站点统计条（bygsjw .byg_tongji）——数据在场才渲染。
+    // 原始文案是"今日 13113 帖子 22840833 会员 678420"连排（v1.16.2 规范化：
+    // 标签配对 + 分隔点 + 大数万化），解析不出任何标签则按原文截断兜底。
     const tongji = document.querySelector('.byg_tongji');
     if (tongji) {
-      const txt = (tongji.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80);
-      if (txt) wrap.appendChild(el('div', { class: 'statsbar', text: txt }));
+      const txt = (tongji.textContent || '').replace(/\s+/g, ' ').trim();
+      if (txt) {
+        const fmtNum = (s) => {
+          const n = parseInt(s.replace(/[^\d]/g, ''), 10);
+          if (isNaN(n)) return s;
+          if (n >= 100000) {
+            const w = n / 10000;
+            return (w < 100 ? Math.round(w * 10) / 10 : Math.round(w)) + '万';
+          }
+          return n.toLocaleString('en-US');
+        };
+        const parts = [];
+        ['今日', '主题', '帖子', '会员'].forEach((label) => {
+          const m = txt.match(new RegExp(label + '[::\\s]*([0-9万亿.,]+)'));
+          if (m) parts.push(label + ' ' + fmtNum(m[1]));
+        });
+        const nw = txt.match(/欢迎新会员[:\s]*([^\s·]{1,24})/);
+        if (nw) parts.push('新会员 ' + nw[1]);
+        wrap.appendChild(el('div', { class: 'statsbar',
+          text: parts.length ? parts.join(' · ').slice(0, 100) : txt.slice(0, 80) }));
+      }
     }
 
     data.forEach((grp) => {
@@ -185,12 +206,20 @@
       if (!a) return;
       const tid = (a.getAttribute('href').match(/tid=(\d+)/) || [])[1];
       const raw = (a.textContent || '').replace(/\s+/g, ' ').trim();
-      // 站方行文把日期并进标题文本（"…说明2026.9.27"）：剥出尾部日期走右对齐列
-      const dm = raw.match(/^(.*?)\s*(\d{4}[.\-]\d{1,2}[.\-]\d{1,2}日?)\s*$/);
-      const t = (dm ? dm[1] : raw).trim();
+      // 站方行文把日期并进标题文本，两种形态都剥出走右对齐列，并归一为可解析格式
+      // （点分→横线、去"日"尾），渲染时走相对时间：
+      //   尾部裸日期"…说明2026.9.27" + 前置括号日期"【2026.9.27】广告位招租"（实测公告标题两种都有）
+      let t = raw;
+      let dNorm = '';
+      const dmEnd = t.match(/^(.*?)\s*(\d{4}[.．\-]\d{1,2}[.．\-]\d{1,2}日?)\s*$/);
+      if (dmEnd) { t = dmEnd[1].trim(); dNorm = dmEnd[2]; }
+      const dmLead = t.match(/^【\s*(\d{4}[.．\-]\d{1,2}[.．\-]\d{1,2}日?)\s*】\s*/);
+      if (dmLead) { t = t.slice(dmLead[0].length).trim(); if (!dNorm) dNorm = dmLead[1]; }
+      t = t.trim();
       if (!tid || seen.has(tid) || t.length < 6) return;
       seen.add(tid);
-      items.push({ t: t.slice(0, 60), d: dm ? dm[2] : '', href: a.getAttribute('href') });
+      dNorm = dNorm.replace(/[.．]/g, '-').replace(/日$/, '');
+      items.push({ t: t.slice(0, 60), d: dNorm, href: a.getAttribute('href') });
     });
     return items.slice(0, 10);
   }
@@ -229,7 +258,7 @@
     items.forEach((it) => {
       const a = el('a', { class: 'ritem', href: it.href });
       a.appendChild(el('span', { class: 'rt2', text: it.t }));
-      if (it.d) a.appendChild(el('span', { class: 'rd', text: it.d }));
+      if (it.d) a.appendChild(el('span', { class: 'rd', text: B.util.toRelative(it.d) || it.d }));
       box.appendChild(a);
     });
   }

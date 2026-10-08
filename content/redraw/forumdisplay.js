@@ -10,16 +10,18 @@
   // B 式行卡样式（v1.15 设计系统；令牌继承 base LIST_CSS）
   const ROW_CSS = `
     .rows { margin-top: 4px; }
+    /* v1.16.2 密度再收一档（截图评审：无缩略图行中段偏空）——竖距 12→10、行距 8→7；
+       裸行维持 v1.13 调定值不动（行距断言针对裸行） */
     .trow { position: relative; display: flex; align-items: center; gap: 14px;
       background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 12px 18px; margin: 8px 0; text-decoration: none;
+      padding: 10px 16px; margin: 7px 0; text-decoration: none;
       transition: background .12s, border-color .12s; }
     .trow:hover { background: var(--surface2); border-color: var(--border2); }
     .trow .thumb { width: 88px; height: 60px; border-radius: 10px; object-fit: cover;
       flex: none; background: var(--surface2); }
-    .trow .main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+    .trow .main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
     .trow .t { font-size: 16px; font-weight: 600; color: var(--text); text-decoration: none;
-      line-height: 1.45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .trow:hover .t { color: var(--accent); }
     .trow .sub { font-size: 13px; color: var(--text3); display: flex; gap: 12px; min-width: 0; }
     .trow .sub a { color: var(--text2); text-decoration: none; }

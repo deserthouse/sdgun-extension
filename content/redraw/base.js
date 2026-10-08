@@ -40,8 +40,9 @@
     .topbar .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-      margin: 10px 0; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
-    .group-title { font-weight: 700; font-size: 17px; color: var(--text); margin: 20px 2px 8px; }
+      margin: 8px 0; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
+    /* v1.16.2 密度收紧：分组标题上间距 20→14（截图评审"略显松散"） */
+    .group-title { font-weight: 700; font-size: 17px; color: var(--text); margin: 14px 2px 6px; }
     .section-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px;
       border-bottom: 1px solid var(--border); color: var(--text2); text-decoration: none;
       transition: background .12s; }
