@@ -4,6 +4,8 @@
 (function () {
   'use strict';
   const B = window.SDGRedrawBase;
+  // 树内容指纹：跨标签副本写 storage.local 的去重依据（见下方写入处）
+  let lastTreeKey = '';
 
   function mountForumList(SDG, opts, cachedGroups) {
     // profile 1: bygsjw 富模板（分组容器 data-byginto）
@@ -76,12 +78,18 @@
     if (!data.length) return false;
     // live 解析成功 → 写会话缓存（供壳态降级用）
     if (!fromCache) {
+      const contentKey = JSON.stringify(data.map((g) => ({ name: g.name, secs: g.secs })));
       const payload = JSON.stringify({ t: Date.now(), groups: data.map((g) => ({ name: g.name, secs: g.secs })) });
       try {
         sessionStorage.setItem('sdg_tree_cache', payload);
       } catch (e) { /* 存储满则跳过 */ }
-      // 跨标签持久副本（新标签深链打开时侧栏树仍可用）
-      try { chrome.storage.local.set({ sdg_tree_cache_ls: payload }); } catch (e) { /* ignore */ }
+      // 跨标签持久副本（新标签深链打开时侧栏树仍可用）。
+      // 内容未变则不再重写：写 storage.local 会触发 boot 的 onChanged → 重挂载 → 再写，
+      // 不去重即自激循环（2026-10-08 首页闪烁事故，boot 侧另有 area 过滤双保险）。
+      if (contentKey !== lastTreeKey) {
+        lastTreeKey = contentKey;
+        try { chrome.storage.local.set({ sdg_tree_cache_ls: payload }); } catch (e) { /* ignore */ }
+      }
     }
     // 简易变体的原列表容器（如 #forumlist）在渲染后隐藏
     const legacyList = document.getElementById(SDG.legacyListId);
@@ -113,10 +121,17 @@
       grp.secs.forEach((s) => {
         const row = el('a', { class: 'section-row', href: `forum.php?mod=forumdisplay&fid=${s.fid}&mobile=2` });
         if (s.icon) row.appendChild(el('img', { class: 'icon', src: s.icon, alt: '',
-          onerror: function () { this.style.display = 'none'; } }));
+          onerror: function () {
+            // 服务端图标缺失（实测：卫星区 common_153_icon.png 404）→ 回退模板默认图，再失败才隐去
+            if (this.dataset.fb) { this.style.display = 'none'; return; }
+            this.dataset.fb = '1';
+            const fb = SDG.assets && SDG.assets.defaultBoardIcon;
+            if (fb) this.src = fb; else this.style.display = 'none';
+          } }));
         const mid = el('div', { class: 's-name' }, [el('span', { text: s.name })]);
         const uniq = [...new Set(s.nums)];
-        if (uniq.length) mid.appendChild(el('span', { class: 'meta', text: uniq.slice(0, 2).join(' / ') }));
+        if (uniq.length) mid.appendChild(el('span', { class: 'meta',
+          text: uniq.length >= 2 ? `主题 ${uniq[0]} · 帖 ${uniq[1]}` : uniq[0] }));
         row.appendChild(mid);
         card.appendChild(row);
       });
@@ -169,10 +184,13 @@
       const a = li.querySelector('a[href*="mod=viewthread"]');
       if (!a) return;
       const tid = (a.getAttribute('href').match(/tid=(\d+)/) || [])[1];
-      const t = (a.textContent || '').replace(/\s+/g, ' ').trim();
+      const raw = (a.textContent || '').replace(/\s+/g, ' ').trim();
+      // 站方行文把日期并进标题文本（"…说明2026.9.27"）：剥出尾部日期走右对齐列
+      const dm = raw.match(/^(.*?)\s*(\d{4}[.\-]\d{1,2}[.\-]\d{1,2}日?)\s*$/);
+      const t = (dm ? dm[1] : raw).trim();
       if (!tid || seen.has(tid) || t.length < 6) return;
       seen.add(tid);
-      items.push({ t: t.slice(0, 60), href: a.getAttribute('href') });
+      items.push({ t: t.slice(0, 60), d: dm ? dm[2] : '', href: a.getAttribute('href') });
     });
     return items.slice(0, 10);
   }
@@ -251,7 +269,10 @@
         .then((html) => {
           const parsed = parseRiverItems(html);
           if (parsed.length) {
-            try { sessionStorage.setItem('sdg_river_cache', JSON.stringify({ t: Date.now(), items: parsed })); } catch (e) { /* */ }
+            const js = JSON.stringify({ t: Date.now(), items: parsed });
+            try { sessionStorage.setItem('sdg_river_cache', js); } catch (e) { /* */ }
+            // 跨标签镜像：深链/新标签打开板块页时右栏公告卡仍可挂载（rightrail 读取此键）
+            try { chrome.storage.local.set({ sdg_river_cache_ls: js }); } catch (e) { /* */ }
             renderRiver(box, el, parsed, opts);
           } else if (attempt === 0) {
             // 服务器壳响应（结构在数据缺）：4 秒后自动补一枪

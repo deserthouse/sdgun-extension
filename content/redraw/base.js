@@ -76,11 +76,13 @@
     .hint { text-align: center; color: var(--text3); font-size: 12px; margin-top: 6px; }
     .statsbar { text-align: center; color: var(--text3); font-size: 13px; padding: 8px 0 0; letter-spacing: .3px; }
 
-    /* 侧栏/右栏激活时顶栏让位（boot 加 sb-shift/rt-shift 类） */
+    /* 侧栏/右栏激活时顶栏让位（boot 加 sb-shift/rt-shift 类）；
+       右栏实际占位 = 264 宽 + 14 右边距 = 278（2026-10-08 修正：原 220 不足，
+       1400-1560 视口下右栏压住内容列；断点与 theme.css/rightrail.js 三处同步） */
     :host(.sb-shift) .topbar { left: 212px; }
     @media (max-width: 1023px) { :host(.sb-shift) .topbar { left: 0; } }
-    :host(.rt-shift) .topbar { right: 220px; }
-    @media (max-width: 1399px) { :host(.rt-shift) .topbar { right: 0; } }
+    :host(.rt-shift) .topbar { right: 278px; }
+    @media (max-width: 1559px) { :host(.rt-shift) .topbar { right: 0; } }
   `;
 
   // ---------- 帖子页样式（v1.15 令牌化） ----------
@@ -152,8 +154,8 @@
 
     :host(.sb-shift) .topbar { left: 212px; }
     @media (max-width: 1023px) { :host(.sb-shift) .topbar { left: 0; } }
-    :host(.rt-shift) .topbar { right: 220px; }
-    @media (max-width: 1399px) { :host(.rt-shift) .topbar { right: 0; } }
+    :host(.rt-shift) .topbar { right: 278px; }
+    @media (max-width: 1559px) { :host(.rt-shift) .topbar { right: 0; } }
   `;
 
   // ---------- DOM 小工具 ----------
@@ -260,11 +262,18 @@
         : ((document.title || '').split('-')[0].replace(/SDGun/i, '').trim() || '版块');
     },
     pagerAnchor(kind) {
+      // 站方禁用态 = <a href="javascript:;" class="grey">上一页</a>（实测 fid=190 第 1 页）：
+      // 只认真实 href，否则会构造出点了没反应的死按钮，并让顶部分页在首页误现（2026-10-08）
+      const isReal = (a) => {
+        const h = (a && a.getAttribute('href')) || '';
+        return !!h && h.indexOf('javascript:') !== 0;
+      };
       const byClass = document.querySelector(kind === 'next' ? SDG.util.pagerNextByClass
         : SDG.util.pagerPrevByClass);
-      if (byClass) return byClass;
+      if (byClass && isReal(byClass)) return byClass;
       const text = kind === 'next' ? SDG.util.pagerNextByText : SDG.util.pagerPrevByText;
-      return [...document.querySelectorAll('a')].find((a) => (a.textContent || '').trim() === text);
+      return [...document.querySelectorAll('a')]
+        .find((a) => (a.textContent || '').trim() === text && isReal(a)) || null;
     },
     collectFilters() {
       const out = [];

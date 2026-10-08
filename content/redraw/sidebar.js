@@ -135,7 +135,13 @@
             href: `forum.php?mod=forumdisplay&fid=${s.fid}&mobile=2` });
           if (s.icon) {
             const im = el('img', { src: s.icon, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
-            im.addEventListener('error', () => { im.style.display = 'none'; });
+            im.addEventListener('error', () => {
+              // 图标 404（实测：卫星区 common_153_icon.png）→ 模板默认图回退，再失败才隐去
+              if (im.dataset.fb) { im.style.display = 'none'; return; }
+              im.dataset.fb = '1';
+              const fb = window.SDG && window.SDG.assets && window.SDG.assets.defaultBoardIcon;
+              if (fb) im.src = fb; else im.style.display = 'none';
+            });
             a.appendChild(im);
           }
           a.appendChild(el('span', { class: 'nm', text: s.name || `fid${s.fid}` }));

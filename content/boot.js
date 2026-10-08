@@ -7,7 +7,11 @@
   const SDG = window.SDG;
   if (!SDG) return; // selectors.js missing -> do nothing
 
+  // 页面角标/诊断用的真实版本号（此前只引用 window.SDG_VER 但从未赋值，角标恒为空）
+  try { window.SDG_VER = chrome.runtime.getManifest().version; } catch (e) { /* ignore */ }
+
   // ---- preferences (synced via chrome.storage; fail-open defaults) ----
+  const PREF_KEYS = ['theme', 'skin', 'lightbox', 'redraw'];
   let prefs = { theme: 'auto', skin: true, lightbox: true, redraw: true };
   try {
     chrome.storage.sync.get(prefs, (stored) => {
@@ -15,8 +19,20 @@
       applyTheme();
       applyRedraw();
     });
-    chrome.storage.onChanged.addListener((changes) => {
-      for (const k of Object.keys(changes)) prefs[k] = changes[k].newValue;
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      // 只响应 sync 区的偏好键（2026-10-08 首页闪烁事故根因）：
+      // 不过滤 area 时，任何 storage.local 写入（如首页树缓存镜像）都会触发 applyRedraw →
+      // 重挂载 → 又写缓存 → 再触发，形成 ~40Hz 重挂载死循环（实机实测 8s/317 次：
+      // 图标疯狂闪烁刷网络、点击因元素在 mousedown/mouseup 间被替换而永远落空）。
+      if (areaName !== 'sync') return;
+      let hit = false;
+      for (const k of Object.keys(changes)) {
+        if (PREF_KEYS.indexOf(k) >= 0) {
+          prefs[k] = changes[k].newValue;
+          hit = true;
+        }
+      }
+      if (!hit) return;
       applyTheme();
       applyRedraw();
     });

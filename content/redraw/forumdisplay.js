@@ -216,8 +216,9 @@
         const rowEl = el('a', { class: 'sf-row',
           href: 'forum.php?mod=forumdisplay&fid=' + fid + '&mobile=2' });
         rowEl.appendChild(el('span', { class: 'sf-name', text: name }));
+        // 标签对齐站方语义：forum_threads=主题数、forum_posts=帖子数（此前误标"帖子/评论"）
         if (th || ps) rowEl.appendChild(el('span', { class: 'sf-meta',
-          text: `帖子 ${th || '-'} · 评论 ${ps || '-'}` }));
+          text: `主题 ${th || '-'} · 帖子 ${ps || '-'}` }));
         box.appendChild(rowEl);
         any = true;
       });
@@ -275,14 +276,16 @@
       return box;
     };
 
-    // 行式列表（蓝图 L1：PC 密度；底部分页常驻，顶部仅近满页时显示）
-    if (threads.length >= 8) wrap.appendChild(makePager());
+    // 行式列表（蓝图 L1：PC 密度；底部分页常驻，顶部分页仅在真有上一页时显示——
+    // 首页（无 prev）顶部只会有个失效的"上一页"，纯噪音，用户截图实证）
+    if (threads.length >= 8 && prevA) wrap.appendChild(makePager());
     const rowsBox = el('div', { class: 'rows' });
     threads.forEach((t) => {
       const bare = !t.author && !t.date && !t.replies && !t.views;
       const row = el('div', { class: 'trow' + (bare ? ' bare' : '') + (t.pin ? ' pinned' : '') });
       if (t.preview && t.preview.length) {
-        row.appendChild(el('img', { class: 'thumb', src: t.preview[0], alt: '', loading: 'lazy' }));
+        row.appendChild(el('img', { class: 'thumb', src: t.preview[0], alt: '', loading: 'lazy',
+          onerror: function () { this.style.display = 'none'; } }));
       }
       const main = el('div', { class: 'main' });
       const tline = el('div', { class: 'tline' });

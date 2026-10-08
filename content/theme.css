@@ -400,9 +400,11 @@ html.sdg-rt-on body.bg_xin {
   box-sizing: border-box;
 }
 html.sdg-sb-on #wp { margin-left: 212px !important; }
-html.sdg-rt-on #wp { margin-right: 220px !important; }
+/* 右栏实际占位 = 264 宽 + 14 右边距 = 278（2026-10-08 修正：原 220 不足，
+   1400-1560 视口下右栏压住内容列；断点与 base.js/rightrail.js 三处同步） */
+html.sdg-rt-on #wp { margin-right: 278px !important; }
 @media (max-width: 1023px) { html.sdg-sb-on #wp { margin-left: 0 !important; } }
-@media (max-width: 1399px) { html.sdg-rt-on #wp { margin-right: 0 !important; } }
+@media (max-width: 1559px) { html.sdg-rt-on #wp { margin-right: 0 !important; } }
 
 /* 浅色重绘态页面底色：淡灰衬托白卡（深色已有 #131417） */
 html.sdg-redraw-active:not(.sdg-theme-dark) body {

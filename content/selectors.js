@@ -22,7 +22,9 @@ const SDG = {
     // ul.bygsjw threadlist_ul > li.cl rows; title in a.over_two
     threadRow: 'ul.byg_threadlist_ul > li.cl',
     threadTitle: 'a.over_two',
-    threadPreview: 'ul.list_img3 a',
+    // 列表行图文预览：3 图条（ul.list_img3，实证活跃于 fid=196/精华视图）+ 单图行变体
+    // （.list_img1_box，模板内联样式块定义；非背景图锚点由 style.backgroundImage 过滤兜住）
+    threadPreview: 'ul.list_img3 a, .list_img1_box a',
     bottom: '.list_bottom',
     // 行级字段（2026-10-08 补齐——此前三键从未迁入，querySelector(undefined) 静默匹配空，
     // 作者/日期/统计自模块拆分日起从未显示。富形态行结构实证见 roadmap 勘误）
@@ -101,6 +103,11 @@ const SDG = {
     pagerPrevByText: '上一页',
     filterLinks: 'a[href*="filter="], a[href*="orderby="]',
     viewthreadAnchor: 'a[href*="mod=viewthread"]',
+  },
+
+  // 站方静态资产（模板自带；板块无图标/图标 404 时的回退，与站方对无图标板块的处理一致）
+  assets: {
+    defaultBoardIcon: 'template/bygsjw_3sj/image/forum.png',
   },
 
   common: {

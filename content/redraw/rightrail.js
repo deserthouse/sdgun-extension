@@ -34,7 +34,8 @@
     :host .chips button { border: 1px solid var(--border2); background: var(--surface); color: var(--text2);
       border-radius: 7px; padding: 2px 8px; font-size: 11.5px; cursor: pointer; }
     :host .chips button:hover { border-color: var(--accent); color: var(--accent); }
-    @media (max-width: 1399px) { :host { display: none; } }
+    /* 断点 1559：右栏占位 278（264+14）——否则 1400-1560 视口下压住内容列（2026-10-08） */
+    @media (max-width: 1559px) { :host { display: none; } }
   `;
   const RT_DARK = `
     :host { --surface: #17181b; --surface2: #222329; --border: #26272c; --border2: #34353b;
@@ -107,15 +108,29 @@
     return true;
   }
 
-  // 列表页右栏：公告卡（数据=内容河缓存 fid=39 最新帖；无缓存则隐藏右栏）
+  // 列表页右栏：公告卡（数据=内容河缓存 fid=39 最新帖；会话无缓存时读跨标签镜像；都无则隐藏右栏）
   function mountNoticeRail(opts) {
     let items = [];
     try {
       const raw = sessionStorage.getItem('sdg_river_cache');
       if (raw) items = (JSON.parse(raw).items || []).slice(0, 8);
     } catch (e) { /* ignore */ }
-    if (!items.length) return false;
+    if (items.length) return buildNoticeRail(items, opts);
+    // 深链/新标签打开板块页：会话缓存为空——读 storage.local 镜像（forumlist 侧写入），有数据再挂
+    try {
+      chrome.storage.local.get({ sdg_river_cache_ls: null }, (st) => {
+        try {
+          if (!st || !st.sdg_river_cache_ls) return;
+          const arr = (JSON.parse(st.sdg_river_cache_ls).items || []).slice(0, 8);
+          if (arr.length) buildNoticeRail(arr, opts);
+        } catch (e) { /* ignore */ }
+      });
+    } catch (e) { /* ignore */ }
+    return false;
+  }
 
+  function buildNoticeRail(items, opts) {
+    if (document.getElementById('sdg-rail')) return true; // 防异步双挂
     const host = document.createElement('div');
     host.id = 'sdg-rail';
     host.className = 'sdg-host';
