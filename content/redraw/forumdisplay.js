@@ -33,7 +33,36 @@
     .trow .hoverp img { width: 150px; height: 100px; object-fit: cover; border-radius: 8px; background: var(--surface2); }
     .trow:hover .hoverp { display: flex; }
     .trow.bare { padding: 9px 18px; margin: 6px 0; }
+    .trow.pinned { background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
+    .tline { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .type-badge { flex: none; font-size: 11px; font-weight: 600; color: var(--accent);
+      border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+      background: color-mix(in srgb, var(--accent) 8%, transparent);
+      border-radius: 5px; padding: 1px 7px; letter-spacing: .5px; }
+    .pin-badge { flex: none; font-size: 11px; font-weight: 600; color: var(--text3);
+      border: 1px solid var(--border2); border-radius: 5px; padding: 1px 7px; }
+    .tline .t { flex: 1; min-width: 0; }
     .fchip.srch { margin-left: auto; border-style: dashed; }
+    /* 板块头卡 + 子版块卡 */
+    .boardhead { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 12px 18px; margin: 4px 0 10px; }
+    .boardhead .bh-name { font-size: 16px; font-weight: 700; color: var(--text); }
+    .boardhead .bh-stat { font-size: 13px; color: var(--text3); }
+    .boardhead .bh-stat b { color: var(--text2); font-weight: 600; }
+    .boardhead a.bh-fav { margin-left: auto; font-size: 12.5px; font-weight: 600; color: var(--accent);
+      text-decoration: none; border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+      border-radius: 999px; padding: 4px 14px; }
+    .boardhead a.bh-fav:hover { background: var(--accent); color: #fff; }
+    .subforums { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 6px 0; margin: 0 0 10px; }
+    .subforums .sf-title { font-size: 11.5px; font-weight: 700; color: var(--text3);
+      padding: 6px 18px 2px; letter-spacing: .8px; }
+    .subforums a.sf-row { display: flex; align-items: center; gap: 10px; padding: 7px 18px;
+      color: var(--text2); text-decoration: none; font-size: 14px; }
+    .subforums a.sf-row:hover { background: var(--surface2); color: var(--accent); }
+    .subforums a.sf-row .sf-name { font-weight: 500; color: var(--text); }
+    .subforums a.sf-row .sf-meta { margin-left: auto; font-size: 12.5px; color: var(--text3); }
   `;
 
   function parseThreads(SDG) {
@@ -49,12 +78,27 @@
       const previews = [...row.querySelectorAll(F.threadPreview)]
         .map((a) => (a.style && a.style.backgroundImage || '').match(/url\("?([^")]+)"?\)/))
         .filter(Boolean).map((m) => m[1]);
+      // 类型徽标与标题清洗：list_typename 是独立子元素（不剥离会把"讨论"粘连进标题）
+      const typeEl = row.querySelector(F.rowType);
+      const type = typeEl ? (typeEl.textContent || '').trim() : '';
+      const pin = !!row.querySelector(F.rowPin);
+      let title = t.textContent || '';
+      if (type) title = title.replace(type, '');
+      title = title.replace(/^(置顶|本版置顶|精华)\s*/, '').trim();
+      // 日期取 em.z 中匹配日期模式者（首 em 可能是红色"置顶"标签）
+      let date = '';
+      ems.forEach((e) => {
+        const txt = (e.textContent || '').replace(/\s+/g, ' ').trim();
+        if (!date && /\d{4}-\d{1,2}-\d{1,2}/.test(txt)) date = txt;
+      });
       threads.push({
-        title: (t.textContent || '').trim(),
+        title,
         href: t.getAttribute('href') || '#',
+        type,
+        pin,
         author: authorEl ? (authorEl.textContent || '').trim() : '',
         authorHref: authorEl ? authorEl.getAttribute('href') : '#',
-        date: ems.length ? (ems[0].textContent || '').replace(/\s+/g, ' ').trim() : '',
+        date,
         replies: ys.length ? (ys[0].textContent || '').replace(/\D/g, '') : '',
         views: ys.length > 1 ? (ys[1].textContent || '').replace(/\D/g, '') : '',
         preview: previews,
@@ -123,6 +167,63 @@
       ]),
     ]));
 
+    // ---- 板块头卡：今日/主题统计 + 收藏本版（真实链接，页内 DOM 稳定在场） ----
+    (function boardHead() {
+      const txt = (document.body.textContent || '');
+      const today = (txt.match(/今日[^0-9]{0,12}(\d{1,7})/) || [])[1];
+      const total = (txt.match(/主题[^0-9]{0,12}(\d{1,9})/) || [])[1]
+        || (txt.match(/主题:\s*(\d{1,9})/) || [])[1];
+      const favA = [...document.querySelectorAll('a')]
+        .find((a) => /收藏本版|收藏/.test(a.textContent || '') && /action=fav|favthread|mod=fav/.test(a.getAttribute('href') || ''))
+        || [...document.querySelectorAll('a')].find((a) => (a.textContent || '').trim() === '收藏本版');
+      if (!today && !total && !favA) return;
+      const bh = el('div', { class: 'boardhead' },
+        [el('span', { class: 'bh-name', text: boardName || '版块' })]);
+      if (today) {
+        bh.appendChild(el('span', { class: 'bh-stat', text: '今日 ' + today + ' ' }));
+      }
+      if (total) {
+        bh.appendChild(el('span', { class: 'bh-stat', text: ' · 主题 ' + total }));
+      }
+      if (favA) {
+        const fav = el('a', { class: 'bh-fav', text: '★ 收藏本版',
+          href: favA.getAttribute('href') });
+        bh.appendChild(fav);
+      }
+      wrap.appendChild(bh);
+    })();
+
+    // ---- 子版块卡（同一 li.cl 容器内的 forum_img 行：名称+帖子/评论双计数） ----
+    (function subforums() {
+      const F2 = SDG.forumDisplay;
+      const rows = document.querySelectorAll(F2.subforumRow);
+      if (!rows.length) return;
+      const seen = new Set();
+      const box = el('div', { class: 'subforums' });
+      box.appendChild(el('div', { class: 'sf-title', text: '子版块' }));
+      let any = false;
+      rows.forEach((a) => {
+        const href = a.getAttribute('href') || '';
+        const fid = (href.match(/fid=(\d+)/) || [])[1];
+        if (!fid || seen.has(fid)) return;
+        seen.add(fid);
+        const li = a.closest('li') || a.parentElement;
+        const nameEl = li.querySelector(F2.subforumName);
+        const name = nameEl ? (nameEl.textContent || '').trim() : ((a.querySelector('img') || {}).alt || '');
+        if (!name) return;
+        const th = ((li.querySelector(F2.subforumThreads) || {}).textContent || '').replace(/\D/g, '');
+        const ps = ((li.querySelector(F2.subforumPosts) || {}).textContent || '').replace(/\D/g, '');
+        const rowEl = el('a', { class: 'sf-row',
+          href: 'forum.php?mod=forumdisplay&fid=' + fid + '&mobile=2' });
+        rowEl.appendChild(el('span', { class: 'sf-name', text: name }));
+        if (th || ps) rowEl.appendChild(el('span', { class: 'sf-meta',
+          text: `帖子 ${th || '-'} · 评论 ${ps || '-'}` }));
+        box.appendChild(rowEl);
+        any = true;
+      });
+      if (any) wrap.appendChild(box);
+    })();
+
     // 筛选行（真实导航 chips）+ 搜索本板块入口（蓝图残余：跳真实 search.php）
     if (filterLinks.length) {
       const row = el('div', { class: 'filters' });
@@ -179,15 +280,19 @@
     const rowsBox = el('div', { class: 'rows' });
     threads.forEach((t) => {
       const bare = !t.author && !t.date && !t.replies && !t.views;
-      const row = el('div', { class: 'trow' + (bare ? ' bare' : '') });
+      const row = el('div', { class: 'trow' + (bare ? ' bare' : '') + (t.pin ? ' pinned' : '') });
       if (t.preview && t.preview.length) {
         row.appendChild(el('img', { class: 'thumb', src: t.preview[0], alt: '', loading: 'lazy' }));
       }
       const main = el('div', { class: 'main' });
-      main.appendChild(el('a', { class: 't', text: t.title || '(无题)', href: t.href }));
+      const tline = el('div', { class: 'tline' });
+      if (t.pin) tline.appendChild(el('span', { class: 'pin-badge', text: '置顶' }));
+      if (t.type) tline.appendChild(el('span', { class: 'type-badge', text: t.type }));
+      tline.appendChild(el('a', { class: 't', text: t.title || '(无题)', href: t.href }));
+      main.appendChild(tline);
       const subItems = [];
       if (t.author) subItems.push(el('a', { text: t.author, href: t.authorHref || '#' }));
-      if (t.date) subItems.push(el('span', { class: 'd', text: t.date }));
+      if (t.date) subItems.push(el('span', { class: 'd', text: B.util.toRelative(t.date) }));
       if (subItems.length) main.appendChild(el('div', { class: 'sub' }, subItems));
       row.appendChild(main);
       if (t.replies || t.views) {
@@ -227,4 +332,5 @@
 
   window.SDGRedraw = window.SDGRedraw || {};
   window.SDGRedraw.mountForumDisplay = mountForumDisplay;
+  window.SDGRedraw.parseThreads = parseThreads; // 单测导出
 })();

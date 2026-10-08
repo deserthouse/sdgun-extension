@@ -289,6 +289,25 @@
     // 空壳判定（2026-10-04 全页覆盖，按页型）：脚手架在场 + 该页型内容签名缺失 = 服务器壳响应。
     // 按页型隔离签名——m1 帖子页的 div.bm 里也有 forumdisplay 面包屑，全局 OR 链会误判（单测抓出）。
     // kind: 'forumlist' | 'forumdisplay' | 'viewthread'
+    // 相对时间：'2026-7-23' / '2026-7-23 17:26' → 刚刚/N分钟前/N小时前/昨天/M-d/往年年-月-日
+    toRelative(dateStr) {
+      if (!dateStr) return '';
+      const m = String(dateStr).match(/(\d{4})-(\d{1,2})-(\d{1,2})(?:\s+(\d{1,2}):(\d{2}))?/);
+      if (!m) return String(dateStr).trim();
+      const d = new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0));
+      const diff = Date.now() - d.getTime();
+      if (diff < 0 || isNaN(diff)) return String(dateStr).trim();
+      const MIN = 6e4, HOUR = 36e5, DAY = 864e5;
+      if (diff < MIN) return '刚刚';
+      if (diff < HOUR) return Math.floor(diff / MIN) + ' 分钟前';
+      if (diff < DAY) return Math.floor(diff / HOUR) + ' 小时前';
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      if (d >= new Date(today.getTime() - DAY)) return '昨天';
+      if (d >= new Date(today.getTime() - 6 * DAY)) return (m[2] | 0) + '-' + (m[3] | 0);
+      if (+m[1] === now.getFullYear()) return (m[2] | 0) + '-' + (m[3] | 0);
+      return m[1] + '-' + (m[2] | 0) + '-' + (m[3] | 0);
+    },
     looksEmpty(kind) {
       if (!document.querySelector('.hd, .ft, .footer')) return false; // 结构都不在：非壳（错误页另管）
       if (kind === 'forumlist') {

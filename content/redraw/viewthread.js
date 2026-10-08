@@ -37,6 +37,12 @@
     .ffoot { display:flex; justify-content:flex-end; margin-top:10px; }
     .ffoot .reply { font-size:12.5px; color:var(--text3); text-decoration:none;
       border:1px solid var(--border2); border-radius:999px; padding:3px 14px; }
+    .ffoot .vote { font-size:12.5px; text-decoration:none; border-radius:999px; padding:3px 12px;
+      border:1px solid var(--border2); }
+    .ffoot .vote.up { color:var(--accent); }
+    .ffoot .vote.up:hover { background:var(--accent); color:#fff; }
+    .ffoot .vote.down { color:var(--text3); }
+    .ffoot .vote.down:hover { border-color:var(--accent); color:var(--accent); }
     .ffoot .reply:hover { color:var(--accent); border-color:var(--accent); }
   `;
 
@@ -59,6 +65,13 @@
       let floorEl = node.querySelector(V.postNumber);
       const avatarEl = node.querySelector(V.authorAvatar);
       let replyA = node.querySelector(V.replyAnchor);
+      // 赞/踩：站点 postreview 真实链接（do=support / do=oppose，带 tid+pid+hash；
+      // 游客点击=站点自身登录引导，与回复按钮同性质）
+      const supportA = node.querySelector('a[href*="postreview"][href*="do=support"]');
+      const opposeA = node.querySelector('a[href*="postreview"][href*="do=oppose"]')
+        || node.querySelector('a[href*="postreview"]:not([href*="do=support"])');
+      const supportHref = supportA ? supportA.getAttribute('href') : '';
+      const opposeHref = opposeA ? opposeA.getAttribute('href') : '';
 
       // mobile=1 标准移动模板：内容在楼层头的兄弟节点（#postmessage_{pid}），头部元素形态不同
       const pid = (node.id || '').replace('pid', '');
@@ -91,6 +104,8 @@
         content: contentEl,
         pid,
         fid: pageFid,
+        supportHref,
+        opposeHref,
       });
     });
     return floors;
@@ -232,6 +247,12 @@
       main.appendChild(body);
 
       const foot = el('div', { class: 'ffoot' });
+      if (f.supportHref) {
+        foot.appendChild(el('a', { class: 'vote up', text: '👍 支持', href: f.supportHref }));
+      }
+      if (f.opposeHref) {
+        foot.appendChild(el('a', { class: 'vote down', text: '👎', href: f.opposeHref, title: '反对' }));
+      }
       foot.appendChild(el('a', { class: 'reply', text: '回复', href: f.replyHref || replyUrl(f) }));
       main.appendChild(foot);
 

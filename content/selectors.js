@@ -19,11 +19,25 @@ const SDG = {
   },
 
   forumDisplay: {
-    // ul.byg_threadlist_ul > li.cl rows; title in a.over_two
+    // ul.bygsjw threadlist_ul > li.cl rows; title in a.over_two
     threadRow: 'ul.byg_threadlist_ul > li.cl',
     threadTitle: 'a.over_two',
     threadPreview: 'ul.list_img3 a',
     bottom: '.list_bottom',
+    // 行级字段（2026-10-08 补齐——此前三键从未迁入，querySelector(undefined) 静默匹配空，
+    // 作者/日期/统计自模块拆分日起从未显示。富形态行结构实证见 roadmap 勘误）
+    rowAuthor: '.list_bottom a.z[href*="space"]',
+    rowDate: '.list_bottom em.z',
+    rowStats: '.list_bottom span.y',
+    rowType: 'span.list_typename',
+    rowPin: 'img[alt*="置顶"]',
+    // 子版块行（同一 li.cl 容器：a.forum_img + .forum_names + 双计数 span）
+    subforumRow: 'li.cl a.forum_img',
+    subforumName: '.forum_names',
+    subforumThreads: '.forum_threads',
+    subforumPosts: '.forum_posts',
+    // 板块头统计与收藏（今日/主题 + 收藏本版真实链接）
+    favLink: 'a[href*="action=fav"], a[href*="favthread"]',
     // pager anchors (real navigation targets)
     nextLink: 'a.nxt',
     prevLink: 'a.prev',
@@ -54,6 +68,8 @@ const SDG = {
   viewThread: {
     // div.postlist > div[id^="pid"] floors; content in .message
     floor: 'div[id^="pid"]',
+    // 每楼真实回复链接（v1.16 子键门禁首秀抓出的静默死键——此前一直走兜底构造 URL）
+    replyAnchor: 'a[href*="action=reply"]',
     author: '.post_author .authi a, .authi a',
     authorAvatar: '.avatar img',
     postNumber: '.post_number',
