@@ -66,6 +66,41 @@
       b.textContent = msg;
     } catch (e) { /* ignore */ }
   }
+  function showShellOverlay(ver) {
+    try {
+      if (document.getElementById('sdg-shell-overlay')) return;
+      const ov = document.createElement('div');
+      ov.id = 'sdg-shell-overlay';
+      ov.style.cssText = 'position:fixed;inset:0;z-index:2147483600;display:flex;align-items:center;justify-content:center;'
+        + 'background:rgba(245,245,244,.96);font-family:system-ui,"Segoe UI","Microsoft YaHei",sans-serif;';
+      if (document.documentElement.classList.contains('sdg-theme-dark')) {
+        ov.style.background = 'rgba(17,18,20,.97)';
+      }
+      const card = document.createElement('div');
+      card.style.cssText = 'max-width:420px;margin:0 24px;padding:28px 30px;border:1px solid rgba(0,0,0,.1);'
+        + 'border-radius:14px;background:#fff;text-align:center;color:#292524;';
+      if (document.documentElement.classList.contains('sdg-theme-dark')) {
+        card.style.background = '#1a1b1e';
+        card.style.borderColor = '#2c2d31';
+        card.style.color = '#d6d3d1';
+      }
+      const h = document.createElement('div');
+      h.style.cssText = 'font-weight:700;font-size:17px;margin-bottom:10px;';
+      h.textContent = '服务器响应不完整';
+      const t = document.createElement('div');
+      t.style.cssText = 'font-size:13.5px;line-height:1.7;opacity:.75;margin-bottom:18px;';
+      t.textContent = '论坛服务器偶尔不稳定，稍后重试通常可恢复。' + (ver ? '（' + ver + '）' : '');
+      const b = document.createElement('button');
+      b.style.cssText = 'border:0;border-radius:9px;background:#b01f28;color:#fff;'
+        + 'padding:9px 34px;font-size:14px;cursor:pointer;';
+      b.textContent = '重试';
+      b.addEventListener('click', () => { try { sessionStorage.removeItem('sdg-retry:' + location.href); } catch (e) {} location.reload(); });
+      card.appendChild(h); card.appendChild(t); card.appendChild(b);
+      ov.appendChild(card);
+      document.body.appendChild(ov);
+    } catch (e) { /* ignore */ }
+  }
+
   function clearBadge() {
     const b = document.getElementById('sdg-diag-badge');
     if (b) b.remove();
@@ -111,9 +146,11 @@
       if (SDG.page.isViewThread()) { ok = window.SDGRedraw.mount(SDG, opts); how = 'viewthread'; }
       else if (SDG.page.isForumDisplay()) { ok = window.SDGRedraw.mountForumDisplay(SDG, opts); how = 'forumdisplay'; }
       else if (SDG.page.isForumList()) { ok = window.SDGRedraw.mountForumList(SDG, opts); how = 'forumlist'; }
-    } catch (e) { ok = false; how = 'EXC ' + String(e).slice(0, 60); }
+    } catch (e) { ok = false; how = 'EXC ' + String(e).slice(0, 160); console.log('[sdg-boot] EXC', (e && e.stack) || e); }
     if (ok) {
       clearBadge();
+      const ov = document.getElementById('sdg-shell-overlay');
+      if (ov) ov.remove();
       // Batch2：左栏论坛树导航（树取会话缓存；主题切换经重挂载刷新配色/按钮文案）
       try {
         if (window.SDGRedraw.mountSidebar) {
@@ -169,6 +206,9 @@
           }
         } catch (e) { /* 缓存损坏则走回退 */ }
       }
+      // 壳态终局覆盖层（同 Android 错误层哲学）：重试与缓存都未救回时，
+      // 居中给出人话提示+重试钮，替代裸壳页。挂载成功路径会移除。
+      if (looksEmpty) showShellOverlay(ver);
       // P1-3：两段式响应（壳+AJAX）——内容后到，观察容器出现后重挂载一次
       watchLateContent(() => {
         showBadge(ver + ' 内容延迟到达，重新挂载…');

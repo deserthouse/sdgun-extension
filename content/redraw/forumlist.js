@@ -148,6 +148,9 @@
       padding:4px 0; margin:14px 0; }
     .river .rhead { display:flex; align-items:center; padding:8px 16px 6px; }
     .river .rhead .rt { font-weight:700; font-size:14.5px; color:#1c1917; flex:1; }
+    .river .rhead .rt a.rboard { color:inherit; text-decoration:none; border-bottom:1px dashed #c8c4c0; }
+    .river .rhead .rt a.rboard:hover { color:#b01f28; border-bottom-color:#b01f28; }
+    :host(.dark) .river .rhead .rt a.rboard { border-bottom-color:#4a4b50; }
     .river .rhead button { border:none; background:none; color:#a8a29e; font-size:12px;
       cursor:pointer; padding:2px 6px; }
     .river .rhead button:hover { color:#b01f28; }
@@ -181,11 +184,26 @@
     return items.slice(0, 10);
   }
 
+  function boardNameOf(fid) {
+    try {
+      const raw = sessionStorage.getItem('sdg_tree_cache');
+      if (raw) {
+        for (const g of (JSON.parse(raw).groups) || []) {
+          for (const b of g.secs || []) if (String(b.fid) === String(fid)) return b.name;
+        }
+      }
+    } catch (e) { /* ignore */ }
+    return null;
+  }
+
   function renderRiver(box, el, items, opts) {
     box.textContent = '';
-    const head = el('div', { class: 'rhead' }, [
-      el('span', { class: 'rt', text: '最近回复' }),
-    ]);
+    // 单板块河：板块名标在头部（可点入板块）；逐行同名是噪音
+    const bn = boardNameOf(RIVER_FID) || '站务公告';
+    const rt = el('span', { class: 'rt', text: '最近回复 · ' });
+    rt.appendChild(el('a', { class: 'rboard', text: bn,
+      href: `forum.php?mod=forumdisplay&fid=${RIVER_FID}&mobile=2` }));
+    const head = el('div', { class: 'rhead' }, [rt]);
     const rf = el('button', { text: '刷新', title: '重新获取（手动）' });
     rf.addEventListener('click', () => {
       try { sessionStorage.removeItem('sdg_river_done'); } catch (e) { /* */ }

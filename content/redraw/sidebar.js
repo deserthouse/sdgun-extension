@@ -16,6 +16,7 @@
     :host a.home { display:block; padding:6px 10px; border-radius:8px;
       color:#44403c; text-decoration:none; font-weight:600; margin-bottom:8px; }
     :host a.home:hover { background:rgba(176,31,40,.08); }
+    :host a.home.quick { font-weight:500; font-size:12.5px; padding:4px 10px; color:#78716c; }
     :host .grp { font-size:11.5px; font-weight:700; color:#a8a29e; margin:10px 4px 4px;
       letter-spacing:.5px; }
     :host a.bd { display:flex; align-items:center; gap:8px; padding:5px 10px;
@@ -81,6 +82,9 @@
 
     shadow.appendChild(el('a', { class: 'brand', text: 'SDGun 导航', href: 'forum.php?forumlist=1&mobile=2' }));
     shadow.appendChild(el('a', { class: 'home', text: '论坛首页', href: 'forum.php?forumlist=1&mobile=2' }));
+    // 快捷入口（真实页面导航）：全局搜索 + 登录/我的（游客态=登录页）
+    shadow.appendChild(el('a', { class: 'home quick', text: '🔍 搜索', href: 'search.php?mod=forum&mobile=2' }));
+    shadow.appendChild(el('a', { class: 'home quick', text: '👤 登录 / 我的', href: 'member.php?mod=logging&action=login&mobile=2' }));
 
     const curFid = (location.search.match(/fid=(\d+)/) || [])[1];
     const foot = el('div', { class: 'foot' });

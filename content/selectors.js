@@ -40,6 +40,13 @@ const SDG = {
     sectionCounts: '.forum_num, li.cl',
   },
 
+  // profile 3 兜底（h2 分组走查）：此前 forumlist.js 引用此键但表内缺失——
+  // 壳响应（profile 1/2 无数据）时 mount 直接 EXC，旁路壳重试/缓存/覆盖层全套机制（2026-10-08 定位）
+  h2walk: {
+    groupHeader: 'h2',
+    sectionLink: 'a[href*="mod=forumdisplay"]',
+  },
+
   viewThread: {
     // div.postlist > div[id^="pid"] floors; content in .message
     floor: 'div[id^="pid"]',

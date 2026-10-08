@@ -14,7 +14,7 @@
     .crumb-home:hover { color: #b01f28; }
     .crumb-sep { color: #a8a29e; font-weight: 400; }
     .fchip.srch { margin-left: auto; border-style: dashed; }
-    .trow.bare { padding: 8px 14px; }
+    .trow.bare { padding: 4px 14px; margin: 3px 0; }
     :host(.dark) .crumb-home { color: #a8a29e; }
     :host(.dark) .crumb-home:hover { color: #ff6b7a; }
     :host(.dark) .crumb-sep { color: #78716c; }
@@ -196,10 +196,10 @@
       }
       const main = el('div', { class: 'main' });
       main.appendChild(el('a', { class: 't', text: t.title || '(无题)', href: t.href }));
-      const sub = el('div', { class: 'sub' });
-      if (t.author) sub.appendChild(el('a', { text: t.author, href: t.authorHref || '#' }));
-      if (t.date) sub.appendChild(el('span', { class: 'd', text: t.date }));
-      main.appendChild(sub);
+      const subItems = [];
+      if (t.author) subItems.push(el('a', { text: t.author, href: t.authorHref || '#' }));
+      if (t.date) subItems.push(el('span', { class: 'd', text: t.date }));
+      if (subItems.length) main.appendChild(el('div', { class: 'sub' }, subItems));
       row.appendChild(main);
       if (t.replies || t.views) {
         const st = el('div', { class: 'stats' });

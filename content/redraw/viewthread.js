@@ -8,6 +8,10 @@
 
   // 楼层双列样式（追加在共享 CSS 之后；.body 等内容样式复用 base 层）
   const FLOOR_CSS = `
+    .crumb-home { color:#78716c; text-decoration:none; font-weight:500; flex:none; }
+    .crumb-home:hover { color:#b01f28; }
+    :host(.dark) .crumb-home { color:#a8a29e; }
+    :host(.dark) .crumb-home:hover { color:#ff6b7a; }
     .fcard { display:flex; gap:14px; background:#fff; border:1px solid rgba(0,0,0,.08);
       border-radius:12px; padding:14px 16px; margin:10px 0; }
     .fcard.opf { border-left:3px solid #b01f28; }
@@ -158,10 +162,13 @@
     const opUid = (floors[0] && (floors[0].authorHref.match(/uid=(\d+)/) || [])[1]) || '';
     const authorFiltered = /authorid=\d+/.test(location.search);
 
-    wrap.appendChild(el('div', { class: 'topbar' }, [
-      el('a', { class: 'title', text: title, href: '#' }),
-      el('span', { class: 'page', text: `第 ${page} 页` }),
-    ]));
+    const backFid = (floors[0] && floors[0].fid) || (location.search.match(/fid=(\d+)/) || [])[1] || '';
+    const topItems = [];
+    if (backFid) topItems.push(el('a', { class: 'crumb-home', text: '‹ 板块',
+      href: `forum.php?mod=forumdisplay&fid=${backFid}&mobile=2` }));
+    topItems.push(el('a', { class: 'title', text: title, href: '#' }));
+    topItems.push(el('span', { class: 'page', text: `第 ${page} 页` }));
+    wrap.appendChild(el('div', { class: 'topbar' }, topItems));
 
     // 工具行：只看楼主（真实导航）+ 跳楼（页内滚动或翻页导航）
     const tools = el('div', { class: 'tools' });
