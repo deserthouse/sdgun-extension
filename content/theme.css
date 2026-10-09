@@ -274,9 +274,39 @@ html.sdg-redraw-active body {
 
 /* ===== 视觉审计修复（2026-10-04） ===== */
 
-/* L3 登录页 PC 排版：限宽居中，不再全屏拉伸（页标签由 boot 打） */
+/* L3 登录页手机壳（v1.17.4，与 search/space 同族同款）：
+   此前只有 .wp 560 半套处理、无根字号钳制——flexible.js 在 PC 视口把根字号撑到
+   数百 px，站方 header/汉堡/导航钮/表单容器全部爆版（用户实拍：输入框成巨块、
+   页面不可用）。按 420 设计宽钳制根字号=112px + body 手机壳居中 + 顶栏同步居中。 */
+html.sdg-page-login {
+  font-size: 112px !important;
+}
+html.sdg-page-login body {
+  max-width: 420px !important;
+  margin: 0 auto !important;
+  background: #f4f4f4 !important;
+}
+html.sdg-theme-dark.sdg-page-login body {
+  background: #111 !important;
+}
+html.sdg-page-login .hdc_xin {
+  left: 50% !important;
+  right: auto !important;
+  width: 420px !important;
+  transform: translateX(-50%) !important;
+}
+/* 站方悬浮导航/回顶钮是 fixed（相对视口定位）——body 手机壳管不到，
+   钉进 420 框右缘内（框右缘=50%+210px，钮右距 12px）。
+   定位在容器 .byg_scrolltop 上（v1.17.4 复测补钉），a.scrolltop_* 是其内容 */
+html.sdg-page-login .byg_scrolltop {
+  right: calc(50% - 198px) !important;
+}
+html.sdg-page-login .scrolltop_order,
+html.sdg-page-login .scrolltop_side {
+  right: auto !important;
+}
 html.sdg-page-login .wp {
-  max-width: 560px !important;
+  max-width: 100% !important;
   margin-left: auto !important;
   margin-right: auto !important;
 }
