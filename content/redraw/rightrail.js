@@ -6,6 +6,9 @@
   'use strict';
 
   const RT_CSS = `
+    /* 内距必须放内层 .rwrap：站方 mobile/style.css 有 * { margin:0; padding:0 } 通配 reset，
+       文档树 normal 声明按 CSS Scoping 级联压过 :host 声明（树上下文优先）——
+       :host padding 自始不生效（v1.17.2 取证：逐表停用二分定位） */
     :host { all: initial; display: block; box-sizing: border-box;
       --surface: #ffffff; --surface2: #f1efee; --border: rgba(0,0,0,.08); --border2: rgba(0,0,0,.14);
       --text: #1c1917; --text2: #57534e; --text3: #a8a29e; --accent: #b01f28;
@@ -13,20 +16,19 @@
       overflow-y: auto; z-index: 2147483000;
       background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
       font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 13px;
-      color: var(--text); padding: 16px 14px 14px; }
-    :host .sect { font-size: 11.5px; font-weight: 700; color: var(--text3); margin: 2px 2px 8px; letter-spacing: .8px; }
-    :host a.nitem { display: block; padding: 6px 6px; border-radius: 8px;
+      color: var(--text); }
+    :host .rwrap { padding: 20px 18px 18px; }
+    :host .sect { font-size: 11.5px; font-weight: 700; color: var(--text3); margin: 4px 4px 10px; letter-spacing: .8px; }
+    :host a.nitem { display: block; padding: 8px 10px; border-radius: 8px;
       color: var(--text2); text-decoration: none; font-size: 13px; line-height: 1.5;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: background .12s; }
     :host a.nitem:hover { background: var(--surface2); color: var(--accent); }
-    :host a.nmore { display: block; margin-top: 8px; padding: 6px; border-top: 1px solid var(--border);
+    :host a.nmore { display: block; margin-top: 10px; padding: 9px 6px 2px; border-top: 1px solid var(--border);
       color: var(--accent); text-decoration: none; font-size: 12.5px; font-weight: 600; }
     :host a.nmore:hover { text-decoration: underline; }
-    /* 卡头重排（2026-10-09 D-3：头像方块与顶边碰撞、层级不统一）：
-       顶部留呼吸位、头像 50px/12px 圆角（内层圆角小于外层 16px−padding）、
-       分隔线下留白对齐卡体内边 */
-    :host .opcard { display: flex; flex-direction: column; align-items: center; gap: 7px;
-      padding: 2px 4px 13px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+    /* 卡头（2026-10-09 D-3 结构重排；v1.17.2 间距收口：内距全面放大一档） */
+    :host .opcard { display: flex; flex-direction: column; align-items: center; gap: 8px;
+      padding: 4px 6px 16px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
     :host .opcard img { width: 50px; height: 50px; border-radius: 12px; object-fit: cover;
       background: var(--surface2); margin-top: 2px; }
     :host .opcard .afb { width: 50px; height: 50px; border-radius: 12px; background: var(--surface2);
@@ -35,9 +37,9 @@
     :host .opcard a { font-weight: 700; color: var(--text); text-decoration: none; font-size: 13.5px; }
     :host .opcard a:hover { color: var(--accent); }
     :host .opcard .cnt { color: var(--text3); font-size: 11.5px; }
-    :host .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+    :host .chips { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 2px; }
     :host .chips button { border: 1px solid var(--border2); background: var(--surface); color: var(--text2);
-      border-radius: 7px; padding: 2px 8px; font-size: 11.5px; cursor: pointer; }
+      border-radius: 7px; padding: 3px 10px; font-size: 11.5px; cursor: pointer; }
     :host .chips button:hover { border-color: var(--accent); color: var(--accent); }
     /* 断点 1559：右栏占位 278（264+14）——否则 1400-1560 视口下压住内容列（2026-10-08） */
     @media (max-width: 1559px) { :host { display: none; } }
@@ -81,14 +83,16 @@
       return n;
     };
 
+    const wrapEl = el('div', { class: 'rwrap' });
+
     const card = el('div', { class: 'opcard' });
     if (op.avatar) card.appendChild(el('img', { src: op.avatar, alt: '', referrerpolicy: 'no-referrer' }));
     else card.appendChild(el('div', { class: 'afb', text: op.author[0].toUpperCase() }));
     card.appendChild(el('a', { text: op.author, href: op.authorHref || '#' }));
     card.appendChild(el('span', { class: 'cnt', text: `本页 ${opFloors.length} 楼` }));
-    shadow.appendChild(card);
+    wrapEl.appendChild(card);
 
-    shadow.appendChild(el('div', { class: 'sect', text: '楼主楼层速览' }));
+    wrapEl.appendChild(el('div', { class: 'sect', text: '楼主楼层速览' }));
     const chips = el('div', { class: 'chips' });
     opFloors.slice(0, 30).forEach((f) => {
       const label = f.floor || `${floors.indexOf(f) + 1}#`;
@@ -106,7 +110,9 @@
       chips.appendChild(b);
     });
     if (opFloors.length > 30) chips.appendChild(el('span', { class: 'cnt', text: `…共 ${opFloors.length} 楼` }));
-    shadow.appendChild(chips);
+    wrapEl.appendChild(chips);
+
+    shadow.appendChild(wrapEl);
 
     document.body.appendChild(host);
     document.documentElement.classList.add('sdg-rt-on');
@@ -154,15 +160,18 @@
       return n;
     };
 
-    shadow.appendChild(el('div', { class: 'sect', text: '最新公告' }));
+    const wrapEl = el('div', { class: 'rwrap' });
+    wrapEl.appendChild(el('div', { class: 'sect', text: '最新公告' }));
     items.forEach((it) => {
       const a = el('a', { class: 'nitem', href: it.href });
       a.appendChild(el('span', { class: 'nt', text: it.t }));
-      shadow.appendChild(a);
+      wrapEl.appendChild(a);
     });
     const more = el('a', { class: 'nmore', text: '进入站务公告 ›',
       href: 'forum.php?mod=forumdisplay&fid=39&mobile=2' });
-    shadow.appendChild(more);
+    wrapEl.appendChild(more);
+
+    shadow.appendChild(wrapEl);
 
     document.body.appendChild(host);
     document.documentElement.classList.add('sdg-rt-on');
