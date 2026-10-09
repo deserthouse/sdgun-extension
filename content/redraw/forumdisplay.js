@@ -19,7 +19,10 @@
     .trow:hover { background: var(--surface2); border-color: var(--border2); }
     .trow .thumb { width: 88px; height: 60px; border-radius: 10px; object-fit: cover;
       flex: none; background: var(--surface2); }
-    .trow .main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+    .trow .main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;
+      /* v1.18.0：min-height 与图位等高——行高与摘要/头像有无完全解耦，
+         API 升级前后恒定（实测 82px 恒定，修复 API 头像 +5px 撑行） */
+      min-height: 60px; justify-content: center; }
     .trow .t { font-size: 16px; font-weight: 600; color: var(--text); text-decoration: none;
       line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .trow:hover .t { color: var(--accent); }
@@ -32,6 +35,11 @@
     .trow .ex { font-size: 12.5px; color: var(--text3); line-height: 18px;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     /* v1.17.3 骨架/字块：槽位尺寸与真身严格一致（88×60）；字块=无图帖的永久图位 */
+    /* v1.18.0 行内作者头像（16px 与 18px 文本行同高——行高解耦）+ 点赞徽标 */
+    .trow .ava { width: 16px; height: 16px; border-radius: 4px; object-fit: cover;
+      flex: none; background: var(--surface2); align-self: center; }
+    .trow .sub .zap { color: var(--text3); }
+    .trow .sub .zap b { color: var(--text2); font-weight: 600; }
     .sdg-skel { background: var(--surface2); animation: sdg-pulse 1.6s ease-in-out infinite; }
     .sdg-skel-thumb { width: 88px; height: 60px; border-radius: 10px; flex: none; }
     .sdg-skel-ex { height: 18px; width: 62%; border-radius: 5px; }
@@ -348,7 +356,64 @@
     if (opts.enrich !== false && window.SDGRedraw.enrichRows) {
       try { window.SDGRedraw.enrichRows(shadow); } catch (e) { /* 增强失败不影响列表 */ }
     }
+    // v1.18.0：forumView API 行数据升级（1 请求：封面/头像/格式化查看/点赞/相对时间；
+    // 任何失败=现状行为。按当前页码取数，翻页自动对应）
+    const apiFid = (location.search.match(/fid=(\d+)/) || [])[1];
+    if (opts.enrich !== false && window.SDGApi && apiFid) {
+      const page = (location.search.match(/[?&]page=(\d+)/) || [])[1] || '1';
+      window.SDGApi.forumView(apiFid, page).then((list) => {
+        if (!list || !list.length) return;
+        const map = window.SDGApi.indexThreads(list);
+        shadow.querySelectorAll('.trow').forEach((row) => {
+          const a = row.querySelector('a.t');
+          const tid = a && (a.getAttribute('href').match(/tid=(\d+)/) || [])[1];
+          const d = tid && map[tid];
+          if (!d) return;
+          upgradeRow(row, d, apiFid);
+        });
+      }).catch(() => { /* fail-open */ });
+    }
     return true;
+  }
+
+  // 行数据升级（v1.18.0）：复用 v1.17.3 槽位体系，零位移——
+  // 封面进既有图位（骨架/字块让位）；头像插作者前；查看数/点赞进 sub 行尾
+  function upgradeRow(row, d, fid) {
+    if (row.dataset.sdgApiUp === '1') return;
+    row.dataset.sdgApiUp = '1';
+    if (d.cover) {
+      const old = row.querySelector('img.thumb, .sdg-tile, .sdg-skel-thumb');
+      if (old) old.remove();
+      const im = document.createElement('img');
+      im.className = 'thumb';
+      im.loading = 'lazy';
+      im.alt = '';
+      im.src = d.cover;
+      im.addEventListener('error', () => { im.remove(); });
+      row.insertBefore(im, row.querySelector('.main'));
+    }
+    const sub = row.querySelector('.sub');
+    if (sub) {
+      const authorEl = sub.querySelector('a');
+      if (d.authorHead && authorEl && !sub.querySelector('img.ava')) {
+        const av = document.createElement('img');
+        av.className = 'ava';
+        av.loading = 'lazy';
+        av.alt = '';
+        av.src = d.authorHead;
+        av.addEventListener('error', () => { av.remove(); });
+        sub.insertBefore(av, authorEl);
+      }
+      if (d.applaud && !sub.querySelector('.zap')) {
+        const z = document.createElement('span');
+        z.className = 'zap';
+        z.textContent = '👍 ';
+        const b = document.createElement('b');
+        b.textContent = d.applaud;
+        z.appendChild(b);
+        sub.appendChild(z);
+      }
+    }
   }
 
   window.SDGRedraw = window.SDGRedraw || {};

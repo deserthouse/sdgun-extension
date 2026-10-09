@@ -23,7 +23,14 @@
     c.querySelectorAll('blockquote, .quote, script, style, i.pstatus, .jammer').forEach((n) => n.remove());
     const imgs = [...c.querySelectorAll('img')];
     c.querySelectorAll('img').forEach((n) => n.remove());
-    const ex = (c.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 90);
+    // 摘要清洗：BBCode 残留（[url=…]/bare url=https://…）与多余空白
+    let ex = (c.textContent || '').replace(/\s+/g, ' ').trim();
+    ex = ex.replace(/\[url=[^\]]*\]/gi, '')
+           .replace(/url=https?:\/\/\S+/gi, '')
+           .replace(/\s{2,}/g, ' ')
+           .replace(/^[\s|·-]+/, '')
+           .trim()
+           .slice(0, 90);
     let img = '';
     for (const im of imgs) {
       const s = im.getAttribute('src') || im.getAttribute('data-src') || im.getAttribute('file') || '';
@@ -98,7 +105,8 @@
     row.insertBefore(t, row.querySelector('.main'));
   }
 
-  // 终态落位：img 或 tile 二选一进图位；摘要在场则填文本；撤骨架
+  // 终态落位：img 或 tile 二选一进图位；摘要在场则填文本，**不在场也保留空槽**（18px，
+  // v1.18.0 零位移终解——行高与数据有无完全解耦）；撤骨架
   function settleRow(shadowRoot, tid, d) {
     const row = locateRow(shadowRoot, tid);
     if (!row) return;
@@ -120,10 +128,10 @@
       }
     }
     const main = row.querySelector('.main');
-    if (d && d.ex && main && !main.querySelector('.ex')) {
+    if (main && !main.querySelector('.ex')) {
       const ex = document.createElement('div');
       ex.className = 'ex';
-      ex.textContent = d.ex;
+      ex.textContent = (d && d.ex) || '';
       main.appendChild(ex);
     }
     removeSkeleton(row);

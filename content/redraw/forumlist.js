@@ -394,7 +394,8 @@
       const meta = el('div', { class: 'hmeta' });
       if (it.board) meta.appendChild(el('span', { class: 'hbd', text: it.board }));
       meta.appendChild(el('span', {
-        class: 'hm', text: `回复 ${it.replies || 0} · 查看 ${it.views || 0}` }));
+        class: 'hm', text: `回复 ${it.replies || 0} · 查看 ${it.views || 0}`
+          + (it.applaud ? ` · 👍 ${it.applaud}` : '') }));
       main.appendChild(meta);
       a.appendChild(main);
       grid.appendChild(a);
@@ -455,33 +456,47 @@
         const results = [];
         picked.forEach((b, i) => {
           setTimeout(() => {
-            fetch(`forum.php?mod=forumdisplay&fid=${b.fid}&mobile=2`, { credentials: 'same-origin' })
-              .then((r) => r.text())
-              .then((html) => {
-                const doc = new DOMParser().parseFromString(html, 'text/html');
-                const threads = (window.SDGRedraw.parseThreads
-                  ? window.SDGRedraw.parseThreads(SDG, doc) : []);
-                threads.sort((a2, b2) =>
-                  (parseInt(b2.replies || 0, 10) * 10 + parseInt(b2.views || 0, 10))
-                  - (parseInt(a2.replies || 0, 10) * 10 + parseInt(a2.views || 0, 10)));
-                threads.slice(0, HOT_PER_BOARD).forEach((t) => {
-                  results.push({
+            // v1.18.0：列表数据切 forumView JSON（同请求数；封面/点赞原生齐备）；api.js 缺席回落 HTML 解析
+            let work;
+            if (window.SDGApi) {
+              work = window.SDGApi.forumView(b.fid, 1).then((list) => (list || []).map((it) => ({
+                title: String(it.title || it.subject || '')
+                  .replace(/^\s*(【[^】]*】|置顶|本版置顶|精华)\s*/, '').trim(),
+                href: `forum.php?mod=viewthread&tid=${it.tid}&mobile=2`,
+                board: b.name,
+                replies: parseInt(String(it.reply_count || '').replace(/\D/g, ''), 10) || 0,
+                views: parseInt(String(it.click || '').replace(/\D/g, ''), 10) || 0,
+                applaud: parseInt(String(it.applaud_count || '').replace(/\D/g, ''), 10) || 0,
+                img: (Array.isArray(it.pics) && it.pics[0]) || '',
+              })).slice(0, HOT_PER_BOARD));
+            } else {
+              work = fetch(`forum.php?mod=forumdisplay&fid=${b.fid}&mobile=2`, { credentials: 'same-origin' })
+                .then((r) => r.text())
+                .then((html) => {
+                  const doc = new DOMParser().parseFromString(html, 'text/html');
+                  const threads = (window.SDGRedraw.parseThreads
+                    ? window.SDGRedraw.parseThreads(SDG, doc) : []);
+                  threads.sort((a2, b2) =>
+                    (parseInt(b2.replies || 0, 10) * 10 + parseInt(b2.views || 0, 10))
+                    - (parseInt(a2.replies || 0, 10) * 10 + parseInt(a2.views || 0, 10)));
+                  return threads.slice(0, HOT_PER_BOARD).map((t) => ({
                     title: t.title, href: t.href, board: b.name,
                     replies: parseInt(t.replies || 0, 10) || 0,
                     views: parseInt(t.views || 0, 10) || 0,
                     img: (t.preview && t.preview[0]) || '',
-                  });
+                  }));
                 });
-              })
-              .catch(() => { /* 单板块失败跳过 */ })
-              .then(() => {
-                done += 1;
-                // v1.17.3：网格一次成型（此前每板块重绘一次，首页内容被反复推下）
-                if (done === picked.length) {
-                  draw(results, false);
-                  if (results.length) persist(results);
-                }
-              });
+            }
+            work.then((items) => {
+              results.push(...items);
+            }).catch(() => { /* 单板块失败跳过 */ }).then(() => {
+              done += 1;
+              // v1.17.3：网格一次成型（此前每板块重绘一次，首页内容被反复推下）
+              if (done === picked.length) {
+                draw(results, false);
+                if (results.length) persist(results);
+              }
+            });
           }, i * HOT_GAP);
         });
       };
