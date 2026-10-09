@@ -58,32 +58,14 @@
     } catch (e) { /* 存储满则放弃 */ }
   }
 
-  // 把增强数据落到一行（.trow）：图插到行首（与站方缩略图同槽位），摘要加到 .main 尾
-  function applyToRow(row, d) {
-    if (!d) return;
-    if (d.img && !row.querySelector('img.thumb')) {
-      const im = document.createElement('img');
-      im.className = 'thumb';
-      im.loading = 'lazy';
-      im.alt = '';
-      im.src = d.img;
-      im.addEventListener('error', () => { im.remove(); });
-      row.insertBefore(im, row.firstChild);
-    }
-    const main = row.querySelector('.main');
-    if (d.ex && main && !main.querySelector('.ex')) {
-      const ex = document.createElement('div');
-      ex.className = 'ex';
-      ex.textContent = d.ex;
-      main.appendChild(ex);
-    }
-  }
-
-  // ---- 骨架占位（v1.17.1）：入队即占位，数据原地填充，排版零跳动 ----
+  // ---- 骨架占位（v1.17.3 零位移版）：与挂载同任务落位（首帧即最终版式），
+  // 终态槽位永不消失——图→img / 无图→首字字块 tile；摘要骨架与 .ex 行盒同高（18px）。
+  // 仅存的收縮：解析失败/无摘要时摘骨架撤除（罕见，18px 一次性落定）。----
   function addSkeleton(row) {
     if (!row || row.dataset.sdgEnrich) return;
     row.dataset.sdgEnrich = 'pending';
-    if (!row.querySelector('img.thumb') && !row.querySelector('.sdg-skel-thumb')) {
+    if (!row.querySelector('img.thumb') && !row.querySelector('.sdg-tile')
+        && !row.querySelector('.sdg-skel-thumb')) {
       const sk = document.createElement('div');
       sk.className = 'sdg-skel sdg-skel-thumb';
       row.insertBefore(sk, row.firstChild);
@@ -102,55 +84,101 @@
     row.querySelectorAll('.sdg-skel').forEach((n) => n.remove());
   }
 
-  // 入口：列表挂载后调用（shadowRoot 内 .trow 无 img.thumb 的行）
+  function locateRow(shadowRoot, tid) {
+    const a = shadowRoot.querySelector(`a.t[href*="tid=${tid}"]`);
+    return a ? a.closest('.trow') : null;
+  }
+
+  // 首字字块（无图帖的永久图位）：槽位永在，杜绝宽度/高度位移
+  function insertTile(row, text) {
+    const t = document.createElement('div');
+    t.className = 'sdg-tile';
+    const ch = (String(text || '').trim().charAt(0) || '·').toUpperCase();
+    t.textContent = ch;
+    row.insertBefore(t, row.querySelector('.main'));
+  }
+
+  // 终态落位：img 或 tile 二选一进图位；摘要在场则填文本；撤骨架
+  function settleRow(shadowRoot, tid, d) {
+    const row = locateRow(shadowRoot, tid);
+    if (!row) return;
+    if (!row.querySelector('img.thumb') && !row.querySelector('.sdg-tile')) {
+      if (d && d.img) {
+        const im = document.createElement('img');
+        im.className = 'thumb';
+        im.loading = 'lazy';
+        im.alt = '';
+        im.src = d.img;
+        im.addEventListener('error', () => {
+          im.remove();
+          if (!row.isConnected) return;
+          insertTile(row, (row.querySelector('.t') || {}).textContent);
+        });
+        row.insertBefore(im, row.querySelector('.main'));
+      } else {
+        insertTile(row, (row.querySelector('.t') || {}).textContent);
+      }
+    }
+    const main = row.querySelector('.main');
+    if (d && d.ex && main && !main.querySelector('.ex')) {
+      const ex = document.createElement('div');
+      ex.className = 'ex';
+      ex.textContent = d.ex;
+      main.appendChild(ex);
+    }
+    removeSkeleton(row);
+  }
+
+  // 入口：列表挂载后同步调用（骨架与挂载同任务→首帧即终版式；缓存命中/拉取在后续任务原地换真身）
   function enrichRows(shadowRoot) {
     const rows = [...shadowRoot.querySelectorAll('.trow')].filter((r) => !r.querySelector('img.thumb'));
     if (!rows.length) return;
+    const candidates = [];
+    rows.forEach((row) => {
+      const a = row.querySelector('a.t');
+      const tid = a && (a.getAttribute('href').match(/tid=(\d+)/) || [])[1];
+      if (!tid) return;
+      addSkeleton(row); // 同步占位（先于任何异步回调，杜绝素行→图文行跳变）
+      candidates.push({ tid });
+    });
+    if (!candidates.length) return;
     readCache((cache) => {
       const queue = [];
-      rows.forEach((row) => {
-        const a = row.querySelector('a.t');
-        const tid = a && (a.getAttribute('href').match(/tid=(\d+)/) || [])[1];
-        if (!tid) return;
+      candidates.forEach(({ tid }) => {
         const hit = cache[tid];
         if (hit && hit.t > Date.now() - TTL) {
-          applyToRow(row, hit);
+          settleRow(shadowRoot, tid, hit);
           return;
         }
-        addSkeleton(row); // 入队即占位（先于 fetch 排程，杜绝先跳后填）
-        queue.push({ row, tid });
+        queue.push(tid);
       });
-      queue.slice(0, PER_PAGE_CAP).forEach(({ row, tid }, i) => {
+      queue.slice(0, PER_PAGE_CAP).forEach((tid, i) => {
         setTimeout(() => {
           fetch(`forum.php?mod=viewthread&tid=${tid}&mobile=1`, { credentials: 'same-origin' })
             .then((r) => r.text())
             .then((html) => {
               const p = parseThreadPage(html);
-              // 行可能已被重挂载替换（主题切换等）——按 tid 重新定位
-              const live = shadowRoot.querySelector(`a.t[href*="tid=${tid}"]`);
-              const target = live ? live.closest('.trow') : row;
               if (p) {
                 cache[tid] = { t: Date.now(), ex: p.ex, img: p.img };
                 writeCache(cache);
-                applyToRow(target, cache[tid]);
+                settleRow(shadowRoot, tid, cache[tid]);
+              } else {
+                // 解析失败：不缓存（下次重试）；槽位降级为字块保版式，摘骨架撤除
+                settleRow(shadowRoot, tid, null);
               }
-              removeSkeleton(target); // 成功（骨架换真身）与失败（还原素行）都撤骨架
             })
-            .catch(() => {
-              const live = shadowRoot.querySelector(`a.t[href*="tid=${tid}"]`);
-              removeSkeleton(live ? live.closest('.trow') : row);
-            });
+            .catch(() => { settleRow(shadowRoot, tid, null); });
         }, i * GAP_MS);
       });
     });
   }
 
-  // 首页热帖流的图回填（v1.17.0 F-2 配套）：卡片缺图时查共享 tid 缓存，
-  // 缺失则低优先级补拉（每会话 ≤3 条、间隔 1.5s）——与列表增强同一缓存，同一帖只拉一次。
-  // v1.17.1：入队卡先插骨架图位，回填原地换真身
+  // 首页热帖流的图回填（F-2 配套）：骨架在 renderHotFeed 建卡时已就位，
+  // 此处只做终态解析——图或字块二选一换入，槽位永在（卡片零位移）。
+  // 预算：缓存优先，缺失低优先级补拉（每会话 ≤3 条、间隔 1.5s，与列表共享 tid 缓存）。
   const HOT_BACKFILL_CAP = 3;
   function enrichHotFeed(box) {
-    const items = [...box.querySelectorAll('a.hitem')];
+    const items = [...box.querySelectorAll('a.hitem')].filter((a) => a.querySelector('.sdg-skel-hthumb'));
     if (!items.length) return;
     readCache((cache) => {
       const queue = [];
@@ -158,50 +186,61 @@
         const tid = (a.getAttribute('href').match(/tid=(\d+)/) || [])[1];
         if (!tid) return;
         const hit = cache[tid];
-        if (hit && hit.t > Date.now() - TTL && hit.img && !a.querySelector('img.hthumb')) {
-          insertHotThumb(a, hit.img);
+        if (hit && hit.t > Date.now() - TTL) {
+          settleHotCard(box, tid, hit);
           return;
         }
-        if (!a.querySelector('img.hthumb')) {
-          if (!a.querySelector('.sdg-skel-hthumb')) {
-            const sk = document.createElement('div');
-            sk.className = 'sdg-skel sdg-skel-hthumb';
-            a.insertBefore(sk, a.firstChild);
-          }
-          queue.push({ a, tid });
-        }
+        queue.push(tid);
       });
-      queue.slice(0, HOT_BACKFILL_CAP).forEach(({ a, tid }, i) => {
+      queue.slice(0, HOT_BACKFILL_CAP).forEach((tid, i) => {
         setTimeout(() => {
           fetch(`forum.php?mod=viewthread&tid=${tid}&mobile=1`, { credentials: 'same-origin' })
             .then((r) => r.text())
             .then((html) => {
               const p = parseThreadPage(html);
-              const live = box.querySelector(`a.hitem[href*="tid=${tid}"]`);
-              if (p && p.img) {
+              if (p) {
                 cache[tid] = { t: Date.now(), ex: p.ex, img: p.img };
                 writeCache(cache);
-                if (live) insertHotThumb(live, p.img);
+                settleHotCard(box, tid, cache[tid]);
+              } else {
+                settleHotCard(box, tid, null);
               }
-              if (live) live.querySelectorAll('.sdg-skel').forEach((n) => n.remove());
             })
-            .catch(() => {
-              const live = box.querySelector(`a.hitem[href*="tid=${tid}"]`);
-              if (live) live.querySelectorAll('.sdg-skel').forEach((n) => n.remove());
-            });
+            .catch(() => { settleHotCard(box, tid, null); });
         }, i * GAP_MS);
       });
     });
   }
 
-  function insertHotThumb(a, src) {
-    const im = document.createElement('img');
-    im.className = 'hthumb';
-    im.loading = 'lazy';
-    im.alt = '';
-    im.src = src;
-    im.addEventListener('error', () => { im.remove(); });
-    a.insertBefore(im, a.firstChild);
+  // 热帖卡终态：图→img / 无图→字块；骨架永撤但槽位由真身顶替
+  function settleHotCard(box, tid, d) {
+    const a = box.querySelector(`a.hitem[href*="tid=${tid}"]`);
+    if (!a) return;
+    const skel = a.querySelector('.sdg-skel-hthumb');
+    const title = (a.querySelector('.ht2') || {}).textContent;
+    if (d && d.img) {
+      const im = document.createElement('img');
+      im.className = 'hthumb';
+      im.loading = 'lazy';
+      im.alt = '';
+      im.src = d.img;
+      im.addEventListener('error', () => {
+        im.remove();
+        insertHotTileFor(a, title);
+      });
+      if (skel) a.replaceChild(im, skel); else a.insertBefore(im, a.querySelector('.hmain'));
+    } else {
+      insertHotTileFor(a, title);
+      if (skel) skel.remove();
+    }
+  }
+
+  function insertHotTileFor(a, title) {
+    if (a.querySelector('.sdg-tile')) return;
+    const t = document.createElement('div');
+    t.className = 'sdg-tile';
+    t.textContent = (String(title || '').trim().charAt(0) || '·').toUpperCase();
+    a.insertBefore(t, a.querySelector('.hmain'));
   }
 
   window.SDGRedraw = window.SDGRedraw || {};

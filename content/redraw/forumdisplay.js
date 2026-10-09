@@ -27,13 +27,17 @@
     .trow .sub a { color: var(--text2); text-decoration: none; }
     .trow .sub a:hover { color: var(--accent); }
     .trow .sub .d { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    /* v1.17.0 F-1：图文增强的摘要行（enrich.js 后台拉取首楼文字，灰字单行省略） */
-    .trow .ex { font-size: 12.5px; color: var(--text3); line-height: 1.45;
+    /* v1.17.0 F-1：图文增强的摘要行（enrich.js 后台拉取首楼文字，灰字单行省略）。
+       v1.17.3：显式 18px 行盒——与摘要骨架严格同高，杜绝亚像素级行高差 */
+    .trow .ex { font-size: 12.5px; color: var(--text3); line-height: 18px;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    /* v1.17.1 骨架占位（入队即占位，数据原地填充） */
+    /* v1.17.3 骨架/字块：槽位尺寸与真身严格一致（88×60）；字块=无图帖的永久图位 */
     .sdg-skel { background: var(--surface2); animation: sdg-pulse 1.6s ease-in-out infinite; }
     .sdg-skel-thumb { width: 88px; height: 60px; border-radius: 10px; flex: none; }
-    .sdg-skel-ex { height: 13px; width: 62%; margin-top: 3px; border-radius: 5px; }
+    .sdg-skel-ex { height: 18px; width: 62%; border-radius: 5px; }
+    .sdg-tile { width: 88px; height: 60px; border-radius: 10px; flex: none;
+      background: var(--surface2); color: var(--text3); font-weight: 700; font-size: 20px;
+      display: flex; align-items: center; justify-content: center; }
     @keyframes sdg-pulse { 0%, 100% { opacity: .5; } 50% { opacity: .95; } }
     .trow .stats { flex: none; text-align: right; font-size: 12.5px; color: var(--text3); line-height: 1.5; }
     .trow .stats b { display: block; font-size: 15px; color: var(--text2); font-weight: 600; }

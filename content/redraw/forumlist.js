@@ -242,6 +242,7 @@
 
   function renderRiver(box, el, items, opts) {
     box.textContent = '';
+    box.style.display = ''; // v1.17.3：填充完成后亮相（与空盒隐藏配套）
     // 单板块河：板块名标在头部（可点入板块）；逐行同名是噪音
     const bn = boardNameOf(RIVER_FID) || '站务公告';
     const rt = el('span', { class: 'rt', text: '最近回复 · ' });
@@ -275,6 +276,7 @@
       const fresh = !box;
       if (fresh) {
         box = el('div', { class: 'river' });
+        box.style.display = 'none'; // v1.17.3：有内容才亮相（杜绝空卡闪现+内容位移）
         const styleHost = box; // 样式走主 style 元素外挂：插入 RIVER_CSS 一次
         wrap.insertBefore(box, wrap.querySelector('.group-title, .card, .hint'));
       }
@@ -345,9 +347,12 @@
       border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
       border-radius: 4px; padding: 0 5px; }
     .hotfeed .hloading { color: var(--text3); font-size: 13px; padding: 4px 2px; }
-    /* v1.17.1 热帖图回填骨架（与 enrich.js 列表骨架同族） */
+    /* v1.17.3 热帖图位三态（骨架/图/字块）——槽位永在，卡片零位移 */
     .hotfeed .sdg-skel { background: var(--surface2); animation: sdg-pulse 1.6s ease-in-out infinite; }
     .hotfeed .sdg-skel-hthumb { width: 84px; height: 56px; border-radius: 8px; flex: none; }
+    .hotfeed .sdg-tile { width: 84px; height: 56px; border-radius: 8px; flex: none;
+      background: var(--surface2); color: var(--text3); font-weight: 700; font-size: 18px;
+      display: flex; align-items: center; justify-content: center; }
     @keyframes sdg-pulse { 0%, 100% { opacity: .5; } 50% { opacity: .95; } }
   `;
   const HOT_CACHE_KEY = 'sdg_hot_cache';
@@ -375,10 +380,14 @@
     const grid = el('div', { class: 'hgrid' });
     items.slice(0, HOT_BOARDS * HOT_PER_BOARD).forEach((it) => {
       const a = el('a', { class: 'hitem', href: it.href });
+      // 图位三态：站方图 / 骨架（回填原地换真身）/ 字块——槽位永在，卡片零位移
       if (it.img) {
         const im = el('img', { class: 'hthumb', src: it.img, alt: '', loading: 'lazy' });
-        im.addEventListener('error', () => { im.remove(); });
+        im.addEventListener('error', () => { im.remove(); insertHotTile(a, it.title); });
         a.appendChild(im);
+      } else {
+        const sk = el('div', { class: 'sdg-skel sdg-skel-hthumb' });
+        a.appendChild(sk);
       }
       const main = el('div', { class: 'hmain' });
       main.appendChild(el('div', { class: 'ht2', text: it.title || '(无题)' }));
@@ -395,6 +404,13 @@
     else if (window.SDGRedraw.enrichHotFeed) {
       try { window.SDGRedraw.enrichHotFeed(box); } catch (e) { /* 回填失败静默 */ }
     }
+  }
+
+  function insertHotTile(a, title) {
+    const t = document.createElement('div');
+    t.className = 'sdg-tile';
+    t.textContent = (String(title || '').trim().charAt(0) || '·').toUpperCase();
+    a.insertBefore(t, a.querySelector('.hmain'));
   }
 
   function loadHotFeed(el, wrap, opts, treeData, SDG) {
@@ -460,8 +476,11 @@
               .catch(() => { /* 单板块失败跳过 */ })
               .then(() => {
                 done += 1;
-                draw(results, done < picked.length);
-                if (done === picked.length && results.length) persist(results);
+                // v1.17.3：网格一次成型（此前每板块重绘一次，首页内容被反复推下）
+                if (done === picked.length) {
+                  draw(results, false);
+                  if (results.length) persist(results);
+                }
               });
           }, i * HOT_GAP);
         });
