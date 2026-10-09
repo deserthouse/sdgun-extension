@@ -27,6 +27,9 @@
     .trow .sub a { color: var(--text2); text-decoration: none; }
     .trow .sub a:hover { color: var(--accent); }
     .trow .sub .d { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* v1.17.0 F-1：图文增强的摘要行（enrich.js 后台拉取首楼文字，灰字单行省略） */
+    .trow .ex { font-size: 12.5px; color: var(--text3); line-height: 1.45;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .trow .stats { flex: none; text-align: right; font-size: 12.5px; color: var(--text3); line-height: 1.5; }
     .trow .stats b { display: block; font-size: 15px; color: var(--text2); font-weight: 600; }
     .trow .hoverp { display: none; position: absolute; right: 8px; top: calc(100% + 4px); z-index: 60;
@@ -67,9 +70,9 @@
     .subforums a.sf-row .sf-meta { margin-left: auto; font-size: 12.5px; color: var(--text3); }
   `;
 
-  function parseThreads(SDG) {
+  function parseThreads(SDG, root) {
     const F = SDG.forumDisplay;
-    const rows = document.querySelectorAll(F.threadRow);
+    const rows = (root || document).querySelectorAll(F.threadRow);
     const threads = [];
     rows.forEach((row) => {
       const t = row.querySelector(F.threadTitle);
@@ -332,6 +335,10 @@
     B.util.hideScaffold('bygsjw');
     B.hideTrailingSiblings(anchor);
     B.wireLightbox(shadow);
+    // v1.17.0 F-1：图文增强（无站方缩略图的行后台补图+摘要；预算/缓存见 enrich.js）
+    if (opts.enrich !== false && window.SDGRedraw.enrichRows) {
+      try { window.SDGRedraw.enrichRows(shadow); } catch (e) { /* 增强失败不影响列表 */ }
+    }
     return true;
   }
 

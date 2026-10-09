@@ -11,8 +11,9 @@
   try { window.SDG_VER = chrome.runtime.getManifest().version; } catch (e) { /* ignore */ }
 
   // ---- preferences (synced via chrome.storage; fail-open defaults) ----
-  const PREF_KEYS = ['theme', 'skin', 'lightbox', 'redraw'];
-  let prefs = { theme: 'auto', skin: true, lightbox: true, redraw: true };
+  // enrich（图文增强，v1.17.0）：列表补图/摘要 + 首页热帖流——后台拉取游客页（预算/缓存见 enrich.js/forumlist.js）
+  const PREF_KEYS = ['theme', 'skin', 'lightbox', 'redraw', 'enrich'];
+  let prefs = { theme: 'auto', skin: true, lightbox: true, redraw: true, enrich: true };
   try {
     chrome.storage.sync.get(prefs, (stored) => {
       prefs = Object.assign(prefs, stored || {});
@@ -57,6 +58,10 @@
     // L3 登录/搜索页（member.php / search.php）：PC 排版注入钩子（theme.css 按此标签限宽居中）
     root.classList.toggle('sdg-page-login', /\/member\.php$/.test(location.pathname));
     root.classList.toggle('sdg-page-search', /\/search\.php$/.test(location.pathname));
+    // 用户空间页（home.php?mod=space，D-1 2026-10-09）：bygsjw rem 方案在 PC 视口根字号爆版，
+    // theme.css 按此标签套手机壳框架（根字号钳制 112px + body 420px 居中）
+    root.classList.toggle('sdg-page-space',
+      /\/home\.php$/.test(location.pathname) && /(?:^|[?&])mod=space(?:&|$)/.test(location.search));
   }
 
   // ---- page-type tag immediately (CSS applies before prefs arrive) ----
@@ -153,6 +158,7 @@
     if (!prefs.skin || prefs.redraw === false) { window.SDGRedraw.unmount(); clearBadge(); return; }
     const opts = {
       dark: prefs.theme === 'dark' || (prefs.theme === 'auto' && systemDark()),
+      enrich: prefs.enrich !== false,
     };
     const ver = 'v' + (window.SDG_VER || '');
     let ok = false, how = '';

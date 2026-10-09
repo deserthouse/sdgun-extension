@@ -13,7 +13,7 @@
       overflow-y: auto; z-index: 2147483000;
       background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
       font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 13px;
-      color: var(--text); padding: 14px; }
+      color: var(--text); padding: 16px 14px 14px; }
     :host .sect { font-size: 11.5px; font-weight: 700; color: var(--text3); margin: 2px 2px 8px; letter-spacing: .8px; }
     :host a.nitem { display: block; padding: 6px 6px; border-radius: 8px;
       color: var(--text2); text-decoration: none; font-size: 13px; line-height: 1.5;
@@ -22,11 +22,16 @@
     :host a.nmore { display: block; margin-top: 8px; padding: 6px; border-top: 1px solid var(--border);
       color: var(--accent); text-decoration: none; font-size: 12.5px; font-weight: 600; }
     :host a.nmore:hover { text-decoration: underline; }
-    :host .opcard { display: flex; flex-direction: column; align-items: center; gap: 6px;
-      padding-bottom: 10px; border-bottom: 1px solid var(--border); }
-    :host .opcard img { width: 56px; height: 56px; border-radius: 14px; object-fit: cover; background: var(--surface2); }
-    :host .opcard .afb { width: 56px; height: 56px; border-radius: 14px; background: var(--surface2);
-      color: var(--text2); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; }
+    /* 卡头重排（2026-10-09 D-3：头像方块与顶边碰撞、层级不统一）：
+       顶部留呼吸位、头像 50px/12px 圆角（内层圆角小于外层 16px−padding）、
+       分隔线下留白对齐卡体内边 */
+    :host .opcard { display: flex; flex-direction: column; align-items: center; gap: 7px;
+      padding: 2px 4px 13px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+    :host .opcard img { width: 50px; height: 50px; border-radius: 12px; object-fit: cover;
+      background: var(--surface2); margin-top: 2px; }
+    :host .opcard .afb { width: 50px; height: 50px; border-radius: 12px; background: var(--surface2);
+      color: var(--text2); display: flex; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: 700; margin-top: 2px; }
     :host .opcard a { font-weight: 700; color: var(--text); text-decoration: none; font-size: 13.5px; }
     :host .opcard a:hover { color: var(--accent); }
     :host .opcard .cnt { color: var(--text3); font-size: 11.5px; }

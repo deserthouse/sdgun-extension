@@ -380,6 +380,27 @@ html.sdg-page-search .hdc_xin {
   transform: translateX(-50%) !important;
 }
 
+/* ===== 用户空间页（home.php?mod=space，D-1 2026-10-09）=====
+   bygsjw rem 方案（根字号=视口宽/3.75）在 PC 视口下膨胀到数百 px → 整页爆版
+   （巨型标题/巨大汉堡/通栏白条）。按搜索页同款手机壳框架钳制；该页无重绘层。 */
+html.sdg-page-space {
+  font-size: 112px !important;
+}
+html.sdg-page-space body {
+  max-width: 420px !important;
+  margin: 0 auto !important;
+  background: #f4f4f4 !important;
+}
+html.sdg-theme-dark.sdg-page-space body {
+  background: #111 !important;
+}
+html.sdg-page-space .hdc_xin {
+  left: 50% !important;
+  right: auto !important;
+  width: 420px !important;
+  transform: translateX(-50%) !important;
+}
+
 /* 深色登录页白块真凶（v1.10.1 起三轮未除，本轮 elementsFromPoint 定位）：
    .login_select .icon-arrow 是站点下拉箭头指示器，站点给它白底。
    深色下改暗底 + 箭头文字用浅色（保留下拉可视提示） */

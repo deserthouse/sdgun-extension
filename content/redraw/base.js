@@ -214,16 +214,21 @@
   }
 
   function wireLightbox(shadowRoot) {
+    // capture 阶段（2026-10-09 D-4 修复）：站方图片锚点带内联 doane(event)
+    // （Discuz 的 preventDefault + stopPropagation 组合），在目标阶段就把冒泡掐死——
+    // 此前 bubble 监听永远收不到点击（帖子图点不开的根因）。捕获先于目标阶段，
+    // 在此截停并开灯箱；icon/avatar 类仍排除（avatar 类由 viewthread 头像显式携带）。
     shadowRoot.addEventListener('click', (ev) => {
       const img = ev.target.closest && ev.target.closest('img');
       if (!img || !img.src || img.classList.contains('icon') || img.classList.contains('avatar')) return;
       ev.preventDefault();
+      ev.stopPropagation();
       const lb = el('div', {
         style: 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;cursor:zoom-out',
         onclick: (e) => e.currentTarget.remove(),
       }, [el('img', { src: img.src, style: 'max-width:96vw;max-height:96vh;border-radius:4px;' })]);
       document.body.appendChild(lb);
-    });
+    }, true);
   }
 
   // ---------- 挂载/卸载 ----------

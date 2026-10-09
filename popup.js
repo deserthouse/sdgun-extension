@@ -11,9 +11,10 @@ async function reflectState() {
   for (const [key, id] of Object.entries(RULESETS)) {
     document.getElementById(key).checked = enabled.has(id);
   }
-  const prefs = await chrome.storage.sync.get({ skin: true, theme: 'auto', redraw: true });
+  const prefs = await chrome.storage.sync.get({ skin: true, theme: 'auto', redraw: true, enrich: true });
   document.getElementById('skin').checked = prefs.skin;
   document.getElementById('redraw').checked = prefs.redraw;
+  document.getElementById('enrich').checked = prefs.enrich;
   for (const b of document.querySelectorAll('#theme button')) {
     b.classList.toggle('on', b.dataset.v === prefs.theme);
   }
@@ -34,6 +35,9 @@ document.getElementById('skin').addEventListener('change', (e) =>
 
 document.getElementById('redraw').addEventListener('change', (e) =>
   chrome.storage.sync.set({ redraw: e.target.checked }));
+
+document.getElementById('enrich').addEventListener('change', (e) =>
+  chrome.storage.sync.set({ enrich: e.target.checked }));
 
 document.querySelectorAll('#theme button').forEach((b) => {
   b.addEventListener('click', async () => {

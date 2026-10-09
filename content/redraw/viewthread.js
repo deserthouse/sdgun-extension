@@ -23,6 +23,7 @@
     .fcard.opf { border-left:3px solid var(--accent); }
     .fcard.flash { outline: 2px solid var(--accent); outline-offset: -2px; }
     .fava { flex:none; width:72px; display:flex; flex-direction:column; align-items:center; gap:6px; }
+    .fava a { display:block; }
     .fava img { width:64px; height:64px; border-radius:14px; object-fit:cover; background:var(--surface2); }
     .fava .afb { width:64px; height:64px; border-radius:14px; background:var(--surface2); color:var(--text2);
       display:flex; align-items:center; justify-content:center; font-size:26px; font-weight:700; }
@@ -219,10 +220,19 @@
       const card = el('div', { class: 'fcard' + (isOp ? ' opf' : '') });
       card.setAttribute('data-floor', String(floorNum(f) || i + 1));
 
-      // 左：头像列（72px）
+      // 左：头像列（72px）。头像包作者空间链接（2026-10-09 D-2：此前裸 img 点击无反应），
+      // img 带 avatar 类供灯箱捕获监听排除
       const ava = el('div', { class: 'fava' });
-      if (f.avatar) ava.appendChild(el('img', { src: f.avatar, alt: '', loading: 'lazy' }));
-      else ava.appendChild(el('div', { class: 'afb', text: f.author ? f.author[0].toUpperCase() : '?' }));
+      const avaInner = f.avatar
+        ? el('img', { class: 'avatar', src: f.avatar, alt: '', loading: 'lazy' })
+        : el('div', { class: 'afb', text: f.author ? f.author[0].toUpperCase() : '?' });
+      if (f.authorHref && f.authorHref !== '#') {
+        const al = el('a', { href: f.authorHref });
+        al.appendChild(avaInner);
+        ava.appendChild(al);
+      } else {
+        ava.appendChild(avaInner);
+      }
       card.appendChild(ava);
 
       // 右：内容列（头行 → 正文 → 底行）
