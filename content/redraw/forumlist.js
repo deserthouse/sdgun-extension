@@ -345,6 +345,10 @@
       border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
       border-radius: 4px; padding: 0 5px; }
     .hotfeed .hloading { color: var(--text3); font-size: 13px; padding: 4px 2px; }
+    /* v1.17.1 热帖图回填骨架（与 enrich.js 列表骨架同族） */
+    .hotfeed .sdg-skel { background: var(--surface2); animation: sdg-pulse 1.6s ease-in-out infinite; }
+    .hotfeed .sdg-skel-hthumb { width: 84px; height: 56px; border-radius: 8px; flex: none; }
+    @keyframes sdg-pulse { 0%, 100% { opacity: .5; } 50% { opacity: .95; } }
   `;
   const HOT_CACHE_KEY = 'sdg_hot_cache';
   const HOT_TTL = 30 * 60e3;

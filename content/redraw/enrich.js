@@ -1,8 +1,9 @@
-// redraw/enrich.js — 列表图文增强（v1.17.0 F-1：帖子列表补缩略图+摘要）。
+// redraw/enrich.js — 列表图文增强（v1.17.0 F-1；v1.17.1 全页化+骨架占位）。
 // 机制：对无站方缩略图的行，后台拉取该帖 mobile=1 标准模板页（18KB，稳定轻量），
 // 解析首楼正文 → 第一张内容图 + 文字摘要；按 tid 持久缓存（7 天，同一帖终身拉一次）。
-// 预算纪律：每页列表最多补 4 行、串行间隔 2 秒、仅无图行——对服务器的额外压力
-// 与用户自己快速点开 4 个帖子相当（绿区：游客页、人类节奏、有缓存、零伪造）。
+// 预算纪律：整页无图行全补（上限 12 覆盖满页）、串行间隔 1.5 秒——单在途请求，
+// 节奏与用户自己逐帖点开相当（绿区：游客页、人类节奏、有缓存、零伪造）。
+// 占位：入队即渲染骨架（图位+摘要条），数据原地填充，排版零跳动。
 // 开关：popup「图文增强」（prefs.enrich，默认开）；boot 经 opts.enrich 传入。
 (function () {
   'use strict';
@@ -10,8 +11,8 @@
   const CACHE_KEY = 'sdg_tx_cache';
   const CACHE_MAX = 600;      // 条目上限（约 200KB），超限按时间淘汰
   const TTL = 7 * 86400e3;    // 首楼内容基本不变，7 天足够
-  const PER_PAGE_CAP = 4;
-  const GAP_MS = 2000;
+  const PER_PAGE_CAP = 12;    // 覆盖满页（bygsjw 每页 10~14 行）
+  const GAP_MS = 1500;
 
   // 解析帖子页（mobile=1 标准模板）：首楼 #postmessage_{pid} → {ex, img}
   function parseThreadPage(html) {
@@ -78,6 +79,29 @@
     }
   }
 
+  // ---- 骨架占位（v1.17.1）：入队即占位，数据原地填充，排版零跳动 ----
+  function addSkeleton(row) {
+    if (!row || row.dataset.sdgEnrich) return;
+    row.dataset.sdgEnrich = 'pending';
+    if (!row.querySelector('img.thumb') && !row.querySelector('.sdg-skel-thumb')) {
+      const sk = document.createElement('div');
+      sk.className = 'sdg-skel sdg-skel-thumb';
+      row.insertBefore(sk, row.firstChild);
+    }
+    const main = row.querySelector('.main');
+    if (main && !main.querySelector('.sdg-skel-ex')) {
+      const sk = document.createElement('div');
+      sk.className = 'sdg-skel sdg-skel-ex';
+      main.appendChild(sk);
+    }
+  }
+
+  function removeSkeleton(row) {
+    if (!row) return;
+    delete row.dataset.sdgEnrich;
+    row.querySelectorAll('.sdg-skel').forEach((n) => n.remove());
+  }
+
   // 入口：列表挂载后调用（shadowRoot 内 .trow 无 img.thumb 的行）
   function enrichRows(shadowRoot) {
     const rows = [...shadowRoot.querySelectorAll('.trow')].filter((r) => !r.querySelector('img.thumb'));
@@ -93,6 +117,7 @@
           applyToRow(row, hit);
           return;
         }
+        addSkeleton(row); // 入队即占位（先于 fetch 排程，杜绝先跳后填）
         queue.push({ row, tid });
       });
       queue.slice(0, PER_PAGE_CAP).forEach(({ row, tid }, i) => {
@@ -101,21 +126,28 @@
             .then((r) => r.text())
             .then((html) => {
               const p = parseThreadPage(html);
-              if (!p) return;
-              cache[tid] = { t: Date.now(), ex: p.ex, img: p.img };
-              writeCache(cache);
               // 行可能已被重挂载替换（主题切换等）——按 tid 重新定位
               const live = shadowRoot.querySelector(`a.t[href*="tid=${tid}"]`);
-              applyToRow(live ? live.closest('.trow') : row, cache[tid]);
+              const target = live ? live.closest('.trow') : row;
+              if (p) {
+                cache[tid] = { t: Date.now(), ex: p.ex, img: p.img };
+                writeCache(cache);
+                applyToRow(target, cache[tid]);
+              }
+              removeSkeleton(target); // 成功（骨架换真身）与失败（还原素行）都撤骨架
             })
-            .catch(() => { /* 单帖失败静默，不打扰列表 */ });
+            .catch(() => {
+              const live = shadowRoot.querySelector(`a.t[href*="tid=${tid}"]`);
+              removeSkeleton(live ? live.closest('.trow') : row);
+            });
         }, i * GAP_MS);
       });
     });
   }
 
   // 首页热帖流的图回填（v1.17.0 F-2 配套）：卡片缺图时查共享 tid 缓存，
-  // 缺失则低优先级补拉（每会话 ≤3 条、间隔 2s）——与列表增强同一缓存，同一帖只拉一次
+  // 缺失则低优先级补拉（每会话 ≤3 条、间隔 1.5s）——与列表增强同一缓存，同一帖只拉一次。
+  // v1.17.1：入队卡先插骨架图位，回填原地换真身
   const HOT_BACKFILL_CAP = 3;
   function enrichHotFeed(box) {
     const items = [...box.querySelectorAll('a.hitem')];
@@ -130,7 +162,14 @@
           insertHotThumb(a, hit.img);
           return;
         }
-        if (!a.querySelector('img.hthumb')) queue.push({ a, tid });
+        if (!a.querySelector('img.hthumb')) {
+          if (!a.querySelector('.sdg-skel-hthumb')) {
+            const sk = document.createElement('div');
+            sk.className = 'sdg-skel sdg-skel-hthumb';
+            a.insertBefore(sk, a.firstChild);
+          }
+          queue.push({ a, tid });
+        }
       });
       queue.slice(0, HOT_BACKFILL_CAP).forEach(({ a, tid }, i) => {
         setTimeout(() => {
@@ -138,13 +177,18 @@
             .then((r) => r.text())
             .then((html) => {
               const p = parseThreadPage(html);
-              if (!p || !p.img) return;
-              cache[tid] = { t: Date.now(), ex: p.ex, img: p.img };
-              writeCache(cache);
               const live = box.querySelector(`a.hitem[href*="tid=${tid}"]`);
-              if (live) insertHotThumb(live, p.img);
+              if (p && p.img) {
+                cache[tid] = { t: Date.now(), ex: p.ex, img: p.img };
+                writeCache(cache);
+                if (live) insertHotThumb(live, p.img);
+              }
+              if (live) live.querySelectorAll('.sdg-skel').forEach((n) => n.remove());
             })
-            .catch(() => { /* 静默 */ });
+            .catch(() => {
+              const live = box.querySelector(`a.hitem[href*="tid=${tid}"]`);
+              if (live) live.querySelectorAll('.sdg-skel').forEach((n) => n.remove());
+            });
         }, i * GAP_MS);
       });
     });

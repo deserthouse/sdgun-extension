@@ -30,6 +30,11 @@
     /* v1.17.0 F-1：图文增强的摘要行（enrich.js 后台拉取首楼文字，灰字单行省略） */
     .trow .ex { font-size: 12.5px; color: var(--text3); line-height: 1.45;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* v1.17.1 骨架占位（入队即占位，数据原地填充） */
+    .sdg-skel { background: var(--surface2); animation: sdg-pulse 1.6s ease-in-out infinite; }
+    .sdg-skel-thumb { width: 88px; height: 60px; border-radius: 10px; flex: none; }
+    .sdg-skel-ex { height: 13px; width: 62%; margin-top: 3px; border-radius: 5px; }
+    @keyframes sdg-pulse { 0%, 100% { opacity: .5; } 50% { opacity: .95; } }
     .trow .stats { flex: none; text-align: right; font-size: 12.5px; color: var(--text3); line-height: 1.5; }
     .trow .stats b { display: block; font-size: 15px; color: var(--text2); font-weight: 600; }
     .trow .hoverp { display: none; position: absolute; right: 8px; top: calc(100% + 4px); z-index: 60;
