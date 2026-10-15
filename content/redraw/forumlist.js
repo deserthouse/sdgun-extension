@@ -106,7 +106,11 @@
     if (opts.dark) host.classList.add('dark');
 
     const wrap = el('div', { class: 'wrap' });
-    wrap.appendChild(el('div', { class: 'topbar' }, [el('div', { class: 'tb-in' }, [el('a', { class: 'title', text: '论坛首页', href: '#' })])]));
+    wrap.appendChild(el('div', { class: 'topbar' }, [el('div', { class: 'tb-in' }, [
+      el('a', { class: 'title', text: '论坛首页', href: '#' }),
+      el('a', { class: 'qk', text: '搜索', href: 'search.php?mod=forum&mobile=2' }),
+      el('a', { class: 'qk', text: '登录', href: 'member.php?mod=logging&action=login&mobile=2' }),
+    ])]));
     // 站点统计条（bygsjw .byg_tongji）——数据在场才渲染。
     // 原始文案是"今日 13113 帖子 22840833 会员 678420"连排（v1.16.2 规范化：
     // 标签配对 + 分隔点 + 大数万化），解析不出任何标签则按原文截断兜底。

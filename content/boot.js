@@ -21,20 +21,23 @@
       applyRedraw();
     });
     chrome.storage.onChanged.addListener((changes, areaName) => {
-      // 只响应 sync 区的偏好键（2026-10-08 首页闪烁事故根因）：
-      // 不过滤 area 时，任何 storage.local 写入（如首页树缓存镜像）都会触发 applyRedraw →
-      // 重挂载 → 又写缓存 → 再触发，形成 ~40Hz 重挂载死循环（实机实测 8s/317 次：
-      // 图标疯狂闪烁刷网络、点击因元素在 mousedown/mouseup 间被替换而永远落空）。
+      // 只响应 sync 区的偏好键（2026-10-08 首页闪烁事故根因：不过滤 area → 40Hz 死循环）。
       if (areaName !== 'sync') return;
       let hit = false;
+      let themeOnly = true; // E-07：仅主题变化 → 原地换肤，不重挂载/不重发请求
       for (const k of Object.keys(changes)) {
         if (PREF_KEYS.indexOf(k) >= 0) {
+          if (k !== 'theme') themeOnly = false;
           prefs[k] = changes[k].newValue;
           hit = true;
         }
       }
       if (!hit) return;
       applyTheme();
+      if (themeOnly && document.querySelector('.sdg-host')) {
+        updateThemeOnHosts();
+        return;
+      }
       applyRedraw();
     });
   } catch (e) {
@@ -64,13 +67,34 @@
       /\/home\.php$/.test(location.pathname) && /(?:^|[?&])mod=space(?:&|$)/.test(location.search));
   }
 
+  // E-07（v1.18.4）：主题原地更新——所有现存 shadow host 换 dark 类/侧栏静态样式，
+  // 不重挂载、不重发请求、不丢滚动位置。手动 light/dark 不响应系统覆盖（保留原语义）。
+  function updateThemeOnHosts() {
+    const dark = prefs.skin && (prefs.theme === 'dark' || (prefs.theme === 'auto' && systemDark()));
+    for (const id of ['sdg-redraw-host', 'sdg-redraw-list', 'sdg-sidebar', 'sdg-rail']) {
+      const host = document.getElementById(id);
+      if (host) host.classList.toggle('dark', dark);
+    }
+    // 侧栏深色是构建期字符串替换（无 dark 类机制）——原地重建其 shadow 的唯一例外：
+    // 仅重建侧栏一个组件（无网络请求、无主内容重排），主重绘层不动。
+    try {
+      const sb = document.getElementById('sdg-sidebar');
+      if (sb) {
+        sb.remove();
+        if (window.SDGRedraw && window.SDGRedraw.mountSidebar) {
+          window.SDGRedraw.mountSidebar({ dark, theme: prefs.theme });
+        }
+      }
+    } catch (e) { /* 侧栏重建失败不影响主内容 */ }
+  }
+
   // ---- page-type tag immediately (CSS applies before prefs arrive) ----
   applyTheme();
 
   // follow system switches while on auto（顶层注册一次，避免叠加）
   if (window.matchMedia) {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-      if (prefs.theme === 'auto') applyTheme();
+      if (prefs.theme === 'auto') { applyTheme(); updateThemeOnHosts(); } // E-07：原地换肤
     });
   }
 
@@ -179,21 +203,28 @@
           window.SDGRedraw.mountSidebar({ dark: opts.dark, theme: prefs.theme });
         }
       } catch (e) { /* 侧栏失败不影响主内容 */ }
-      // 视觉审计修复：顶栏让位（侧栏/右栏激活时给宿主打位移类）
+      // 视觉审计修复：顶栏让位（E-12：mountRail 之后统一重算——此前先读 rt-on 再挂右栏，
+      // 首次挂载永远拿不到最终状态；异步公告 rail 完成/卸载后也调用 syncLayout）
       try {
-        const sbOn = document.documentElement.classList.contains('sdg-sb-on');
-        const rtOn = document.documentElement.classList.contains('sdg-rt-on');
-        for (const id of ['sdg-redraw-list', 'sdg-redraw-host']) {
-          const h = document.getElementById(id);
-          if (!h) continue;
-          h.classList.toggle('sb-shift', sbOn);
-          h.classList.toggle('rt-shift', rtOn);
-        }
+        const applyShift = () => {
+          const sbOn = document.documentElement.classList.contains('sdg-sb-on');
+          const rtOn = document.documentElement.classList.contains('sdg-rt-on');
+          for (const id of ['sdg-redraw-list', 'sdg-redraw-host']) {
+            const h = document.getElementById(id);
+            if (!h) continue;
+            h.classList.toggle('sb-shift', sbOn);
+            h.classList.toggle('rt-shift', rtOn);
+          }
+        };
+        applyShift();
+        window.SDGRedraw.syncLayout = applyShift;
       } catch (e) { /* ignore */ }
       // 右栏：帖子页=楼主卡+速览；列表页=公告卡（river 缓存）——v1.15 消灭右侧空白
       try {
         if (window.SDGRedraw.mountRail) {
-          window.SDGRedraw.mountRail({ dark: opts.dark });
+          if (window.SDGRedraw.mountRail({ dark: opts.dark })) {
+            if (window.SDGRedraw.syncLayout) window.SDGRedraw.syncLayout(); // rt-on 此时才真正置位
+          }
         }
       } catch (e) { /* 右栏失败不影响主内容 */ }
       // 内容页成功渲染 → 清丢参恢复预算，下一次被服务器踢回时有全额恢复机会

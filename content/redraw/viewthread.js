@@ -200,6 +200,10 @@
       href: `forum.php?mod=forumdisplay&fid=${backFid}&mobile=2` }));
     topItems.push(el('a', { class: 'title', text: title, href: '#' }));
     topItems.push(el('span', { class: 'page', text: `第 ${page} 页` }));
+    // E-12：窄屏最小导航（宽屏隐藏，CSS 控制）
+    topItems.push(el('a', { class: 'qk', text: '搜索', href: 'search.php?mod=forum&mobile=2' }));
+    topItems.push(el('a', { class: 'qk', text: '登录', href: 'member.php?mod=logging&action=login&mobile=2' }));
+
     wrap.appendChild(el('div', { class: 'topbar' }, [el('div', { class: 'tb-in' }, topItems)]));
 
     // 工具行：只看楼主（真实导航）+ 跳楼（页内滚动或翻页导航）

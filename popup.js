@@ -16,7 +16,9 @@ async function reflectState() {
   document.getElementById('redraw').checked = prefs.redraw;
   document.getElementById('enrich').checked = prefs.enrich;
   for (const b of document.querySelectorAll('#theme button')) {
-    b.classList.toggle('on', b.dataset.v === prefs.theme);
+    const on = b.dataset.v === prefs.theme;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', String(on)); // E-11
   }
 }
 
@@ -43,7 +45,9 @@ document.querySelectorAll('#theme button').forEach((b) => {
   b.addEventListener('click', async () => {
     await chrome.storage.sync.set({ theme: b.dataset.v });
     for (const x of document.querySelectorAll('#theme button')) {
-      x.classList.toggle('on', x === b);
+      const on = x === b;
+      x.classList.toggle('on', on);
+      x.setAttribute('aria-pressed', String(on)); // E-11
     }
   });
 });

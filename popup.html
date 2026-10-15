@@ -9,7 +9,9 @@
   .row + .row { border-top: 1px solid #222; }
   .hint { padding: 0 14px 8px; color: #888; font-size: 11px; }
   .toggle { position: relative; width: 34px; height: 18px; flex: none; }
-  .toggle input { display: none; }
+  .toggle input { position: absolute; opacity: 0; width: 100%; height: 100%;
+    margin: 0; cursor: pointer; z-index: 1; } /* E-11：视觉隐藏但可聚焦可操作 */
+  .toggle input:focus-visible + span { outline: 2px solid #7aa7ff; outline-offset: 1px; }
   .toggle span { position: absolute; inset: 0; border-radius: 9px; background: #3a3a3a; transition: .15s; cursor: pointer; }
   .toggle span::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #bbb; transition: .15s; }
   .toggle input:checked + span { background: #2f6f3f; }
@@ -26,20 +28,20 @@
 <body>
 <header>SDGun 论坛助手 <span id="ver" style="color:#888;font-weight:400;font-size:11px"></span></header>
 <div class="row">
-  <span>手机 UA 伪装</span>
-  <label class="toggle"><input type="checkbox" id="ua"><span></span></label>
+  <span id="lbl-ua">手机 UA 伪装</span>
+  <label class="toggle"><input type="checkbox" id="ua" aria-labelledby="lbl-ua"><span></span></label>
 </div>
 <div class="row">
-  <span>阅读换肤</span>
-  <label class="toggle"><input type="checkbox" id="skin"><span></span></label>
+  <span id="lbl-skin">阅读换肤</span>
+  <label class="toggle"><input type="checkbox" id="skin" aria-labelledby="lbl-skin"><span></span></label>
 </div>
 <div class="row">
-  <span>帖子页重绘（卡片式）</span>
-  <label class="toggle"><input type="checkbox" id="redraw"><span></span></label>
+  <span id="lbl-redraw">页面重绘（卡片式）</span>
+  <label class="toggle"><input type="checkbox" id="redraw" aria-labelledby="lbl-redraw"><span></span></label>
 </div>
 <div class="row">
-  <span>图文增强（热帖/摘要）</span>
-  <label class="toggle"><input type="checkbox" id="enrich"><span></span></label>
+  <span id="lbl-enrich">图文增强（热帖/摘要）</span>
+  <label class="toggle"><input type="checkbox" id="enrich" aria-labelledby="lbl-enrich"><span></span></label>
 </div>
 <div class="row" style="padding:2px 14px 8px;border-top:0">
   <span class="hint" style="padding:0">后台按需拉取帖子页补图与摘要（限速+缓存），可在设置中关闭</span>
@@ -48,9 +50,9 @@
   <span>主题</span>
 </div>
 <div class="seg" id="theme">
-  <button data-v="auto">跟随系统</button>
-  <button data-v="light">浅色</button>
-  <button data-v="dark">深色</button>
+  <button data-v="auto" aria-pressed="false">跟随系统</button>
+  <button data-v="light" aria-pressed="false">浅色</button>
+  <button data-v="dark" aria-pressed="false">深色</button>
 </div>
 <p class="hint">UA 伪装仅作用于 *.sdgun.com.cn；换肤只改显示层（宽屏排版/暗色/灯箱），解析失败自动回退原版。改动后已打开的论坛页需刷新。</p>
 <div id="status" class="hint" style="display:none;padding:6px 14px 8px;border-top:1px solid #222"></div>

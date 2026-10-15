@@ -182,13 +182,15 @@
 
     const wrap = el('div', { class: 'wrap' });
     // 面包屑：论坛 › 板块名（首页可点回列表）
-    wrap.appendChild(el('div', { class: 'topbar' }, [
-      el('div', { class: 'tb-in' }, [
-        el('a', { class: 'crumb-home', text: '论坛', href: 'forum.php?forumlist=1&mobile=2' }),
-        el('span', { class: 'crumb-sep', text: '›' }),
-        el('span', { class: 'title', text: boardName || '版块' }),
-      ]),
-    ]));
+    const topItems = [
+      el('a', { class: 'crumb-home', text: '论坛', href: 'forum.php?forumlist=1&mobile=2' }),
+      el('span', { class: 'crumb-sep', text: '›' }),
+      el('span', { class: 'title', text: boardName || '版块' }),
+    ];
+    // E-12：窄屏最小导航（宽屏隐藏，CSS 控制）
+    topItems.push(el('a', { class: 'qk', text: '搜索', href: 'search.php?mod=forum&mobile=2' }));
+    topItems.push(el('a', { class: 'qk', text: '登录', href: 'member.php?mod=logging&action=login&mobile=2' }));
+    wrap.appendChild(el('div', { class: 'topbar' }, [el('div', { class: 'tb-in' }, topItems)]));
 
     // ---- 板块头卡：今日/主题统计 + 收藏本版（真实链接，页内 DOM 稳定在场） ----
     (function boardHead() {

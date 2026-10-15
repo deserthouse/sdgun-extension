@@ -11,7 +11,7 @@
       /* 设计令牌 */
       --bg: #f6f5f4; --surface: #ffffff; --surface2: #f1efee;
       --border: rgba(0,0,0,.08); --border2: rgba(0,0,0,.14);
-      --text: #1c1917; --text2: #57534e; --text3: #a8a29e;
+      --text: #1c1917; --text2: #57534e; --text3: #78716c; /* E-14: 4.80:1（原 a8a29e 2.52:1） */
       --accent: #b01f28; --radius: 14px;
     }
     :host(.dark) {
@@ -34,6 +34,13 @@
     .tb-in { max-width: 1040px; margin: 0 auto; display: flex; align-items: center;
       gap: 10px; padding: 11px 20px; font-size: 15px; font-weight: 600; }
     .topbar a { color: inherit; text-decoration: none; }
+    /* E-12：窄屏（侧栏隐藏）时顶栏最小导航入口——宽屏由侧栏承担 */
+    .topbar .qk { display: none; align-items: center; gap: 2px; flex: none;
+      color: var(--text2); text-decoration: none; font-size: 13px; font-weight: 500;
+      padding: 4px 8px; border-radius: 8px; }
+    .topbar .qk:hover { background: var(--surface2); color: var(--accent); }
+    @media (max-width: 1023px) { .topbar .qk { display: inline-flex; } }
+
     .crumb-home { color: var(--text3); font-weight: 500; }
     .crumb-home:hover { color: var(--accent); }
     .crumb-sep { color: var(--text3); font-weight: 400; }
@@ -93,7 +100,7 @@
       font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
       --surface: #ffffff; --surface2: #f1efee;
       --border: rgba(0,0,0,.08); --border2: rgba(0,0,0,.14);
-      --text: #1c1917; --text2: #57534e; --text3: #a8a29e;
+      --text: #1c1917; --text2: #57534e; --text3: #78716c; /* E-14: 4.80:1（原 a8a29e 2.52:1） */
       --accent: #b01f28; --radius: 14px;
     }
     :host(.dark) {
@@ -112,6 +119,13 @@
     .tb-in { max-width: 1040px; margin: 0 auto; display: flex; align-items: center;
       gap: 10px; padding: 11px 20px; font-size: 15px; font-weight: 600; }
     .topbar a { color: inherit; text-decoration: none; }
+    /* E-12：窄屏（侧栏隐藏）时顶栏最小导航入口——宽屏由侧栏承担 */
+    .topbar .qk { display: none; align-items: center; gap: 2px; flex: none;
+      color: var(--text2); text-decoration: none; font-size: 13px; font-weight: 500;
+      padding: 4px 8px; border-radius: 8px; }
+    .topbar .qk:hover { background: var(--surface2); color: var(--accent); }
+    @media (max-width: 1023px) { .topbar .qk { display: inline-flex; } }
+
     .topbar .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .topbar .title:hover { color: var(--accent); }
     .topbar .page { color: var(--text3); font-size: 13px; font-weight: 400; flex: none; }
@@ -200,6 +214,10 @@
 
   function hideEl(n) {
     if (!n) return;
+    // E-13（部分，v1.18.4）：保存原 inline display，unmount 恢复原值——不破坏既有内联样式
+    if (!n.hasAttribute('data-sdg-hidden')) {
+      n.setAttribute('data-sdg-prev-display', n.style.display || '');
+    }
     n.style.display = 'none';
     n.setAttribute('data-sdg-hidden', '1');
   }
@@ -304,9 +322,10 @@
     document.documentElement.classList.remove('sdg-sb-on'); // 侧栏布局标记
     document.documentElement.classList.remove('sdg-rt-on'); // 右栏布局标记
     document.querySelectorAll('style.sdg-sb-style, style.sdg-rt-style').forEach((s) => s.remove());
-    // 恢复挂载期间隐藏的一切（含简易容器/兄弟节点/legacy 列表）
+    // 恢复挂载期间隐藏的一切（E-13：恢复各自原 inline display，而非统一清空）
     document.querySelectorAll('[data-sdg-hidden]').forEach((n) => {
-      n.style.display = '';
+      n.style.display = n.getAttribute('data-sdg-prev-display') || '';
+      n.removeAttribute('data-sdg-prev-display');
       n.removeAttribute('data-sdg-hidden');
     });
     const c = document.querySelector('.postlist');
