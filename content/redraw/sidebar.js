@@ -11,10 +11,14 @@
     :host { all: initial; display: block; box-sizing: border-box;
       position: fixed; left: 0; top: 0; bottom: 0; width: 216px; z-index: 2147483000;
       --surface: #ffffff; --surface2: #f1efee; --border: rgba(0,0,0,.08); --border2: rgba(0,0,0,.14);
-      --text: #1c1917; --text2: #57534e; --text3: #a8a29e; --accent: #b01f28;
+      --text: #1c1917; --text2: #57534e; --text3: #78716c; --accent: #b01f28;
       background: var(--surface); border-right: 1px solid var(--border);
       font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 13px;
       color: var(--text); overflow-y: auto; }
+    :host(.dark) {
+      --surface: #17181b; --surface2: #222329; --border: #26272c; --border2: #34353b;
+      --text: #e7e5e4; --text2: #a8a29e; --text3: #78716c; --accent: #ff6b7a;
+    }
     :host .sin { display: flex; flex-direction: column; min-height: 100%;
       box-sizing: border-box; padding: 20px 16px 16px; }
     :host .brand { font-weight: 800; font-size: 15px; color: var(--accent); text-decoration: none;
@@ -62,7 +66,8 @@
     host.className = 'sdg-host'; // theme.css 重绘期白名单（body > *:not(.sdg-host) 全隐藏）
     const shadow = host.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
-    style.textContent = opts && opts.dark ? SB_CSS.replace('--surface: #ffffff', '--surface: #17181b').replace('--surface2: #f1efee', '--surface2: #222329').replace('--border: rgba(0,0,0,.08)', '--border: #26272c').replace('--border2: rgba(0,0,0,.14)', '--border2: #34353b').replace('--text: #1c1917', '--text: #e7e5e4').replace('--text2: #57534e', '--text2: #a8a29e').replace('--text3: #a8a29e', '--text3: #78716c').replace('--accent: #b01f28', '--accent: #ff6b7a') : SB_CSS;
+    style.textContent = SB_CSS; // E-14：令牌单源化——深色由 :host(.dark) 覆盖，删 replace 链
+    if (opts && opts.dark) host.classList.add('dark');
     shadow.appendChild(style);
 
     const el = (tag, attrs) => {

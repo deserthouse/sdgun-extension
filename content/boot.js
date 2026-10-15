@@ -75,17 +75,29 @@
       const host = document.getElementById(id);
       if (host) host.classList.toggle('dark', dark);
     }
-    // 侧栏深色是构建期字符串替换（无 dark 类机制）——原地重建其 shadow 的唯一例外：
-    // 仅重建侧栏一个组件（无网络请求、无主内容重排），主重绘层不动。
+    // E-14（v1.18.5）：侧栏已令牌化（:host(.dark)），与其它 host 统一 class toggle，无重建例外。
+    // 主题钮文案原地刷新（此前由重建顺带完成）。
     try {
       const sb = document.getElementById('sdg-sidebar');
-      if (sb) {
-        sb.remove();
-        if (window.SDGRedraw && window.SDGRedraw.mountSidebar) {
-          window.SDGRedraw.mountSidebar({ dark, theme: prefs.theme });
-        }
+      const btn = sb && sb.shadowRoot.querySelector('button.theme');
+      if (btn) {
+        const label = { light: '浅色', dark: '深色', auto: '跟随系统' }[prefs.theme] || '跟随系统';
+        btn.textContent = '';
+        const ns = 'http://www.w3.org/2000/svg';
+        const sv = document.createElementNS(ns, 'svg');
+        sv.setAttribute('viewBox', '0 0 24 24');
+        sv.setAttribute('fill', 'none');
+        sv.setAttribute('stroke', 'currentColor');
+        sv.setAttribute('stroke-width', '2');
+        sv.setAttribute('stroke-linecap', 'round');
+        sv.setAttribute('stroke-linejoin', 'round');
+        const path = document.createElementNS(ns, 'path');
+        path.setAttribute('d', 'M21 12.8A9 9 0 1111.2 3 7 7 0 0021 12.8z');
+        sv.appendChild(path);
+        btn.appendChild(sv);
+        btn.appendChild(document.createTextNode(label));
       }
-    } catch (e) { /* 侧栏重建失败不影响主内容 */ }
+    } catch (e) { /* 文案刷新失败不影响主题本身 */ }
   }
 
   // ---- page-type tag immediately (CSS applies before prefs arrive) ----
