@@ -178,7 +178,7 @@
         settleRow(shadowRoot, tid, null);
       }
       const budgeted = queue.slice(0, PER_PAGE_CAP);
-      sc.runSerial(budgeted, GAP_MS, (tid) => {
+      sc.runSerial(budgeted, GAP_MS, (tid) =>
         sc.fetchText(`forum.php?mod=viewthread&tid=${tid}&mobile=1`, 12000).then((html) => {
           if (sc.isDead()) return;
           const p = html && parseThreadPage(html);
@@ -189,8 +189,7 @@
           } else {
             settleRow(shadowRoot, tid, null); // 失败/空：字块终态不缓存（下次重试）
           }
-        });
-      });
+        }));
     }));
   }
 
@@ -226,7 +225,7 @@
       for (const tid of queue.slice(HOT_BACKFILL_CAP)) {
         settleHotCard(box, tid, null); // 超预算：立即字块终态（无孤儿骨架）
       }
-      sc.runSerial(queue.slice(0, HOT_BACKFILL_CAP), GAP_MS, (tid) => {
+      sc.runSerial(queue.slice(0, HOT_BACKFILL_CAP), GAP_MS, (tid) =>
         sc.fetchText(`forum.php?mod=viewthread&tid=${tid}&mobile=1`, 12000).then((html) => {
           if (sc.isDead()) return;
           const p = html && parseThreadPage(html);
@@ -237,8 +236,7 @@
           } else {
             settleHotCard(box, tid, null);
           }
-        });
-      });
+        }));
     }));
   }
 

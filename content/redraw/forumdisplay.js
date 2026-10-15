@@ -266,6 +266,31 @@
       actionBar.appendChild(el('a', { class: 'fchip', text: '★ 收藏本版', href: favA }));
       actionAdded = true;
     }
+    // W2（v1.19.4）：📌 常用切换（storage.sync sdgPinned，≤5 FIFO；侧栏 onChanged 联动刷新）
+    if (apiFid && window.SDGScope) {
+      const pinBtn = el('button', { class: 'fchip', text: '📌 常用' });
+      const refresh = () => {
+        try {
+          chrome.storage.sync.get({ sdgPinned: [] }, (st) => {
+            const pinned = (st && Array.isArray(st.sdgPinned) ? st.sdgPinned : []).map(String);
+            pinBtn.classList.toggle('on', pinned.includes(String(apiFid)));
+          });
+        } catch (e) { /* ignore */ }
+      };
+      pinBtn.addEventListener('click', () => {
+        try {
+          chrome.storage.sync.get({ sdgPinned: [] }, (st) => {
+            let pinned = (st && Array.isArray(st.sdgPinned) ? st.sdgPinned : []).map(String);
+            if (pinned.includes(String(apiFid))) pinned = pinned.filter((x) => x !== String(apiFid));
+            else { pinned.push(String(apiFid)); if (pinned.length > 5) pinned = pinned.slice(-5); }
+            chrome.storage.sync.set({ sdgPinned: pinned }, () => { try { refresh(); } catch (e2) { /* */ } });
+          });
+        } catch (e) { /* ignore */ }
+      });
+      refresh();
+      actionBar.appendChild(pinBtn);
+      actionAdded = true;
+    }
     if (actionAdded) wrap.appendChild(actionBar);
 
     // 筛选行（真实导航 chips）+ 搜索本板块入口（蓝图残余：跳真实 search.php）
@@ -420,6 +445,17 @@
   function upgradeRow(row, d, fid) {
     if (row.dataset.sdgApiUp === '1') return;
     row.dataset.sdgApiUp = '1';
+    // W1（v1.19.4）EF-02：相对时间替换 HTML 日期位（API dateline 更语义化："2小时前"）
+    const subEl0 = row.querySelector('.sub .d');
+    if (d.relative && subEl0) subEl0.textContent = d.relative;
+    // W1：悬停多图预览（API pics 组图，≤3；不依赖站方 list_img3）
+    if (Array.isArray(d.pics) && d.pics.length > 1 && !row.querySelector('.hoverp')) {
+      const hp = el('div', { class: 'hoverp' });
+      d.pics.slice(0, 3).forEach((src) => {
+        hp.appendChild(el('img', { src, alt: '', loading: 'lazy' }));
+      });
+      row.appendChild(hp);
+    }
     if (d.cover) {
       const old = row.querySelector('img.thumb, .sdg-tile, .sdg-skel-thumb');
       if (old) old.remove();

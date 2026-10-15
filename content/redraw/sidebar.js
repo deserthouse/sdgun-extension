@@ -155,6 +155,42 @@
         });
       });
     } catch (e) { /* ignore */ }
+    // W2（v1.19.4）：sdgPinned 变化 → 原地重建常用组（移除旧组后重插）
+    try {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'sync' || !changes.sdgPinned) return;
+        const stale = [...sin.querySelectorAll('.grp, a.bd')].filter((n) => {
+          const prev = n.previousSibling;
+          void prev;
+          return n.classList.contains('grp') && n.textContent === '常用'
+            || (n.classList.contains('bd') && n.dataset.sdgPinned === '1');
+        });
+        // 简化：重建整个树（ groups 数据仍在闭包，renderGroups 幂等）
+        sin.querySelectorAll('.grp, a.bd, .tree-hint').forEach((n) => n.remove());
+        host.dataset.treeFilled = '';
+        renderGroups(groups);
+        // 重新渲染常用组
+        const pinned = (changes.sdgPinned.newValue || []).map(String).slice(0, 5);
+        if (!pinned.length) return;
+        const all = {};
+        (groups || []).forEach((g) => (g.secs || []).forEach((sec) => { all[String(sec.fid)] = sec; }));
+        const grp = el('div', { class: 'grp', text: '常用' });
+        sin.insertBefore(grp, foot);
+        pinned.forEach((fid) => {
+          const sec = all[fid];
+          if (!sec) return;
+          const a = el('a', { class: 'bd', href: `forum.php?mod=forumdisplay&fid=${fid}&mobile=2` });
+          a.dataset.sdgPinned = '1';
+          if (sec.icon) {
+            const im = el('img', { src: sec.icon, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
+            im.addEventListener('error', () => { im.style.display = 'none'; });
+            a.appendChild(im);
+          }
+          a.appendChild(el('span', { class: 'nm', text: sec.name || `fid${fid}` }));
+          sin.insertBefore(a, foot);
+        });
+      });
+    } catch (e) { /* ignore */ }
     sin.appendChild(foot); // 必须先入树：下方 renderGroups 的 insertBefore 以 foot 为参照
     // 树渲染（插入到 foot 之前）；跨标签副本（storage.local）供深链/新标签无会话缓存时异步补渲染
     function renderGroups(arr) {

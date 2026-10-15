@@ -579,6 +579,10 @@
     .feed a.fitem:hover .ft2 { color: var(--accent); }
     .feed .fitem .fmeta { font-size: 11.5px; color: var(--text3); display: flex; gap: 8px;
       align-items: center; overflow: hidden; white-space: nowrap; }
+    .feed .fitem button.fshare { border: 1px solid var(--border2); background: var(--surface);
+      color: var(--text3); border-radius: 6px; padding: 1px 8px; font-size: 11px; cursor: pointer;
+      flex: none; transition: all .12s; }
+    .feed .fitem button.fshare:hover { border-color: var(--accent); color: var(--accent); }
   `;
   const FEED_TTL = 30 * 60e3;
   function firstFeedPic(item) {
@@ -622,6 +626,9 @@
         const items = list.slice(0, 8).map((it) => ({
           title: String(it.title || '').trim(),
           href: it.link || 'forum.php?forumlist=1&mobile=2',
+          // W5 实证：share_info.share_url 是服务端下发的完整 threadWapPage 链接（tid+circle_id），
+          // 无需客户端映射——存原值供"复制分享链接"
+          share: (it.share_info && it.share_info.share_url) || '',
           img: firstFeedPic(it),
           meta: [it.publish_time_str, it.from]
             .filter(Boolean).map(String).join(' · ')
@@ -668,7 +675,19 @@
         }
         const main = el('div', { class: 'fmain' });
         main.appendChild(el('div', { class: 'ft2', text: it.title }));
-        main.appendChild(el('div', { class: 'fmeta', text: it.meta }));
+        const meta = el('div', { class: 'fmeta', text: it.meta });
+        if (it.share) {
+          // W5：复制站方 H5 分享链接（手机 PC 皆可开；阻止卡片默认导航）
+          const shareBtn = el('button', { class: 'fshare', text: '分享链接', title: '复制本帖 H5 分享链接',
+            onclick: (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              try { navigator.clipboard.writeText(it.share); e.target.textContent = '已复制'; } catch (e2) { /* */ }
+              setTimeout(() => { try { e.target.textContent = '分享链接'; } catch (e3) { /* */ } }, 1500);
+            } });
+          meta.appendChild(shareBtn);
+        }
+        main.appendChild(meta);
         a.appendChild(main);
         box.appendChild(a);
       });

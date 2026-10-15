@@ -81,6 +81,7 @@
     for (const it of list || []) {
       if (it && it.tid != null) map[String(it.tid)] = {
         cover: (Array.isArray(it.pics) && it.pics[0]) || '',
+        pics: (Array.isArray(it.pics) ? it.pics : []).slice(0, 3), // W1：悬停组图（≤3）
         videos: Array.isArray(it.videos) ? it.videos.length : 0,
         authorHead: it.user_head || '',
         click: String(it.click || '').replace(/阅读\s*$/, ''),

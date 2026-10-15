@@ -9,7 +9,7 @@ const SDG = {
   page: {
     // E-03（2026-10-15 重写）：pathname + URLSearchParams 统一解析，三页型共享同一结果。
     // 旧正则两处反例（实机 fixture 证实）：`?forumlist=1`（无 mobile）漏判；
-    // 所有 `?mod=X` 页（含 guide/misc/post）都误判 isForumList=True（(?:^|&)mod= 不匹配 ?mod=）。
+    // 所有 `?mod=X` 页（含 guide/misc/post）都误判 isForumList=True（旧正则的锚点写法不匹配 ?mod=）。
     _parse() {
       const params = new URLSearchParams(location.search);
       return { mod: params.get('mod'), forumlist: params.get('forumlist') === '1',

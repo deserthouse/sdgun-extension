@@ -13,11 +13,13 @@
 
     scope.isDead = () => scope.dead;
     scope.cancelAll = () => {
+      const wasDead = scope.dead;
       scope.dead = true;
       try { ctl.abort(); } catch (e) { /* */ }
       for (const t of scope.timers) clearTimeout(t);
       scope.timers.clear();
       scope.aborted.length = 0;
+      if (!wasDead && scope._serialDone) scope._serialDone(); // 取消也是队列终止
     };
 
     // 失效守卫：回调包装（返回 null 回调，失效时不执行）
@@ -56,14 +58,30 @@
     };
 
     // 真串行队列：items 逐项处理，上一项 settle 后再隔 gapMs 取下一项；单并发可证。
-    // onDone 在全部结束（或失效）后恰好调用一次。
+    // onDone 在全部结束、出错或被取消时恰好调用一次（W4 测试暴露：取消曾吞掉 onDone）
     scope.runSerial = (items, gapMs, worker, onDone) => {
       let i = 0;
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        scope._serialDone = null;
+        if (onDone) onDone();
+      };
+      scope._serialDone = finish;
       const next = () => {
-        if (scope.dead) { if (onDone) onDone(); return; }
-        if (i >= items.length) { if (onDone) onDone(); return; }
+        if (scope.dead) { finish(); return; }
+        if (i >= items.length) { finish(); return; }
         const item = items[i++];
-        try { worker(item); } catch (e) { /* worker 同步异常按已处理 */ }
+        try {
+          // 真串行（W4 测试抓出）：worker 返回 thenable 则等待完成再隔 gap 取下一项——
+          // 只等同步返回的话，异步 fetch 全部错峰并发（maxInFlight=items.length）
+          const ret = worker(item);
+          if (ret && typeof ret.then === 'function') {
+            ret.then(() => scope.delay(gapMs, next), () => scope.delay(gapMs, next));
+            return;
+          }
+        } catch (e) { /* worker 同步异常按已处理 */ }
         scope.delay(gapMs, next);
       };
       next();
