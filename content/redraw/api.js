@@ -56,10 +56,12 @@
     });
   }
 
-  // ---- 官方资讯流（mag1，纯浏览器头游客可读）----
-  function feed(catId, page) {
+  // ---- 官方资讯流（mag1，纯浏览器头游客可读）。EF-01 实测（2026-10-15）：
+  // 仅 v2/cat=1 可用（cat=108 空、v3 拒绝）；step 控制条数（服务端上限 20）。
+  // 返回顶层 list（含 title/pics_arr/三计数/publish_time_str/link 标签等）----
+  function feed(catId, page, step) {
     return get(MAG1, '/mag/info/v2/channel/infoListByCatId', {
-      cat_id: catId || 1, step: 1, p: page || 1,
+      cat_id: catId || 1, step: step || 20, p: page || 1,
     }).then((d) => (d && Array.isArray(d.list) ? d.list : null));
   }
 
