@@ -263,10 +263,12 @@
       ev.preventDefault();
       ev.stopPropagation();
       closeLightbox();
+      return;
     }
+    if (lightboxState.onKey) lightboxState.onKey(ev); // EF-04：←/→ 图组翻页
   }
 
-  function openLightbox(src, alt) {
+  function openLightbox(src, alt, gallery) {
     closeLightbox(); // 单例
     const prevFocus = document.activeElement;
     const overlay = el('div', {
@@ -283,6 +285,32 @@
       alt: alt || '',
       style: 'max-width:96vw;max-height:96vh;border-radius:4px;display:block;',
     });
+    // EF-04（v1.19.2）：图组模式——传入 gallery（>1 张）时支持 ‹/› 按钮、←/→ 键与 x/y 计数
+    let idx = 0;
+    const list = Array.isArray(gallery) && gallery.length > 1 ? gallery : null;
+    const counter = el('div', {
+      text: list ? `1 / ${list.length}` : '',
+      style: 'position:absolute;bottom:16px;left:50%;transform:translateX(-50%);'
+        + 'color:#fff;font:13px/1.4 system-ui,sans-serif;background:rgba(0,0,0,.5);'
+        + 'border-radius:999px;padding:4px 14px;',
+    });
+    const show = (i) => {
+      if (!list) return;
+      idx = (i + list.length) % list.length;
+      img.src = list[idx];
+      counter.textContent = `${idx + 1} / ${list.length}`;
+    };
+    const navBtn = (text, dir) => {
+      const b = el('button', {
+        text,
+        'aria-label': dir < 0 ? '上一张' : '下一张',
+        style: 'position:absolute;top:50%;transform:translateY(-50%);border:0;border-radius:50%;'
+          + 'width:46px;height:46px;background:rgba(255,255,255,.14);color:#fff;font-size:20px;'
+          + 'cursor:pointer;' + (dir < 0 ? 'left:16px;' : 'right:16px;'),
+      });
+      b.addEventListener('click', (e) => { e.stopPropagation(); show(idx + dir); });
+      return b;
+    };
     const closeBtn = el('button', {
       text: '✕',
       'aria-label': '关闭',
@@ -298,10 +326,22 @@
     });
     overlay.appendChild(img);
     overlay.appendChild(closeBtn);
+    if (list) {
+      overlay.appendChild(navBtn('‹', -1));
+      overlay.appendChild(navBtn('›', 1));
+      overlay.appendChild(counter);
+    }
     document.body.appendChild(overlay);
     closeBtn.focus();
     document.addEventListener('keydown', onLightboxKey, true);
-    lightboxState = { overlay, prevFocus, cleanup: null };
+    lightboxState = {
+      overlay, prevFocus, cleanup: null,
+      onKey: (ev) => {
+        if (!list) return;
+        if (ev.key === 'ArrowLeft') { ev.preventDefault(); show(idx - 1); }
+        else if (ev.key === 'ArrowRight') { ev.preventDefault(); show(idx + 1); }
+      },
+    };
   }
 
   function wireLightbox(shadowRoot) {
@@ -314,7 +354,12 @@
           || img.classList.contains('hthumb')) return;
       ev.preventDefault();
       ev.stopPropagation();
-      openLightbox(img.src, img.alt);
+      // EF-04：同容器内的内容图组成相册（排除头像/图标/骨架；列表行 thumb 不入组）
+      const scopeImgs = [img.closest('.body') || img.closest('.fmain') || img.getRootNode()]
+        .flatMap((root) => (root ? [...root.querySelectorAll('.body img')] : []))
+        .filter((im) => im.src && !im.classList.contains('avatar') && !im.classList.contains('icon'));
+      const gallery = scopeImgs.length > 1 ? scopeImgs.map((im) => im.src) : null;
+      openLightbox(img.src, img.alt, gallery);
     }, true);
   }
 

@@ -267,6 +267,7 @@
       const isOp = opUid && (f.authorHref.match(/uid=(\d+)/) || [])[1] === opUid;
       const card = el('div', { class: 'fcard' + (isOp ? ' opf' : '') });
       card.setAttribute('data-floor', String(floorNum(f) || i + 1));
+      card.setAttribute('data-pid', f.pid || '');
 
       // 左：头像列（72px）。头像包作者空间链接（2026-10-09 D-2：此前裸 img 点击无反应），
       // img 带 avatar 类供灯箱捕获监听排除
@@ -325,6 +326,7 @@
         const isOp = opUid && (f.authorHref.match(/uid=(\d+)/) || [])[1] === opUid;
         const card = el('div', { class: 'fcard' + (isOp ? ' opf' : '') });
         card.setAttribute('data-floor', String(floorNum(f) || item.i + 1));
+        card.setAttribute('data-pid', f.pid || '');
         const ava = el('div', { class: 'fava' });
         const avaInner = f.avatar
           ? el('img', { class: 'avatar', src: f.avatar, alt: '', loading: 'lazy' })
@@ -420,6 +422,32 @@
     B.hideTrailingSiblings(anchor0);
 
     B.wireLightbox(shadow);
+    // EF-03（v1.19.2）：楼层点赞数——1 次 commentList（PageScope），id=pid 匹配当页楼层；
+    // E-15 修好的分页元数据（meta.page/totalPage）保证请求页=渲染页；未映射楼层不显示。
+    // 预算：+1 请求/帖页；失败静默（楼层无徽标=现状）。
+    if (opts.enrich !== false && window.SDGApi && window.SDGScope) {
+      const scope = window.SDGScope.register(window.SDGScope.create());
+      const tid = (location.search.match(/tid=(\d+)/) || [])[1];
+      if (tid) {
+        scope.fetchJSON(`https://app.sdgun.com.cn/mag/circle/v1/Forum/commentList?tid=${tid}&p=${page}&step=50&order=2&authorid=0`, 10000)
+          .then((d) => {
+            // 注意：scope.fetchJSON 返回原始顶层响应（list 在顶层），非 commentList 包装的 {rows,meta}
+            if (!d || !Array.isArray(d.list)) return;
+            const praises = new Map(d.list.map((r) => [String(r.id), window.SDGApi.parseWan(r.applaud_count)]));
+            // 按 pid 匹配：卡片 data-floor 是楼号不是 pid——渲染时已补写 data-pid
+            shadow.querySelectorAll('.fcard[data-pid]').forEach((card) => {
+              const n = praises.get(card.getAttribute('data-pid'));
+              if (!n) return;
+              const foot = card.querySelector('.ffoot');
+              if (!foot || foot.querySelector('.praise')) return;
+              const z = el('span', { class: 'praise', text: `👍 ${n}` });
+              z.style.cssText = 'font-size:12.5px;color:var(--text3);margin-right:auto;';
+              foot.insertBefore(z, foot.firstChild);
+            });
+          })
+          .catch(() => { /* fail-open */ });
+      }
+    }
     // Batch3：导出楼层数据供右栏（楼主卡+速览）使用；ownerUid=E-02 可信楼主身份
     try { window.SDGRedraw.lastFloors = floors; window.SDGRedraw.lastOwnerUid = opUid || null; } catch (e) { /* ignore */ }
 
