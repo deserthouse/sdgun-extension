@@ -8,7 +8,7 @@
 (function () {
   'use strict';
   const B = window.SDGRedrawBase || {};
-  const CACHE_KEY = 'sdg_tx_cache';
+  const CACHE_KEY = 'sdg_tx_cache_v2'; // v2（E-10：版本化 key，旧键停读不再续用）
   const CACHE_MAX = 600;      // 条目上限（约 200KB），超限按时间淘汰
   const TTL = 7 * 86400e3;    // 首楼内容基本不变，7 天足够
   const PER_PAGE_CAP = 12;    // 覆盖满页（bygsjw 每页 10~14 行）
@@ -138,21 +138,34 @@
   }
 
   // 入口：列表挂载后同步调用（骨架与挂载同任务→首帧即终版式；缓存命中/拉取在后续任务原地换真身）
-  function enrichRows(shadowRoot) {
+  function enrichRows(shadowRoot, scope) {
+    // E-04/E-05（v1.18.3）：scope 驱动——真串行（上一任务 settle 后再隔 gap）、可取消、
+    // 预算切片先行（超预算项立即字块终态，杜绝孤儿骨架）；行定位用精确 tid 解析（防 tid=12 命中 123）。
+    const sc = scope || (window.SDGScope && window.SDGScope.create());
     const rows = [...shadowRoot.querySelectorAll('.trow')].filter((r) => !r.querySelector('img.thumb'));
-    if (!rows.length) return;
+    if (!rows.length || !sc) return;
     const candidates = [];
     rows.forEach((row) => {
       const a = row.querySelector('a.t');
       const tid = a && (a.getAttribute('href').match(/tid=(\d+)/) || [])[1];
       if (!tid) return;
       addSkeleton(row); // 同步占位（先于任何异步回调，杜绝素行→图文行跳变）
-      candidates.push({ tid });
+      candidates.push(tid);
     });
     if (!candidates.length) return;
-    readCache((cache) => {
+    const locate = (tid) => {
+      // 精确 tid：完整解析每行 href 的 tid 后相等比较（子串匹配会误中 tid=123）
+      for (const r of shadowRoot.querySelectorAll('.trow')) {
+        const a = r.querySelector('a.t');
+        const t = a && (a.getAttribute('href').match(/tid=(\d+)/) || [])[1];
+        if (t === tid) return r;
+      }
+      return null;
+    };
+    readCache(sc.guard((cache) => {
+      if (!cache) return;
       const queue = [];
-      candidates.forEach(({ tid }) => {
+      candidates.forEach((tid) => {
         const hit = cache[tid];
         if (hit && hit.t > Date.now() - TTL) {
           settleRow(shadowRoot, tid, hit);
@@ -160,35 +173,45 @@
         }
         queue.push(tid);
       });
-      queue.slice(0, PER_PAGE_CAP).forEach((tid, i) => {
-        setTimeout(() => {
-          fetch(`forum.php?mod=viewthread&tid=${tid}&mobile=1`, { credentials: 'same-origin' })
-            .then((r) => r.text())
-            .then((html) => {
-              const p = parseThreadPage(html);
-              if (p) {
-                cache[tid] = { t: Date.now(), ex: p.ex, img: p.img };
-                writeCache(cache);
-                settleRow(shadowRoot, tid, cache[tid]);
-              } else {
-                // 解析失败：不缓存（下次重试）；槽位降级为字块保版式，摘骨架撤除
-                settleRow(shadowRoot, tid, null);
-              }
-            })
-            .catch(() => { settleRow(shadowRoot, tid, null); });
-        }, i * GAP_MS);
+      // E-04：预算切片先行——超预算项立即落字块终态（无孤儿骨架）
+      for (const tid of queue.slice(PER_PAGE_CAP)) {
+        settleRow(shadowRoot, tid, null);
+      }
+      const budgeted = queue.slice(0, PER_PAGE_CAP);
+      sc.runSerial(budgeted, GAP_MS, (tid) => {
+        sc.fetchText(`forum.php?mod=viewthread&tid=${tid}&mobile=1`, 12000).then((html) => {
+          if (sc.isDead()) return;
+          const p = html && parseThreadPage(html);
+          if (p) {
+            cache[tid] = { t: Date.now(), ex: p.ex, img: p.img };
+            writeCache(cache);
+            settleRow(shadowRoot, tid, cache[tid]);
+          } else {
+            settleRow(shadowRoot, tid, null); // 失败/空：字块终态不缓存（下次重试）
+          }
+        });
       });
-    });
+    }));
   }
 
   // 首页热帖流的图回填（F-2 配套）：骨架在 renderHotFeed 建卡时已就位，
   // 此处只做终态解析——图或字块二选一换入，槽位永在（卡片零位移）。
-  // 预算：缓存优先，缺失低优先级补拉（每会话 ≤3 条、间隔 1.5s，与列表共享 tid 缓存）。
+  // E-04/E-05：预算切片先行（超 cap 卡立即字块终态）、scope 真串行、精确 tid 定位。
   const HOT_BACKFILL_CAP = 3;
-  function enrichHotFeed(box) {
+  function enrichHotFeed(box, scope) {
+    const sc = scope || (window.SDGScope && window.SDGScope.create());
+    if (!sc) return;
     const items = [...box.querySelectorAll('a.hitem')].filter((a) => a.querySelector('.sdg-skel-hthumb'));
     if (!items.length) return;
-    readCache((cache) => {
+    const locate = (tid) => {
+      for (const a of box.querySelectorAll('a.hitem')) {
+        const t = (a.getAttribute('href').match(/tid=(\d+)/) || [])[1];
+        if (t === tid) return a;
+      }
+      return null;
+    };
+    readCache(sc.guard((cache) => {
+      if (!cache) return;
       const queue = [];
       items.forEach((a) => {
         const tid = (a.getAttribute('href').match(/tid=(\d+)/) || [])[1];
@@ -200,24 +223,23 @@
         }
         queue.push(tid);
       });
-      queue.slice(0, HOT_BACKFILL_CAP).forEach((tid, i) => {
-        setTimeout(() => {
-          fetch(`forum.php?mod=viewthread&tid=${tid}&mobile=1`, { credentials: 'same-origin' })
-            .then((r) => r.text())
-            .then((html) => {
-              const p = parseThreadPage(html);
-              if (p) {
-                cache[tid] = { t: Date.now(), ex: p.ex, img: p.img };
-                writeCache(cache);
-                settleHotCard(box, tid, cache[tid]);
-              } else {
-                settleHotCard(box, tid, null);
-              }
-            })
-            .catch(() => { settleHotCard(box, tid, null); });
-        }, i * GAP_MS);
+      for (const tid of queue.slice(HOT_BACKFILL_CAP)) {
+        settleHotCard(box, tid, null); // 超预算：立即字块终态（无孤儿骨架）
+      }
+      sc.runSerial(queue.slice(0, HOT_BACKFILL_CAP), GAP_MS, (tid) => {
+        sc.fetchText(`forum.php?mod=viewthread&tid=${tid}&mobile=1`, 12000).then((html) => {
+          if (sc.isDead()) return;
+          const p = html && parseThreadPage(html);
+          if (p) {
+            cache[tid] = { t: Date.now(), ex: p.ex, img: p.img };
+            writeCache(cache);
+            settleHotCard(box, tid, cache[tid]);
+          } else {
+            settleHotCard(box, tid, null);
+          }
+        });
       });
-    });
+    }));
   }
 
   // 热帖卡终态：图→img / 无图→字块；骨架永撤但槽位由真身顶替

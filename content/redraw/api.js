@@ -63,7 +63,17 @@
     }).then((d) => (d && Array.isArray(d.list) ? d.list : null));
   }
 
-  // ---- 行数据升级（forumdisplay 消费）：按 tid 建索引，只保留渲染需要的字段 ----
+  // ---- 万单位解析（E-09）：'1.4万'→14000、'28'→28、'28阅读'→28；无法解析→0 ----
+  function parseWan(s) {
+    const t = String(s == null ? '' : s).trim();
+    const m = t.match(/^([\d.]+)\s*万/);
+    if (m) return Math.round(parseFloat(m[1]) * 10000);
+    const n = parseInt(t.replace(/[^\d]/g, ''), 10);
+    return isNaN(n) ? 0 : n;
+  }
+
+  // ---- 行数据升级（forumdisplay 消费）：按 tid 建索引，只保留渲染需要的字段。
+  // click 保留格式化字符串（"1.4万"/"28"）用于渲染；数值请用 parseWan ----
   function indexThreads(list) {
     const map = {};
     for (const it of list || []) {
@@ -71,7 +81,7 @@
         cover: (Array.isArray(it.pics) && it.pics[0]) || '',
         videos: Array.isArray(it.videos) ? it.videos.length : 0,
         authorHead: it.user_head || '',
-        click: String(it.click || '').replace(/阅读$/, ''),
+        click: String(it.click || '').replace(/阅读\s*$/, ''),
         replies: String(it.reply_count || '').replace(/\D/g, ''),
         relative: it.dateline || '',
         lastpost: it.last_reply_time || '',
@@ -83,5 +93,5 @@
     return map;
   }
 
-  window.SDGApi = { forumView, commentList, feed, indexThreads, _get: get };
+  window.SDGApi = { forumView, commentList, feed, indexThreads, parseWan, _get: get };
 })();

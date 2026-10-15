@@ -295,6 +295,7 @@
   // ---------- 挂载/卸载 ----------
   function unmount() {
     closeLightbox(); // E-01：卸载必须关闭灯箱并恢复滚动锁/焦点
+    try { if (window.SDGScope) window.SDGScope.cancelAllScopes(); } catch (e) { /* */ } // E-05
     for (const id of ['sdg-redraw-host', 'sdg-redraw-list', 'sdg-sidebar', 'sdg-rail']) {
       const host = document.getElementById(id);
       if (host) host.remove();

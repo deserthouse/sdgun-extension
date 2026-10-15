@@ -172,10 +172,15 @@
     B.util.hideScaffold('standard');
     B.hideTrailingSiblings(anchor);
     // Batch2 内容河：异步加载（不阻塞主渲染）
-    loadRiver(el, wrap, opts);
-    // v1.17.0 F-2：热帖速览（活跃前 5 板块 × 3 条；预算/缓存见 loadHotFeed）
+    // E-10：公告河自动请求纳入「图文增强」开关（关闭=零后台请求）
     if (opts.enrich !== false) {
-      loadHotFeed(el, wrap, opts, data, SDG);
+      const scope = (window.SDGScope && window.SDGScope.register(window.SDGScope.create())) || null;
+      loadRiver(el, wrap, opts, scope);
+    }
+    // v1.17.0 F-2：热帖速览（活跃前 5 板块 × 3 条；预算/缓存见 loadHotFeed）
+    if (opts.enrich !== false && window.SDGScope) {
+      const scope = window.SDGScope.register(window.SDGScope.create());
+      loadHotFeed(el, wrap, opts, data, SDG, scope);
     }
     return true;
   }
@@ -268,7 +273,7 @@
     });
   }
 
-  function loadRiver(el, wrap, opts, force) {
+  function loadRiver(el, wrap, opts, scope, force) {
     if (!wrap) return;
     try {
       // 已有区块（刷新路径）则复用；否则插到筛选行/分组标题之前
@@ -299,10 +304,14 @@
       if (done) return;
       // 会话内首次：拉取（同源、复用页面 Cookie，限 1 次自动请求）
       sessionStorage.setItem('sdg_river_done', '1');
-      const tryFetch = (attempt) => fetch(RIVER_URL, { credentials: 'same-origin' })
-        .then((r) => r.text())
-        .then((html) => {
-          const parsed = parseRiverItems(html);
+      const retry = (attempt) => {
+        if (scope) scope.delay(4000, () => tryFetch(attempt)); else setTimeout(() => tryFetch(attempt), 4000);
+      };
+      const tryFetch = (attempt) => {
+        const p = scope ? scope.fetchText(RIVER_URL, 12000)
+          : fetch(RIVER_URL, { credentials: 'omit' }).then((r) => (r.ok ? r.text() : null)).catch(() => null);
+        p.then((html) => {
+          const parsed = html ? parseRiverItems(html) : [];
           if (parsed.length) {
             const js = JSON.stringify({ t: Date.now(), items: parsed });
             try { sessionStorage.setItem('sdg_river_cache', js); } catch (e) { /* */ }
@@ -310,13 +319,12 @@
             try { chrome.storage.local.set({ sdg_river_cache_ls: js }); } catch (e) { /* */ }
             renderRiver(box, el, parsed, opts);
           } else if (attempt === 0) {
-            // 服务器壳响应（结构在数据缺）：4 秒后自动补一枪
-            setTimeout(() => tryFetch(1), 4000);
+            retry(1); // 服务器壳响应（结构在数据缺）：4 秒后自动补一枪
           } else if (!items.length) {
             renderRiver(box, el, [], opts); // 空态（服务器壳）
           }
-        })
-        .catch(() => { if (attempt === 0) setTimeout(() => tryFetch(1), 4000); else if (!items.length) renderRiver(box, el, [], opts); });
+        }).catch(() => { if (attempt === 0) retry(1); else if (!items.length) renderRiver(box, el, [], opts); });
+      };
       tryFetch(0);
     } catch (e) { /* 内容河失败静默 */ }
   }
@@ -414,7 +422,7 @@
     a.insertBefore(t, a.querySelector('.hmain'));
   }
 
-  function loadHotFeed(el, wrap, opts, treeData, SDG) {
+  function loadHotFeed(el, wrap, opts, treeData, SDG, scope) {
     try {
       let box = wrap.querySelector('.hotfeed');
       if (!box) {
@@ -456,37 +464,49 @@
         const results = [];
         picked.forEach((b, i) => {
           setTimeout(() => {
-            // v1.18.0：列表数据切 forumView JSON（同请求数；封面/点赞原生齐备）；api.js 缺席回落 HTML 解析
-            let work;
-            if (window.SDGApi) {
-              work = window.SDGApi.forumView(b.fid, 1).then((list) => (list || []).map((it) => ({
-                title: String(it.title || it.subject || '')
-                  .replace(/^\s*(【[^】]*】|置顶|本版置顶|精华)\s*/, '').trim(),
-                href: `forum.php?mod=viewthread&tid=${it.tid}&mobile=2`,
-                board: b.name,
-                replies: parseInt(String(it.reply_count || '').replace(/\D/g, ''), 10) || 0,
-                views: parseInt(String(it.click || '').replace(/\D/g, ''), 10) || 0,
-                applaud: parseInt(String(it.applaud_count || '').replace(/\D/g, ''), 10) || 0,
-                img: (Array.isArray(it.pics) && it.pics[0]) || '',
-              })).slice(0, HOT_PER_BOARD));
-            } else {
-              work = fetch(`forum.php?mod=forumdisplay&fid=${b.fid}&mobile=2`, { credentials: 'same-origin' })
-                .then((r) => r.text())
+            // E-08（v1.18.3）：API 首选/HTML 回退封装——三态区分（成功列表/成功空/失败）；
+            // 失败或坏形状每板块至多回退一次 HTML；万单位经 parseWan（'1.4万'≠14）
+            const fetchBoardHot = () => {
+              const viaHtml = () => scope.fetchText(`forum.php?mod=forumdisplay&fid=${b.fid}&mobile=2`, 15000)
                 .then((html) => {
+                  if (!html) return { state: 'fail', items: [] };
                   const doc = new DOMParser().parseFromString(html, 'text/html');
                   const threads = (window.SDGRedraw.parseThreads
                     ? window.SDGRedraw.parseThreads(SDG, doc) : []);
                   threads.sort((a2, b2) =>
                     (parseInt(b2.replies || 0, 10) * 10 + parseInt(b2.views || 0, 10))
                     - (parseInt(a2.replies || 0, 10) * 10 + parseInt(a2.views || 0, 10)));
-                  return threads.slice(0, HOT_PER_BOARD).map((t) => ({
-                    title: t.title, href: t.href, board: b.name,
-                    replies: parseInt(t.replies || 0, 10) || 0,
-                    views: parseInt(t.views || 0, 10) || 0,
-                    img: (t.preview && t.preview[0]) || '',
-                  }));
+                  return { state: threads.length ? 'ok' : 'empty',
+                    items: threads.slice(0, HOT_PER_BOARD).map((t) => ({
+                      title: t.title, href: t.href, board: b.name,
+                      replies: parseInt(t.replies || 0, 10) || 0,
+                      views: parseInt(t.views || 0, 10) || 0,
+                      img: (t.preview && t.preview[0]) || '',
+                    })) };
                 });
-            }
+              if (window.SDGApi) {
+                return scope.fetchJSON(`https://app.sdgun.com.cn/mag/circle/v1/forum/forumView?fid=${b.fid}&p=1&step=20`, 10000)
+                  .then((d) => {
+                    if (d && Array.isArray(d.list) && d.list.length) {
+                      return { state: 'ok', items: d.list.slice(0, HOT_PER_BOARD).map((it) => ({
+                        title: String(it.title || it.subject || '')
+                          .replace(/^\s*(【[^】]*】|置顶|本版置顶|精华)\s*/, '').trim(),
+                        href: `forum.php?mod=viewthread&tid=${it.tid}&mobile=2`,
+                        board: b.name,
+                        replies: window.SDGApi.parseWan(it.reply_count),
+                        views: window.SDGApi.parseWan(it.click),
+                        applaud: parseInt(String(it.applaud_count || '').replace(/\D/g, ''), 10) || 0,
+                        img: (Array.isArray(it.pics) && it.pics[0]) || '',
+                      })) };
+                    }
+                    // 成功但空/坏形状 → 一次 HTML 回退
+                    return viaHtml();
+                  })
+                  .catch(() => viaHtml());
+              }
+              return viaHtml();
+            };
+            const work = fetchBoardHot().then((r) => r.items);
             work.then((items) => {
               results.push(...items);
             }).catch(() => { /* 单板块失败跳过 */ }).then(() => {

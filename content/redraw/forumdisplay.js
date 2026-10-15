@@ -33,6 +33,7 @@
     /* v1.17.0 F-1：图文增强的摘要行（enrich.js 后台拉取首楼文字，灰字单行省略）。
        v1.17.3：显式 18px 行盒——与摘要骨架严格同高，杜绝亚像素级行高差 */
     .trow .ex { font-size: 12.5px; color: var(--text3); line-height: 18px;
+      min-height: 18px; /* E-零位移：空槽（:empty 行盒塌陷为 0）也保持 18px，行高恒定 */
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     /* v1.17.3 骨架/字块：槽位尺寸与真身严格一致（88×60）；字块=无图帖的永久图位 */
     /* v1.18.0 行内作者头像（16px 与 18px 文本行同高——行高解耦）+ 点赞徽标 */
@@ -356,22 +357,32 @@
     if (opts.enrich !== false && window.SDGRedraw.enrichRows) {
       try { window.SDGRedraw.enrichRows(shadow); } catch (e) { /* 增强失败不影响列表 */ }
     }
-    // v1.18.0：forumView API 行数据升级（1 请求：封面/头像/格式化查看/点赞/相对时间；
-    // 任何失败=现状行为。按当前页码取数，翻页自动对应）
+    // v1.18.0/v1.18.3：forumView API 行数据升级——E-09 分页契约：
+    // HTML 每页 10 条、API step=20，故 apiPage = ceil(htmlPage/2)；缓存键含 source/fid/apiPage；
+    // 请求走 PageScope（unmount 级联取消）。任何失败=现状行为。
     const apiFid = (location.search.match(/fid=(\d+)/) || [])[1];
-    if (opts.enrich !== false && window.SDGApi && apiFid) {
-      const page = (location.search.match(/[?&]page=(\d+)/) || [])[1] || '1';
-      window.SDGApi.forumView(apiFid, page).then((list) => {
-        if (!list || !list.length) return;
-        const map = window.SDGApi.indexThreads(list);
-        shadow.querySelectorAll('.trow').forEach((row) => {
-          const a = row.querySelector('a.t');
-          const tid = a && (a.getAttribute('href').match(/tid=(\d+)/) || [])[1];
-          const d = tid && map[tid];
-          if (!d) return;
-          upgradeRow(row, d, apiFid);
-        });
-      }).catch(() => { /* fail-open */ });
+    if (opts.enrich !== false && window.SDGApi && window.SDGScope && apiFid) {
+      const htmlPage = parseInt((location.search.match(/[?&]page=(\d+)/) || [])[1] || '1', 10);
+      const apiPage = Math.ceil(htmlPage / 2);
+      const scope = window.SDGScope.register(window.SDGScope.create());
+      scope.fetchJSON(`https://app.sdgun.com.cn/mag/circle/v1/forum/forumView?fid=${apiFid}&p=${apiPage}&step=20`, 10000)
+        .then((d) => {
+          if (!d || !Array.isArray(d.list) || !d.list.length) return; // 失败/空=现状（E-08 原则）
+          const map = window.SDGApi.indexThreads(d.list);
+          shadow.querySelectorAll('.trow').forEach((row) => {
+            const a = row.querySelector('a.t');
+            const tid = a && (a.getAttribute('href').match(/tid=(\d+)/) || [])[1];
+            const dd = tid && map[tid];
+            if (dd) upgradeRow(row, dd, apiFid);
+          });
+        })
+        .catch(() => { /* fail-open */ });
+      // v1.17.0 F-1：图文增强（同一 scope；仅摘要职责，cover 由 API 承担）
+      if (window.SDGRedraw.enrichRows) {
+        try { window.SDGRedraw.enrichRows(shadow, scope); } catch (e) { /* 增强失败不影响列表 */ }
+      }
+    } else if (opts.enrich !== false && window.SDGRedraw.enrichRows) {
+      try { window.SDGRedraw.enrichRows(shadow); } catch (e) { /* 增强失败不影响列表 */ }
     }
     return true;
   }
