@@ -74,6 +74,8 @@
     .fchip { border: 1px solid var(--border2); background: var(--surface); color: var(--text2);
       border-radius: 999px; padding: 4px 13px; font-size: 12.5px; text-decoration: none; transition: all .12s; }
     .fchip:hover { border-color: var(--accent); color: var(--accent); }
+    .fchip.on { border-color: var(--accent); color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 8%, transparent); font-weight: 600; }
     .empty { text-align: center; padding: 28px 16px !important; }
     .empty-text { color: var(--text3); font-size: 14px; margin-bottom: 10px; }
     .pager { display: flex; gap: 8px; justify-content: center; margin: 18px 0 4px; }

@@ -131,6 +131,30 @@
       } catch (e) { /* storage 不可用则静默 */ }
     });
     foot.appendChild(btn);
+    // EF-06（v1.19.3）：本地常用板块（storage.sync pinned fids，置顶组）——零新数据源
+    try {
+      chrome.storage.sync.get({ sdgPinned: [] }, (st) => {
+        const pinned = (st && Array.isArray(st.sdgPinned) ? st.sdgPinned : [])
+          .map(String).slice(0, 5);
+        if (!pinned.length) return;
+        const all = {};
+        (groups || []).forEach((g) => (g.secs || []).forEach((sec) => { all[String(sec.fid)] = sec; }));
+        const grp = el('div', { class: 'grp', text: '常用' });
+        sin.insertBefore(grp, foot);
+        pinned.forEach((fid) => {
+          const sec = all[fid];
+          if (!sec) return;
+          const a = el('a', { class: 'bd', href: `forum.php?mod=forumdisplay&fid=${fid}&mobile=2` });
+          if (sec.icon) {
+            const im = el('img', { src: sec.icon, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
+            im.addEventListener('error', () => { im.style.display = 'none'; });
+            a.appendChild(im);
+          }
+          a.appendChild(el('span', { class: 'nm', text: sec.name || `fid${fid}` }));
+          sin.insertBefore(a, foot);
+        });
+      });
+    } catch (e) { /* ignore */ }
     sin.appendChild(foot); // 必须先入树：下方 renderGroups 的 insertBefore 以 foot 为参照
     // 树渲染（插入到 foot 之前）；跨标签副本（storage.local）供深链/新标签无会话缓存时异步补渲染
     function renderGroups(arr) {

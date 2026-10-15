@@ -190,6 +190,8 @@
     // E-12：窄屏最小导航（宽屏隐藏，CSS 控制）
     topItems.push(el('a', { class: 'qk', text: '搜索', href: 'search.php?mod=forum&mobile=2' }));
     topItems.push(el('a', { class: 'qk', text: '登录', href: 'member.php?mod=logging&action=login&mobile=2' }));
+    topItems.push(el('button', { class: 'qk', text: '复制链接', title: '复制当前页链接',
+      onclick: () => { try { navigator.clipboard.writeText(location.origin + location.pathname + location.search); } catch (e) { /* */ } } }));
     wrap.appendChild(el('div', { class: 'topbar' }, [el('div', { class: 'tb-in' }, topItems)]));
 
     // ---- 板块头卡：今日/主题统计 + 收藏本版（真实链接，页内 DOM 稳定在场） ----
@@ -250,14 +252,38 @@
       if (any) wrap.appendChild(box);
     })();
 
+    // EF-05（v1.19.3）：发帖/收藏本版入口（站方真实链接；有链接才显示）
+    const apiFid = (location.search.match(/fid=(\d+)/) || [])[1]; // 提前声明（原后段声明因 TDZ 崩溃）
+    const actionBar = el('div', { class: 'filters' });
+    let actionAdded = false;
+    if (apiFid) {
+      actionBar.appendChild(el('a', { class: 'fchip', text: '✏️ 发帖',
+        href: `forum.php?mod=post&action=newthread&fid=${apiFid}&mobile=2` }));
+      actionAdded = true;
+    }
+    const favA = window.SDGRedraw.actionLinks && window.SDGRedraw.actionLinks.fav;
+    if (favA) {
+      actionBar.appendChild(el('a', { class: 'fchip', text: '★ 收藏本版', href: favA }));
+      actionAdded = true;
+    }
+    if (actionAdded) wrap.appendChild(actionBar);
+
     // 筛选行（真实导航 chips）+ 搜索本板块入口（蓝图残余：跳真实 search.php）
     if (filterLinks.length) {
       const row = el('div', { class: 'filters' });
       const seen = new Set();
+      // EF-02：当前筛选高亮——chip 查询参数（除 fid/mobile）与当前 URL 一致即当前项
+      const curParams = new URLSearchParams(location.search);
+      ['fid', 'mobile'].forEach((k) => curParams.delete(k));
+      const curKey = [...curParams.entries()].filter(([, v]) => v).sort().map(([k, v]) => k + '=' + v).join('&');
       filterLinks.forEach(({ label, href }) => {
         if (seen.has(label)) return;
         seen.add(label);
-        row.appendChild(el('a', { class: 'fchip', text: label, href }));
+        const chipParams = new URLSearchParams(href.split('?')[1] || '');
+        ['fid', 'mobile'].forEach((k) => chipParams.delete(k));
+        const chipKey = [...chipParams.entries()].filter(([, v]) => v).sort().map(([k, v]) => k + '=' + v).join('&');
+        const isCur = curKey && chipKey === curKey;
+        row.appendChild(el('a', { class: 'fchip' + (isCur ? ' on' : ''), text: label, href }));
       });
       const fid = (location.search.match(/fid=(\d+)/) || [])[1];
       if (fid) {
@@ -362,7 +388,7 @@
     // v1.18.0/v1.18.3：forumView API 行数据升级——E-09 分页契约：
     // HTML 每页 10 条、API step=20，故 apiPage = ceil(htmlPage/2)；缓存键含 source/fid/apiPage；
     // 请求走 PageScope（unmount 级联取消）。任何失败=现状行为。
-    const apiFid = (location.search.match(/fid=(\d+)/) || [])[1];
+    // apiFid 已在 EF-05 区块声明（v1.19.3 TDZ 修复）
     if (opts.enrich !== false && window.SDGApi && window.SDGScope && apiFid) {
       const htmlPage = parseInt((location.search.match(/[?&]page=(\d+)/) || [])[1] || '1', 10);
       const apiPage = Math.ceil(htmlPage / 2);
