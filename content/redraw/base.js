@@ -210,6 +210,7 @@
 
   function markActive() {
     document.documentElement.classList.add('sdg-redraw-active');
+    try { collectActionLinks(document); } catch (e) { /* ignore */ } // EF-05 前置
   }
 
   function hideEl(n) {
@@ -223,10 +224,17 @@
   }
 
   function hideTrailingSiblings(host) {
+    // E-13（v1.19.0）白名单化：仅隐藏匹配已知脚手架的兄弟节点——
+    // 无限范围隐藏会吞掉未知站方模块（操作入口等），宁可漏藏（双内容可见即发现）不可错杀
     let n = host.nextElementSibling;
+    const groups = (window.SDG && SDG.scaffold) || {};
+    const selectors = [].concat(...Object.values(groups).map((arr) => arr || []));
+    const match = (el) => {
+      try { return selectors.some((sel) => el.matches(sel)); } catch (e) { return false; }
+    };
     while (n) {
       const next = n.nextElementSibling;
-      hideEl(n);
+      if (match(n) || !n.id) hideEl(n); // 无 id 的结构性节点仍隐藏；带 id 的未知模块放过
       n = next;
     }
   }
@@ -308,6 +316,25 @@
       ev.stopPropagation();
       openLightbox(img.src, img.alt);
     }, true);
+  }
+
+  // ---------- 站方操作链接收集（E-13/EF-05 前置：只收集不展示） ----------
+  function collectActionLinks(rootDoc) {
+    const out = {};
+    const patterns = {
+      reply: 'a[href*="action=reply"]',
+      newThread: 'a[href*="mod=post"][href*="action=newthread"]',
+      fav: 'a[href*="action=fav"], a[href*="favthread"]',
+      share: 'a[href*="mod=misc"][href*="action=share"]',
+    };
+    for (const [k, sel] of Object.entries(patterns)) {
+      try {
+        const a = rootDoc.querySelector(sel);
+        if (a) out[k] = a.getAttribute('href');
+      } catch (e) { /* ignore */ }
+    }
+    try { window.SDGRedraw.actionLinks = out; } catch (e) { /* ignore */ }
+    return out;
   }
 
   // ---------- 挂载/卸载 ----------

@@ -166,6 +166,13 @@
     const floors = parseFloors(SDG);
     if (!floors.length) return false; // fail-open: nothing parsed
 
+    // E-13（v1.19.0）validate：解析率阈值——低于 60% 视为结构不认识，整页回退原版
+    // （fail-open 完整形态：不是"至少一楼"就接管，而是"认识大多数楼层"才接管）
+    const sourceNodes = [...container.querySelectorAll(SDG.viewThread.floor)];
+    const parsedPids = new Set(floors.map((f) => f.pid));
+    const unparsedNodes = sourceNodes.filter((n) => !parsedPids.has((n.id || '').replace('pid', '')));
+    if (sourceNodes.length && floors.length / sourceNodes.length < 0.6) return false;
+
     // 帖子标题：优先 h2（真实标题），排除工具栏文字（.postlist_title 里混着 全部回复/只看楼主）
     // mobile=1 无 h2：title 形如 "板名+帖子标题SDGUN,..."——去板名取后半（用第一个楼层正文前缀比对不可靠，直接截断站名后缀）
     const h2el = container.querySelector('h2');
@@ -243,7 +250,20 @@
     tools.appendChild(jumpBtn);
     wrap.appendChild(tools);
 
-    floors.forEach((f, i) => {
+    // E-13：未解析楼层不静默丢弃——克隆原节点按原位插入（normalizeCloned 清洗），
+    // 楼层号沿用源序号；内容缺失时整卡省略（validate 已保证解析率 ≥60%）
+    const byPid = new Map(floors.map((f) => [f.pid, f]));
+    const ordered = [];
+    let seq = 0;
+    for (const node of sourceNodes) {
+      const pid = (node.id || '').replace('pid', '');
+      const f = byPid.get(pid);
+      if (f) { ordered.push({ kind: 'parsed', f, i: seq++ }); }
+      else { ordered.push({ kind: 'raw', node, i: seq++ }); }
+    }
+    if (!unparsedNodes.length) {
+      // 全解析：维持原遍历（徽标/赞踩等完整能力）
+      floors.forEach((f, i) => {
       const isOp = opUid && (f.authorHref.match(/uid=(\d+)/) || [])[1] === opUid;
       const card = el('div', { class: 'fcard' + (isOp ? ' opf' : '') });
       card.setAttribute('data-floor', String(floorNum(f) || i + 1));
@@ -296,7 +316,67 @@
 
       card.appendChild(main);
       wrap.appendChild(card);
-    });
+      });
+    } else {
+    // ---- 混合路径：部分楼层不可解析（validate 通过但存在 raw 楼）----
+    for (const item of ordered) {
+      if (item.kind === 'parsed') {
+        const f = item.f;
+        const isOp = opUid && (f.authorHref.match(/uid=(\d+)/) || [])[1] === opUid;
+        const card = el('div', { class: 'fcard' + (isOp ? ' opf' : '') });
+        card.setAttribute('data-floor', String(floorNum(f) || item.i + 1));
+        const ava = el('div', { class: 'fava' });
+        const avaInner = f.avatar
+          ? el('img', { class: 'avatar', src: f.avatar, alt: '', loading: 'lazy' })
+          : el('div', { class: 'afb', text: f.author ? f.author[0].toUpperCase() : '?' });
+        if (f.authorHref && f.authorHref !== '#') {
+          const al = el('a', { href: f.authorHref });
+          al.appendChild(avaInner);
+          ava.appendChild(al);
+        } else {
+          ava.appendChild(avaInner);
+        }
+        card.appendChild(ava);
+        const main = el('div', { class: 'fmain' });
+        const head = el('div', { class: 'fhead' });
+        head.appendChild(el('a', { class: 'author', text: f.author || '匿名', href: f.authorHref }));
+        if (isOp) head.appendChild(el('span', { class: 'badge-op', text: '楼主' }));
+        head.appendChild(el('span', { class: 'meta', text: f.time }));
+        head.appendChild(el('span', { class: 'floor', text: f.floor || `${item.i + 1}#` }));
+        main.appendChild(head);
+        const body = el('div', { class: 'body' });
+        try {
+          const clone = f.content.cloneNode(true);
+          B.normalizeCloned(clone);
+          body.appendChild(clone);
+          body.querySelectorAll('img').forEach((img) => { img.loading = 'lazy'; img.decoding = 'async'; });
+        } catch (e) { /* skip */ }
+        main.appendChild(body);
+        const foot = el('div', { class: 'ffoot' });
+        if (f.supportHref) foot.appendChild(el('a', { class: 'vote up', text: '👍 支持', href: f.supportHref }));
+        if (f.opposeHref) foot.appendChild(el('a', { class: 'vote down', text: '👎', href: f.opposeHref, title: '反对' }));
+        foot.appendChild(el('a', { class: 'reply', text: '回复', href: f.replyHref || replyUrl(f) }));
+        main.appendChild(foot);
+        card.appendChild(main);
+        wrap.appendChild(card);
+      } else {
+        // 未解析楼：克隆原节点保留全部内容（normalizeCloned 清洗 rem/pstatus）
+        const node = item.node;
+        const card = el('div', { class: 'fcard' });
+        card.setAttribute('data-floor', String(item.i + 1));
+        const main = el('div', { class: 'fmain' });
+        try {
+          const clone = node.cloneNode(true);
+          B.normalizeCloned(clone);
+          const body = el('div', { class: 'body' });
+          body.appendChild(clone);
+          main.appendChild(body);
+        } catch (e) { continue; }
+        card.appendChild(main);
+        wrap.appendChild(card);
+      }
+    }
+    } // E-13 else（混合路径）结束
 
     // pager: 站方权威锚点（E-06：page±1 猜测式废弃——末页 next 永不禁用会让用户循环空转；
     // 复用 pagerAnchor 的 javascript: 惰性锚点过滤，无锚点即禁用）
