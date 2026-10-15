@@ -19,7 +19,8 @@
     :host(.dark) .crumb-home { color:#a8a29e; }
     :host(.dark) .crumb-home:hover { color:#ff6b7a; }
     .fcard { display:flex; gap:14px; background:var(--surface); border:1px solid var(--border);
-      border-radius:var(--radius); padding:14px 18px; margin:10px 0; }
+      border-radius:var(--radius); padding:14px 18px; margin:10px 0;
+      scroll-margin-top:64px; } /* E-06：跳楼不被 fixed 顶栏遮挡 */
     .fcard.opf { border-left:3px solid var(--accent); }
     .fcard.flash { outline: 2px solid var(--accent); outline-offset: -2px; }
     .fava { flex:none; width:72px; display:flex; flex-direction:column; align-items:center; gap:6px; }
@@ -127,6 +128,22 @@
     return m ? parseInt(m[1], 10) : 1;
   }
 
+  // E-02：楼主身份只信可信来源——page=1 的首楼解析（站方首页首楼=1#楼主）或 tid 级缓存；
+  // page>1 且无缓存 → 返回 null（隐藏楼主徽标/只看楼主/右栏楼主卡），绝不拿当前页第一条猜。
+  function resolveOwnerUid(floors) {
+    const page = currentPage();
+    if (page === 1 && floors.length) {
+      const uid = (floors[0].authorHref.match(/uid=(\d+)/) || [])[1] || '';
+      if (uid) {
+        try { sessionStorage.setItem('sdg_owner:' + (location.search.match(/tid=(\d+)/) || [])[1], uid); } catch (e) { /* */ }
+        return uid;
+      }
+      return null; // 匿名/无 UID：不猜
+    }
+    const tid = (location.search.match(/tid=(\d+)/) || [])[1];
+    try { return sessionStorage.getItem('sdg_owner:' + tid) || null; } catch (e) { return null; }
+  }
+
   function navTo(params) {
     const u = new URL(location.href);
     for (const [k, v] of Object.entries(params)) {
@@ -173,7 +190,8 @@
     const el = B.el;
     const wrap = el('div', { class: 'wrap' });
     const page = currentPage();
-    const opUid = (floors[0] && (floors[0].authorHref.match(/uid=(\d+)/) || [])[1]) || '';
+    // E-02：楼主身份走可信来源解析（page=1 首楼/tid 缓存），未知=不显示
+    const opUid = resolveOwnerUid(floors);
     const authorFiltered = /authorid=\d+/.test(location.search);
 
     const backFid = (floors[0] && floors[0].fid) || (location.search.match(/fid=(\d+)/) || [])[1] || '';
@@ -190,13 +208,18 @@
       tools.appendChild(el('button', {
         class: 'chip' + (authorFiltered ? ' on' : ''),
         text: '只看楼主',
-        onclick: () => navTo({ authorid: authorFiltered ? null : opUid }),
+        onclick: () => navTo({ authorid: authorFiltered ? null : opUid, page: null }), // 切筛选回页 1
       }));
     }
-    const jumpInput = el('input', { class: 'jump', placeholder: '楼层' });
-    const maxFloor = Math.max(0, ...floors.map(floorNum));
+    const jumpInput = el('input', { class: 'jump', placeholder: '楼', 'aria-label': '跳转到本页楼层',
+      inputmode: 'numeric' });
+    jumpInput.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') jumpBtn.click();
+    });
     const jumpBtn = el('button', {
       class: 'chip', text: '跳楼',
+      // E-06：仅支持本页直达（按 data-floor 查找；scroll-margin-top 处理顶栏遮挡）。
+      // 跨页目标无站方定位依据，不再按 maxFloor/page 猜分页——给明确反馈。
       onclick: () => {
         const n = parseInt(jumpInput.value, 10);
         if (!n) return;
@@ -206,8 +229,9 @@
           card.classList.add('flash');
           setTimeout(() => card.classList.remove('flash'), 1200);
         } else {
-          const perPage = Math.max(1, page === 1 ? maxFloor : Math.round(maxFloor / page));
-          navTo({ page: String(Math.max(1, Math.ceil(n / perPage))) });
+          jumpInput.value = '';
+          jumpInput.placeholder = '仅限本页楼层';
+          setTimeout(() => { jumpInput.placeholder = '楼'; }, 2000);
         }
       },
     });
@@ -270,16 +294,20 @@
       wrap.appendChild(card);
     });
 
-    // pager: real-navigation buttons
+    // pager: 站方权威锚点（E-06：page±1 猜测式废弃——末页 next 永不禁用会让用户循环空转；
+    // 复用 pagerAnchor 的 javascript: 惰性锚点过滤，无锚点即禁用）
+    const nextA = B.util.pagerAnchor('next');
+    const prevA = B.util.pagerAnchor('prev');
     const prev = el('button', {
       text: '上一页',
-      onclick: () => navTo({ page: String(page - 1) }),
+      onclick: () => { const a = B.util.pagerAnchor('prev'); if (a) location.href = a.getAttribute('href'); },
     });
     const next = el('button', {
       text: '下一页',
-      onclick: () => navTo({ page: String(page + 1) }),
+      onclick: () => { const a = B.util.pagerAnchor('next'); if (a) location.href = a.getAttribute('href'); },
     });
-    prev.disabled = page <= 1;
+    prev.disabled = !prevA;
+    next.disabled = !nextA;
     wrap.appendChild(el('div', { class: 'pager' }, [prev, next]));
     // 回复本帖主入口（官方 App 底部评论框的对应物；游客点入=站点登录提示页，真实导航）
     const replyFid = (floors[0] && floors[0].fid) || (location.search.match(/fid=(\d+)/) || [])[1] || '';
@@ -308,8 +336,8 @@
     B.hideTrailingSiblings(anchor0);
 
     B.wireLightbox(shadow);
-    // Batch3：导出楼层数据供右栏（楼主卡+速览）使用
-    try { window.SDGRedraw.lastFloors = floors; } catch (e) { /* ignore */ }
+    // Batch3：导出楼层数据供右栏（楼主卡+速览）使用；ownerUid=E-02 可信楼主身份
+    try { window.SDGRedraw.lastFloors = floors; window.SDGRedraw.lastOwnerUid = opUid || null; } catch (e) { /* ignore */ }
 
     return true;
   }

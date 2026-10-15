@@ -49,6 +49,50 @@
       --text: #e7e5e4; --text2: #a8a29e; --text3: #78716c; --accent: #ff6b7a; }
   `;
 
+  // E-02 降级态：楼主身份未知 → 纯楼层速览卡（无楼主卡），速览数据=全部楼层的楼层号 chips
+  function mountFloorChipsOnly(floors, opts) {
+    const host = document.createElement('div');
+    host.id = 'sdg-rail';
+    host.className = 'sdg-host';
+    if (opts && opts.dark) host.classList.add('dark');
+    const shadow = host.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+    style.textContent = RT_CSS + (opts && opts.dark ? RT_DARK : '');
+    shadow.appendChild(style);
+
+    const el = (tag, attrs) => {
+      const n = document.createElement(tag);
+      for (const k of Object.keys(attrs || {})) {
+        if (k === 'text') n.textContent = attrs[k];
+        else n.setAttribute(k, attrs[k]);
+      }
+      return n;
+    };
+    const wrapEl = el('div', { class: 'rwrap' });
+    wrapEl.appendChild(el('div', { class: 'sect', text: '楼层速览' }));
+    const chips = el('div', { class: 'chips' });
+    floors.slice(0, 30).forEach((f, i) => {
+      const label = f.floor || `${i + 1}#`;
+      const b = el('button', { text: label });
+      b.addEventListener('click', () => {
+        const n = (String(label).match(/(\d+)/) || [])[1];
+        const hostEl = document.getElementById('sdg-redraw-host');
+        const target = hostEl && hostEl.shadowRoot.querySelector(`[data-floor="${n}"]`);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          target.classList.add('flash');
+          setTimeout(() => target.classList.remove('flash'), 1200);
+        }
+      });
+      chips.appendChild(b);
+    });
+    wrapEl.appendChild(chips);
+    shadow.appendChild(wrapEl);
+    document.body.appendChild(host);
+    document.documentElement.classList.add('sdg-rt-on');
+    return true;
+  }
+
   function mountRail(opts) {
     const existing = document.getElementById('sdg-rail');
     if (existing) existing.remove();
@@ -57,13 +101,15 @@
     if (!isThread) return mountNoticeRail(opts);
     const floors = (window.SDGRedraw || {}).lastFloors;
     if (!floors || !floors.length) return false;
+    // E-02：楼主身份只消费 viewthread 导出的可信解析（含 tid 缓存），不再独立取 floors[0]；
+    // 未知 → 降级为纯楼层速览（无楼主卡），绝不猜
+    const ownerUid = (window.SDGRedraw || {}).lastOwnerUid || '';
 
-    const op = floors[0];
-    const opUid = (op.authorHref.match(/uid=(\d+)/) || [])[1] || '';
-    const opFloors = opUid
-      ? floors.filter((f) => (f.authorHref.match(/uid=(\d+)/) || [])[1] === opUid)
-      : [op];
-    if (!op.author) return false;
+    const op = ownerUid
+      ? floors.find((f) => (f.authorHref.match(/uid=(\d+)/) || [])[1] === ownerUid) || null
+      : null;
+    const opFloors = ownerUid ? floors.filter((f) => (f.authorHref.match(/uid=(\d+)/) || [])[1] === ownerUid) : [];
+    if (!op) return mountFloorChipsOnly(floors, opts);
 
     const host = document.createElement('div');
     host.id = 'sdg-rail';

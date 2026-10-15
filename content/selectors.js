@@ -7,15 +7,26 @@
 
 const SDG = {
   page: {
-    // URL-based page type detection (touch version always carries mobile=2)
-    // forumlist=1（bygsjw 触屏版）或 forum.php?mobile=N 无 mod 参数（简易版论坛首页）
-    isForumList: () => /forum\.php\?(.*&)?forumlist=1/.test(location.search)
-      || (/forum\.php/.test(location.pathname + location.search)
-          && /mobile=\d/.test(location.search)
-          && !/(?:^|&)mod=/.test(location.search)),
-    isForumDisplay: () => /mod=forumdisplay/.test(location.search),
-    isViewThread: () => /mod=viewthread/.test(location.search),
-    isLoginPage: () => /mod=logging/.test(location.search) && /action=login/.test(location.search),
+    // E-03（2026-10-15 重写）：pathname + URLSearchParams 统一解析，三页型共享同一结果。
+    // 旧正则两处反例（实机 fixture 证实）：`?forumlist=1`（无 mobile）漏判；
+    // 所有 `?mod=X` 页（含 guide/misc/post）都误判 isForumList=True（(?:^|&)mod= 不匹配 ?mod=）。
+    _parse() {
+      const params = new URLSearchParams(location.search);
+      return { mod: params.get('mod'), forumlist: params.get('forumlist') === '1',
+        mobile: params.get('mobile') };
+    },
+    isForumList: () => {
+      const p = SDG.page._parse();
+      if (p.mod) return false; // 有 mod（已知或未知页型）一律不是论坛首页
+      if (!/\/forum\.php$/.test(location.pathname)) return false;
+      return p.forumlist || !!p.mobile; // forumlist=1 精确参数，或裸 mobile=N 简易首页
+    },
+    isForumDisplay: () => SDG.page._parse().mod === 'forumdisplay',
+    isViewThread: () => SDG.page._parse().mod === 'viewthread',
+    isLoginPage: () => {
+      const params = new URLSearchParams(location.search);
+      return params.get('mod') === 'logging' && params.get('action') === 'login';
+    },
   },
 
   forumDisplay: {

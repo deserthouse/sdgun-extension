@@ -213,26 +213,88 @@
     }
   }
 
-  function wireLightbox(shadowRoot) {
-    // capture 阶段（2026-10-09 D-4 修复）：站方图片锚点带内联 doane(event)
-    // （Discuz 的 preventDefault + stopPropagation 组合），在目标阶段就把冒泡掐死——
-    // 此前 bubble 监听永远收不到点击（帖子图点不开的根因）。捕获先于目标阶段，
-    // 在此截停并开灯箱；icon/avatar 类仍排除（avatar 类由 viewthread 头像显式携带）。
-    shadowRoot.addEventListener('click', (ev) => {
-      const img = ev.target.closest && ev.target.closest('img');
-      if (!img || !img.src || img.classList.contains('icon') || img.classList.contains('avatar')) return;
+  // ---------- 灯箱（v1.18.2 E-01 重写）：单例、白名单类、键盘/焦点/滚动锁 ----------
+  // E-01 教训：普通 body 子节点会被 theme.css 重绘隐藏规则（body>*:not(.sdg-host)）
+  // display:none 压制——overlay 必须带 .sdg-host 白名单类。
+  let lightboxState = null; // { overlay, prevFocus, cleanup }
+
+  function closeLightbox() {
+    if (!lightboxState) return;
+    const { overlay, prevFocus, cleanup } = lightboxState;
+    lightboxState = null;
+    try { document.removeEventListener('keydown', onLightboxKey, true); } catch (e) { /* */ }
+    try {
+      document.documentElement.style.overflow = overlay.dataset.sdgPrevOverflow || '';
+    } catch (e) { /* */ }
+    try { overlay.remove(); } catch (e) { /* */ }
+    try { if (prevFocus && prevFocus.focus) prevFocus.focus(); } catch (e) { /* */ }
+    void cleanup;
+  }
+
+  function onLightboxKey(ev) {
+    if (!lightboxState) return;
+    if (ev.key === 'Escape' || ev.key === 'Esc') {
       ev.preventDefault();
       ev.stopPropagation();
-      const lb = el('div', {
-        style: 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;cursor:zoom-out',
-        onclick: (e) => e.currentTarget.remove(),
-      }, [el('img', { src: img.src, style: 'max-width:96vw;max-height:96vh;border-radius:4px;' })]);
-      document.body.appendChild(lb);
+      closeLightbox();
+    }
+  }
+
+  function openLightbox(src, alt) {
+    closeLightbox(); // 单例
+    const prevFocus = document.activeElement;
+    const overlay = el('div', {
+      class: 'sdg-host sdg-lightbox',
+      role: 'dialog',
+      'aria-modal': 'true',
+      'aria-label': alt || '图片查看',
+    });
+    const prevOverflow = document.documentElement.style.overflow;
+    overlay.dataset.sdgPrevOverflow = prevOverflow;
+    document.documentElement.style.overflow = 'hidden'; // 滚动锁（卸载恢复）
+    const img = el('img', {
+      src,
+      alt: alt || '',
+      style: 'max-width:96vw;max-height:96vh;border-radius:4px;display:block;',
+    });
+    const closeBtn = el('button', {
+      text: '✕',
+      'aria-label': '关闭',
+      style: 'position:absolute;top:14px;right:18px;z-index:2;border:0;border-radius:50%;'
+        + 'width:40px;height:40px;background:rgba(255,255,255,.14);color:#fff;font-size:18px;'
+        + 'cursor:pointer;line-height:1;',
+    });
+    closeBtn.addEventListener('click', (e) => { e.stopPropagation(); closeLightbox(); });
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.88);'
+      + 'display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeLightbox();
+    });
+    overlay.appendChild(img);
+    overlay.appendChild(closeBtn);
+    document.body.appendChild(overlay);
+    closeBtn.focus();
+    document.addEventListener('keydown', onLightboxKey, true);
+    lightboxState = { overlay, prevFocus, cleanup: null };
+  }
+
+  function wireLightbox(shadowRoot) {
+    // capture 阶段：站方图片锚点带内联 doane(event)（preventDefault+stopPropagation）
+    // 在目标阶段掐死冒泡——bubble 监听收不到。排除：头像（导航/占位）、图标、
+    // 热帖卡缩略图（在 <a> 内应导航）；列表行 .thumb 无链接，允许进灯箱。
+    shadowRoot.addEventListener('click', (ev) => {
+      const img = ev.target.closest && ev.target.closest('img');
+      if (!img || !img.src || img.classList.contains('icon') || img.classList.contains('avatar')
+          || img.classList.contains('hthumb')) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      openLightbox(img.src, img.alt);
     }, true);
   }
 
   // ---------- 挂载/卸载 ----------
   function unmount() {
+    closeLightbox(); // E-01：卸载必须关闭灯箱并恢复滚动锁/焦点
     for (const id of ['sdg-redraw-host', 'sdg-redraw-list', 'sdg-sidebar', 'sdg-rail']) {
       const host = document.getElementById(id);
       if (host) host.remove();
@@ -341,6 +403,7 @@
   window.SDGRedrawBase = {
     LIST_CSS, CSS, el, markActive, hideEl, hideTrailingSiblings,
     wireLightbox, unmount, util, normalizeCloned,
+    openLightbox, closeLightbox, // E-01：单例灯箱（原版页面与重绘层共用）
   };
   // unmount 挂到主命名空间（boot.js 的开关切换调用 window.SDGRedraw.unmount）
   window.SDGRedraw = window.SDGRedraw || {};

@@ -39,11 +39,21 @@
     }).then((d) => (d && Array.isArray(d.list) ? d.list : null));
   }
 
-  // ---- 全量楼层：每楼点赞数/头像/结构化内容/楼层号；authorid=只看楼主 ----
+  // ---- 全量楼层：每楼点赞数/头像/结构化内容/楼层号；authorid=只看楼主。
+  // E-15（2026-10-15 补测）：服务端只认 p 翻页（page 参数被忽略恒回第 1 页），
+  // step 为响应下限（实测请求 step=2 得 50 条）——调用方以返回的 meta 为准，勿按 rows.length 判末页 ----
   function commentList(tid, page, authorid) {
     return get(APP, '/mag/circle/v1/Forum/commentList', {
-      tid, page: page || 1, step: 10, order: 2, authorid: authorid || 0,
-    }).then((d) => (d && Array.isArray(d.list) ? d.list : null));
+      tid, p: page || 1, step: 10, order: 2, authorid: authorid || 0,
+    }).then((d) => {
+      if (!d || !Array.isArray(d.list)) return null;
+      return {
+        rows: d.list,
+        meta: {
+          page: d.page, step: d.step, count: d.count, totalPage: d.total_page,
+        },
+      };
+    });
   }
 
   // ---- 官方资讯流（mag1，纯浏览器头游客可读）----

@@ -242,20 +242,20 @@
   }
 
   // ---- image lightbox (delegated; works for content added later too) ----
+  // E-01：与重绘层共用单例灯箱（openLightbox 带白名单类/键盘/焦点/滚动锁）
   function initLightbox() {
     if (!prefs.lightbox || !prefs.skin) return;
     document.addEventListener('click', (ev) => {
       const img = ev.target.closest && ev.target.closest(SDG.common.contentImages);
       if (!img) return;
+      if (document.getElementById('sdg-redraw-host') || document.getElementById('sdg-redraw-list')) {
+        return; // 重绘页由 wireLightbox（shadow 内 capture）接管，避免双重开启
+      }
       ev.preventDefault();
       ev.stopPropagation();
-      const overlay = document.createElement('div');
-      overlay.className = 'sdg-lightbox';
-      const big = document.createElement('img');
-      big.src = img.src;
-      overlay.appendChild(big);
-      overlay.addEventListener('click', () => overlay.remove());
-      document.body.appendChild(overlay);
+      if (window.SDGRedrawBase && window.SDGRedrawBase.openLightbox) {
+        window.SDGRedrawBase.openLightbox(img.src, img.alt);
+      }
     }, true);
   }
 
