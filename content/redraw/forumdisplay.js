@@ -461,71 +461,107 @@
   }
 
   // 行数据升级（v1.18.0）：复用 v1.17.3 槽位体系，零位移——
-  // 封面进既有图位（骨架/字块让位）；头像插作者前；查看数/点赞进 sub 行尾
-  function upgradeRow(row, d, fid) {
-    // ER-02（v1.19.5）：单行异常隔离 + 完成标记后置（先做事后标记）
-    try {
-      upgradeRowInner(row, d);
-    } catch (e) {
-      try { delete row.dataset.sdgApiUp; } catch (e2) { /* */ }
-      return;
+  // A3（v1.20.1）：单入口 applyRow——三个写入者（站方 parseThreads 直渲/API upgradeRow/enrich
+  // settleRow）全部经此落位；source 标记互斥集中于此（data-sdg-cover-src: html|api|enrich）。
+  // 覆盖规则：api > html；enrich 仅在无 cover 时进位（不覆盖 api 已写内容）。
+  function applyRow(row, fields, source) {
+    if (!row || !fields) return;
+    const cur = row.getAttribute('data-sdg-cover-src') || '';
+    // 封面互斥：api 覆盖 html；enrich 不覆盖 api
+    if (source === 'api' && cur === 'api') return;
+    if (source === 'enrich' && (cur === 'api' || fields.cover === undefined)) {
+      // enrich 无图时仅落摘要，不动封面
     }
+    try { applyRowInner(row, fields, source); } catch (e) { /* 单行失败静默 */ }
   }
 
-  function upgradeRowInner(row, d) {
-    // W1（v1.19.4）EF-02：相对时间替换 HTML 日期位（API dateline 更语义化："2小时前"）
-    const subEl0 = row.querySelector('.sub .d');
-    if (d.relative && subEl0) subEl0.textContent = d.relative;
-    // W1：悬停多图预览（API pics 组图，≤3；不依赖站方 list_img3）——B.el（ER-02：mount 外 el 不可达）
-    if (Array.isArray(d.pics) && d.pics.length > 1 && !row.querySelector('.hoverp')) {
-      const hp = B.el('div', { class: 'hoverp' });
-      d.pics.slice(0, 3).forEach((src) => {
-        hp.appendChild(B.el('img', { src, alt: '', loading: 'lazy' }));
-      });
-      row.appendChild(hp);
-    }
-    if (d.cover) {
+  function applyRowInner(row, fields, source) {
+    // 封面（按 source 互斥）
+    if (fields.cover && (source === 'api' || !row.getAttribute('data-sdg-cover-src'))) {
       const old = row.querySelector('img.thumb, .sdg-tile, .sdg-skel-thumb');
       if (old) old.remove();
       const im = document.createElement('img');
       im.className = 'thumb';
       im.loading = 'lazy';
       im.alt = '';
-      im.src = d.cover;
+      im.src = fields.cover;
       im.addEventListener('error', () => { im.remove(); });
       row.insertBefore(im, row.querySelector('.main'));
+      row.setAttribute('data-sdg-cover-src', source);
     }
-    const sub = row.querySelector('.sub');
-    if (sub) {
-      const authorEl = sub.querySelector('a');
-      if (d.authorHead && authorEl && !sub.querySelector('img.ava')) {
+    // 头像（api）
+    if (fields.authorHead) {
+      const sub = row.querySelector('.sub');
+      const authorEl = sub && sub.querySelector('a');
+      if (sub && authorEl && !sub.querySelector('img.ava')) {
         const av = document.createElement('img');
         av.className = 'ava';
         av.loading = 'lazy';
         av.alt = '';
-        av.src = d.authorHead;
+        av.src = fields.authorHead;
         av.addEventListener('error', () => { av.remove(); });
         sub.insertBefore(av, authorEl);
       }
-      // ER-09（v1.19.7）：查看/回复消费——click 是格式化字符串（'1.4万'/'28'）直显；
-      // 有值才覆盖（区分缺失）；原 HTML 数值保留为兜底
-      const stats = row.querySelector('.stats');
-      if (stats && d.click) {
-        const viewsSpan = stats.querySelector('span');
-        if (viewsSpan) viewsSpan.textContent = `回复 / 查看 ${d.click}`;
-      }
-      if (d.applaud && !sub.querySelector('.zap')) {
+    }
+    // 相对时间（api）
+    if (fields.relative) {
+      const dEl = row.querySelector('.sub .d');
+      if (dEl) dEl.textContent = fields.relative;
+    }
+    // 点赞（api）
+    if (fields.applaud) {
+      const sub = row.querySelector('.sub');
+      if (sub && !sub.querySelector('.zap')) {
         const z = document.createElement('span');
         z.className = 'zap';
         z.textContent = '👍 ';
         const b = document.createElement('b');
-        b.textContent = d.applaud;
+        b.textContent = fields.applaud;
         z.appendChild(b);
         sub.appendChild(z);
       }
     }
-    row.dataset.sdgApiUp = '1'; // ER-02：字段全部成功落位后才标记完成
+    // 查看（api，格式化字符串直显）
+    if (fields.click) {
+      const stats = row.querySelector('.stats');
+      const viewsSpan = stats && stats.querySelector('span');
+      if (viewsSpan) viewsSpan.textContent = `回复 / 查看 ${fields.click}`;
+    }
+    // 悬停多图（api）
+    if (Array.isArray(fields.pics) && fields.pics.length > 1 && !row.querySelector('.hoverp')) {
+      const hp = document.createElement('div');
+      hp.className = 'hoverp';
+      fields.pics.slice(0, 3).forEach((src) => {
+        const im = document.createElement('img');
+        im.loading = 'lazy';
+        im.alt = '';
+        im.src = src;
+        hp.appendChild(im);
+      });
+      row.appendChild(hp);
+    }
+    // 摘要槽位（enrich）：已存在 .ex 则更新文本
+    if (fields.ex !== undefined) {
+      const main = row.querySelector('.main');
+      if (main) {
+        let ex = main.querySelector('.ex');
+        if (!ex) {
+          ex = document.createElement('div');
+          ex.className = 'ex';
+          main.appendChild(ex);
+        }
+        ex.textContent = fields.ex;
+      }
+    }
   }
+
+  function upgradeRow(row, d, fid) {
+    applyRow(row, {
+      cover: d.cover, pics: d.pics, authorHead: d.authorHead,
+      relative: d.relative, applaud: d.applaud, click: d.click,
+    }, 'api');
+  }
+
 
   window.SDGRedraw = window.SDGRedraw || {};
   window.SDGRedraw.mountForumDisplay = mountForumDisplay;

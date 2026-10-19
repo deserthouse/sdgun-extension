@@ -138,6 +138,7 @@
     }
     removeSkeleton(row);
   }
+  // （ex 槽位保持 enrich 自管——applyRow 的互斥只管封面，摘要槽位两源共享）
 
   // 入口：列表挂载后同步调用（骨架与挂载同任务→首帧即终版式；缓存命中/拉取在后续任务原地换真身）
   function enrichRows(shadowRoot, scope) {
