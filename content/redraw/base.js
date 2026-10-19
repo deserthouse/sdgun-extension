@@ -212,7 +212,6 @@
 
   function markActive() {
     document.documentElement.classList.add('sdg-redraw-active');
-    try { collectActionLinks(document); } catch (e) { /* ignore */ } // EF-05 前置
   }
 
   function hideEl(n) {
@@ -402,10 +401,8 @@
       n.removeAttribute('data-sdg-prev-display');
       n.removeAttribute('data-sdg-hidden');
     });
-    const c = document.querySelector('.postlist');
-    if (c) c.style.display = '';
-    const l = document.querySelector('ul.byg_threadlist_ul');
-    if (l) l.style.display = '';
+    // ER-06（v1.19.5）：删除对 .postlist/ul.byg_threadlist_ul 的统一 display='' 覆盖——
+    // [data-sdg-hidden] 恢复已按各自原 inline display 处理，统一清空会覆盖刚恢复的原值
   }
 
   // ---------- 结构性 DOM 辅助（引用 SDG.util 选择器串） ----------
@@ -498,6 +495,7 @@
     LIST_CSS, CSS, el, markActive, hideEl, hideTrailingSiblings,
     wireLightbox, unmount, util, normalizeCloned,
     openLightbox, closeLightbox, // E-01：单例灯箱（原版页面与重绘层共用）
+    collectActionLinks, // EF-05：显式调用（时机由调用方控制，不藏在 markActive）
   };
   // unmount 挂到主命名空间（boot.js 的开关切换调用 window.SDGRedraw.unmount）
   window.SDGRedraw = window.SDGRedraw || {};

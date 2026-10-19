@@ -252,7 +252,11 @@
       if (any) wrap.appendChild(box);
     })();
 
-    // EF-05（v1.19.3）：发帖/收藏本版入口（站方真实链接；有链接才显示）
+    // EF-05（v1.19.3/v1.19.5）：发帖/收藏本版入口——actionLinks 显式收集（此前藏在
+    // markActive 的收集时机晚于 actionBar 读取，冷加载首值缺失）
+    if (window.SDGRedrawBase && window.SDGRedrawBase.collectActionLinks) {
+      try { window.SDGRedrawBase.collectActionLinks(document); } catch (e) { /* */ }
+    }
     const apiFid = (location.search.match(/fid=(\d+)/) || [])[1]; // 提前声明（原后段声明因 TDZ 崩溃）
     const actionBar = el('div', { class: 'filters' });
     let actionAdded = false;
@@ -394,14 +398,16 @@
     wrap.appendChild(el('div', { class: 'hint', text: 'SDGun Web Access · 重绘层（真实导航）' }));
 
     shadow.appendChild(wrap);
+    const anchor = B.util.contentAnchor();
+    if (anchor !== document.body) anchor.classList.add('sdg-host');
+    // ER-06（v1.19.5）：先 commit（host 入 DOM）再 hideEl（隐藏原文）——
+    // append 失败时原文未隐藏，页面保持原样
+    anchor.appendChild(host);
     if (list) B.hideEl(list);
     else if (simpleMode) {
       const container = B.util.threadContainer();
       if (container && container !== document.body) B.hideEl(container);
     }
-    const anchor = B.util.contentAnchor();
-    if (anchor !== document.body) anchor.classList.add('sdg-host');
-    anchor.appendChild(host);
     B.markActive();
     B.util.hideScaffold('bygsjw');
     B.hideTrailingSiblings(anchor);
@@ -443,16 +449,24 @@
   // 行数据升级（v1.18.0）：复用 v1.17.3 槽位体系，零位移——
   // 封面进既有图位（骨架/字块让位）；头像插作者前；查看数/点赞进 sub 行尾
   function upgradeRow(row, d, fid) {
-    if (row.dataset.sdgApiUp === '1') return;
-    row.dataset.sdgApiUp = '1';
+    // ER-02（v1.19.5）：单行异常隔离 + 完成标记后置（先做事后标记）
+    try {
+      upgradeRowInner(row, d);
+    } catch (e) {
+      try { delete row.dataset.sdgApiUp; } catch (e2) { /* */ }
+      return;
+    }
+  }
+
+  function upgradeRowInner(row, d) {
     // W1（v1.19.4）EF-02：相对时间替换 HTML 日期位（API dateline 更语义化："2小时前"）
     const subEl0 = row.querySelector('.sub .d');
     if (d.relative && subEl0) subEl0.textContent = d.relative;
-    // W1：悬停多图预览（API pics 组图，≤3；不依赖站方 list_img3）
+    // W1：悬停多图预览（API pics 组图，≤3；不依赖站方 list_img3）——B.el（ER-02：mount 外 el 不可达）
     if (Array.isArray(d.pics) && d.pics.length > 1 && !row.querySelector('.hoverp')) {
-      const hp = el('div', { class: 'hoverp' });
+      const hp = B.el('div', { class: 'hoverp' });
       d.pics.slice(0, 3).forEach((src) => {
-        hp.appendChild(el('img', { src, alt: '', loading: 'lazy' }));
+        hp.appendChild(B.el('img', { src, alt: '', loading: 'lazy' }));
       });
       row.appendChild(hp);
     }
@@ -489,6 +503,7 @@
         sub.appendChild(z);
       }
     }
+    row.dataset.sdgApiUp = '1'; // ER-02：字段全部成功落位后才标记完成
   }
 
   window.SDGRedraw = window.SDGRedraw || {};

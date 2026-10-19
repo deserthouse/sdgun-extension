@@ -128,20 +128,40 @@
     return m ? parseInt(m[1], 10) : 1;
   }
 
-  // E-02：楼主身份只信可信来源——page=1 的首楼解析（站方首页首楼=1#楼主）或 tid 级缓存；
-  // page>1 且无缓存 → 返回 null（隐藏楼主徽标/只看楼主/右栏楼主卡），绝不拿当前页第一条猜。
+  // E-02/ER-03（v1.19.5 重写）：楼主身份可信源——
+  // 写入仅一源：page=1 且 URL 无 authorid（未筛选）且首楼楼号为 1#（floor 字段 1# 或空缺），
+  // 缓存携带证据类型 {uid, ev}；弱证据（筛选页/删首楼/页>1）永不覆盖已有缓存。
+  // 读取：任意页均读缓存；无缓存 → null（隐藏楼主徽标/只看楼主/右栏楼主卡），绝不猜。
   function resolveOwnerUid(floors) {
     const page = currentPage();
-    if (page === 1 && floors.length) {
-      const uid = (floors[0].authorHref.match(/uid=(\d+)/) || [])[1] || '';
-      if (uid) {
-        try { sessionStorage.setItem('sdg_owner:' + (location.search.match(/tid=(\d+)/) || [])[1], uid); } catch (e) { /* */ }
+    const tid = (location.search.match(/tid=(\d+)/) || [])[1];
+    const key = 'sdg_owner:' + tid;
+    const filtered = /(?:^|&)authorid=/.test(location.search);
+    const readCache = () => {
+      try {
+        const raw = sessionStorage.getItem(key);
+        if (!raw) return null;
+        const o = JSON.parse(raw);
+        return (o && o.uid) ? o.uid : null;
+      } catch (e) { return null; }
+    };
+    if (page === 1 && !filtered && floors.length) {
+      const f0 = floors[0];
+      const floorNo = (f0.floor || '').trim();
+      const isFloorOne = floorNo === '1#' || floorNo === '' || floorNo === '1';
+      const uid = (f0.authorHref.match(/uid=(\d+)/) || [])[1] || '';
+      if (isFloorOne && uid) {
+        const strong = JSON.stringify({ uid, ev: 'floor1' });
+        try {
+          const prev = sessionStorage.getItem(key);
+          if (prev !== strong) sessionStorage.setItem(key, strong);
+        } catch (e) { /* */ }
         return uid;
       }
-      return null; // 匿名/无 UID：不猜
+      // 首楼缺号/匿名：不覆盖已有缓存，也不晋升下一楼
+      return readCache();
     }
-    const tid = (location.search.match(/tid=(\d+)/) || [])[1];
-    try { return sessionStorage.getItem('sdg_owner:' + tid) || null; } catch (e) { return null; }
+    return readCache();
   }
 
   function navTo(params) {
@@ -415,10 +435,11 @@
 
     shadow.appendChild(wrap);
 
-    B.hideEl(container);
+    // ER-06（v1.19.5）：先 commit 再 hideEl（同 forumdisplay）
     const anchor0 = B.util.contentAnchor();
     if (anchor0 !== document.body) anchor0.classList.add('sdg-host');
     anchor0.appendChild(host);
+    B.hideEl(container);
     B.markActive();
     B.util.hideScaffold('viewthread');
     B.hideTrailingSiblings(anchor0);
