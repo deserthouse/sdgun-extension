@@ -68,6 +68,14 @@
     return u.replace(/^http:\/\/(picapp\.sdgun\.net|bbs\.sdgun\.com\.cn)\//i, 'https://$1/');
   }
 
+  // ---- 缩略图参数（v1.20.2）：picapp 是七牛 CDN——原图 1280px/100KB+ 每张加载慢；
+  // imageView2/2/w/240 实测返回 6~23KB 缩略图（毫秒级），热帖/列表卡均用此小图 ----
+  function thumbUrl(u, w) {
+    u = httpsImg(u);
+    if (!u || !u.includes('picapp.sdgun.net')) return u; // 非七牛域不动
+    return u + (u.includes('?') ? '&' : '?') + 'imageView2/2/w/' + (w || 240);
+  }
+
   // ---- 万单位解析（E-09）：'1.4万'→14000、'28'→28、'28阅读'→28；无法解析→0 ----
   function parseWan(s) {
     const t = String(s == null ? '' : s).trim();
@@ -83,8 +91,8 @@
     const map = {};
     for (const it of list || []) {
       if (it && it.tid != null) map[String(it.tid)] = {
-        cover: httpsImg((Array.isArray(it.pics) && it.pics[0]) || ''),
-        pics: (Array.isArray(it.pics) ? it.pics : []).slice(0, 3).map(httpsImg),
+        cover: thumbUrl((Array.isArray(it.pics) && it.pics[0]) || '', 240),
+        pics: (Array.isArray(it.pics) ? it.pics : []).slice(0, 3).map((u) => thumbUrl(u, 240)),
         videos: Array.isArray(it.videos) ? it.videos.length : 0,
         authorHead: httpsImg(it.user_head || ''),
         click: String(it.click || '').replace(/阅读\s*$/, ''),
