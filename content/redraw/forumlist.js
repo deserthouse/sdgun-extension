@@ -682,8 +682,14 @@
             onclick: (e) => {
               e.preventDefault();
               e.stopPropagation();
-              try { navigator.clipboard.writeText(it.share); e.target.textContent = '已复制'; } catch (e2) { /* */ }
-              setTimeout(() => { try { e.target.textContent = '分享链接'; } catch (e3) { /* */ } }, 1500);
+              // EF-07（v1.19.7）：await clipboard 结果，真实成功才提示
+              navigator.clipboard.writeText(it.share).then(() => {
+                e.target.textContent = '已复制';
+                setTimeout(() => { try { e.target.textContent = '分享链接'; } catch (e3) { /* */ } }, 1500);
+              }).catch(() => {
+                e.target.textContent = '复制失败';
+                setTimeout(() => { try { e.target.textContent = '分享链接'; } catch (e3) { /* */ } }, 1500);
+              });
             } });
           meta.appendChild(shareBtn);
         }

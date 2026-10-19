@@ -91,9 +91,15 @@
     row.querySelectorAll('.sdg-skel').forEach((n) => n.remove());
   }
 
+  // ER-04（v1.19.7）：精确 tid 定位（解析 href 完整 tid 相等比较——
+  // 子串选择器 `href*="tid=12"` 会误中 tid=123）
   function locateRow(shadowRoot, tid) {
-    const a = shadowRoot.querySelector(`a.t[href*="tid=${tid}"]`);
-    return a ? a.closest('.trow') : null;
+    for (const r of shadowRoot.querySelectorAll('.trow')) {
+      const a = r.querySelector('a.t');
+      const t = a && (a.getAttribute('href').match(/tid=(\d+)/) || [])[1];
+      if (t === tid) return r;
+    }
+    return null;
   }
 
   // 首字字块（无图帖的永久图位）：槽位永在，杜绝宽度/高度位移
@@ -242,7 +248,7 @@
 
   // 热帖卡终态：图→img / 无图→字块；骨架永撤但槽位由真身顶替
   function settleHotCard(box, tid, d) {
-    const a = box.querySelector(`a.hitem[href*="tid=${tid}"]`);
+    const a = locateHot(box, tid);
     if (!a) return;
     const skel = a.querySelector('.sdg-skel-hthumb');
     const title = (a.querySelector('.ht2') || {}).textContent;
@@ -261,6 +267,14 @@
       insertHotTileFor(a, title);
       if (skel) skel.remove();
     }
+  }
+
+  function locateHot(box, tid) {
+    for (const a of box.querySelectorAll('a.hitem')) {
+      const t = (a.getAttribute('href').match(/tid=(\d+)/) || [])[1];
+      if (t === tid) return a;
+    }
+    return null;
   }
 
   function insertHotTileFor(a, title) {

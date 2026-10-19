@@ -269,7 +269,7 @@
     if (lightboxState.onKey) lightboxState.onKey(ev); // EF-04：←/→ 图组翻页
   }
 
-  function openLightbox(src, alt, gallery) {
+  function openLightbox(src, alt, gallery, startIdx) {
     closeLightbox(); // 单例
     const prevFocus = document.activeElement;
     const overlay = el('div', {
@@ -286,11 +286,12 @@
       alt: alt || '',
       style: 'max-width:96vw;max-height:96vh;border-radius:4px;display:block;',
     });
-    // EF-04（v1.19.2）：图组模式——传入 gallery（>1 张）时支持 ‹/› 按钮、←/→ 键与 x/y 计数
-    let idx = 0;
+    // EF-04（v1.19.2）+ ER-08（v1.19.7）：图组模式；打开即按被点图索引初始化
+    // （src 与计数同步——此前恒从 0 开始，点第二张显示第二图却标 1/20）
+    let idx = Math.max(0, Math.min(startIdx || 0, (gallery ? gallery.length : 1) - 1));
     const list = Array.isArray(gallery) && gallery.length > 1 ? gallery : null;
     const counter = el('div', {
-      text: list ? `1 / ${list.length}` : '',
+      text: list ? `${idx + 1} / ${list.length}` : '',
       style: 'position:absolute;bottom:16px;left:50%;transform:translateX(-50%);'
         + 'color:#fff;font:13px/1.4 system-ui,sans-serif;background:rgba(0,0,0,.5);'
         + 'border-radius:999px;padding:4px 14px;',
@@ -360,7 +361,9 @@
         .flatMap((root) => (root ? [...root.querySelectorAll('.body img')] : []))
         .filter((im) => im.src && !im.classList.contains('avatar') && !im.classList.contains('icon'));
       const gallery = scopeImgs.length > 1 ? scopeImgs.map((im) => im.src) : null;
-      openLightbox(img.src, img.alt, gallery);
+      // ER-08（v1.19.7）：startIdx 按被点图在组内的实际位置（点第二张开=2/20，不再恒 1/20）
+      const startIdx = gallery ? Math.max(0, scopeImgs.indexOf(img)) : 0;
+      openLightbox(img.src, img.alt, gallery, startIdx);
     }, true);
   }
 

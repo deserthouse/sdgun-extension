@@ -258,6 +258,8 @@
       try { window.SDGRedrawBase.collectActionLinks(document); } catch (e) { /* */ }
     }
     const apiFid = (location.search.match(/fid=(\d+)/) || [])[1]; // 提前声明（原后段声明因 TDZ 崩溃）
+    // ER-09（v1.19.7）筛选契约：URL 带未映射筛选参数时不做 API 升级（映射未证实，HTML 为准）
+    const hasUnmappedFilter = /(?:^|&)(?:filter|typeid|orderby|digest|specialtype)=/.test(location.search);
     const actionBar = el('div', { class: 'filters' });
     let actionAdded = false;
     if (apiFid) {
@@ -416,14 +418,33 @@
     // HTML 每页 10 条、API step=20，故 apiPage = ceil(htmlPage/2)；缓存键含 source/fid/apiPage；
     // 请求走 PageScope（unmount 级联取消）。任何失败=现状行为。
     // apiFid 已在 EF-05 区块声明（v1.19.3 TDZ 修复）
-    if (opts.enrich !== false && window.SDGApi && window.SDGScope && apiFid) {
+    if (opts.enrich !== false && window.SDGApi && window.SDGScope && apiFid && !hasUnmappedFilter) {
       const htmlPage = parseInt((location.search.match(/[?&]page=(\d+)/) || [])[1] || '1', 10);
       const apiPage = Math.ceil(htmlPage / 2);
       const scope = window.SDGScope.register(window.SDGScope.create());
-      scope.fetchJSON(`https://app.sdgun.com.cn/mag/circle/v1/forum/forumView?fid=${apiFid}&p=${apiPage}&step=20`, 10000)
-        .then((d) => {
-          if (!d || !Array.isArray(d.list) || !d.list.length) return; // 失败/空=现状（E-08 原则）
-          const map = window.SDGApi.indexThreads(d.list);
+      // ER-09（v1.19.7）：forumView 会话缓存（fid+apiPage，5min TTL）——翻页回访零请求
+      const fvKey = `sdg_fv:${apiFid}:${apiPage}`;
+      const FV_TTL = 5 * 60e3;
+      const fetchForumView = () => {
+        const cached = sessionStorage.getItem(fvKey);
+        if (cached) {
+          try {
+            const c = JSON.parse(cached);
+            if (c && Date.now() - c.t < FV_TTL) return Promise.resolve(c.list);
+          } catch (e) { /* ignore */ }
+        }
+        return scope.fetchJSON(`https://app.sdgun.com.cn/mag/circle/v1/forum/forumView?fid=${apiFid}&p=${apiPage}&step=20`, 10000)
+          .then((d) => {
+            if (d && Array.isArray(d.list) && d.list.length) {
+              try { sessionStorage.setItem(fvKey, JSON.stringify({ t: Date.now(), list: d.list })); } catch (e) { /* */ }
+            }
+            return d;
+          });
+      };
+      fetchForumView()
+        .then((list) => {
+          if (!list || !list.length) return; // 失败/空=现状（E-08 原则）
+          const map = window.SDGApi.indexThreads(list);
           shadow.querySelectorAll('.trow').forEach((row) => {
             const a = row.querySelector('a.t');
             const tid = a && (a.getAttribute('href').match(/tid=(\d+)/) || [])[1];
@@ -486,6 +507,13 @@
         av.src = d.authorHead;
         av.addEventListener('error', () => { av.remove(); });
         sub.insertBefore(av, authorEl);
+      }
+      // ER-09（v1.19.7）：查看/回复消费——click 是格式化字符串（'1.4万'/'28'）直显；
+      // 有值才覆盖（区分缺失）；原 HTML 数值保留为兜底
+      const stats = row.querySelector('.stats');
+      if (stats && d.click) {
+        const viewsSpan = stats.querySelector('span');
+        if (viewsSpan) viewsSpan.textContent = `回复 / 查看 ${d.click}`;
       }
       if (d.applaud && !sub.querySelector('.zap')) {
         const z = document.createElement('span');
