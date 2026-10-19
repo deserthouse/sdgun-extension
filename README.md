@@ -15,10 +15,12 @@
 
 所有重绘层 fail-open：论坛模板改版或解析失败时自动回退原版页面，不会白屏。
 
-## 安装（免商店，本地加载）
+## 安装（GitHub 独占分发，本地加载）
 
-1. 下载本仓库（或 release zip 解压）；
-2. 打开 `chrome://extensions/`（Chrome）或 `edge://extensions/`（Edge）；
+> 本扩展仅通过本 GitHub 仓库分发，不上架 Chrome Web Store。
+
+1. 下载本仓库（Code → Download ZIP，或 clone；也可从 [Releases](https://github.com/deserthouse/sdgun-extension/releases) 下载 zip 解压）；
+2. 打开 `chrome://extensions/`；
 3. 开启「开发者模式」→「加载已解压的扩展程序」→ 选择仓库根目录（含 `manifest.json`）；
 4. 正常访问 `https://bbs.sdgun.com.cn`。装好或切换开关后，已打开的论坛标签页需刷新一次。
 
@@ -38,7 +40,7 @@
 python tools/extension_build.py --test
 ```
 
-产出 `dist/` 下两种 zip：GitHub release 版与商店提交版。
+产出 `dist/` 下 zip：GitHub Release 分发用（不产出商店提交版——本项目不上架 CWS）。
 
 ## 说明与免责（Disclaimer）
 
