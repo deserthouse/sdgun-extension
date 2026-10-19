@@ -412,10 +412,6 @@
     B.util.hideScaffold('bygsjw');
     B.hideTrailingSiblings(anchor);
     B.wireLightbox(shadow);
-    // v1.17.0 F-1：图文增强（无站方缩略图的行后台补图+摘要；预算/缓存见 enrich.js）
-    if (opts.enrich !== false && window.SDGRedraw.enrichRows) {
-      try { window.SDGRedraw.enrichRows(shadow); } catch (e) { /* 增强失败不影响列表 */ }
-    }
     // v1.18.0/v1.18.3：forumView API 行数据升级——E-09 分页契约：
     // HTML 每页 10 条、API step=20，故 apiPage = ceil(htmlPage/2)；缓存键含 source/fid/apiPage；
     // 请求走 PageScope（unmount 级联取消）。任何失败=现状行为。
@@ -440,8 +436,6 @@
       if (window.SDGRedraw.enrichRows) {
         try { window.SDGRedraw.enrichRows(shadow, scope); } catch (e) { /* 增强失败不影响列表 */ }
       }
-    } else if (opts.enrich !== false && window.SDGRedraw.enrichRows) {
-      try { window.SDGRedraw.enrichRows(shadow); } catch (e) { /* 增强失败不影响列表 */ }
     }
     return true;
   }

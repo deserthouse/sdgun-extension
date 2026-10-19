@@ -8,14 +8,17 @@
 
   function create() {
     const scope = { dead: false, aborted: [], timers: new Set(), inflight: 0 };
-    const ctl = new AbortController();
-    scope.signal = ctl.signal;
+    // ER-05（v1.19.6）：父子 controller——页面取消走父级（级联全部子请求）；
+    // 单请求超时只 abort 自己的子 controller，不毒化同 scope 后续请求/回退
+    const parent = new AbortController();
+    scope.signal = parent.signal;
+    scope._parent = parent;
 
     scope.isDead = () => scope.dead;
     scope.cancelAll = () => {
       const wasDead = scope.dead;
       scope.dead = true;
-      try { ctl.abort(); } catch (e) { /* */ }
+      try { parent.abort(); } catch (e) { /* */ }
       for (const t of scope.timers) clearTimeout(t);
       scope.timers.clear();
       scope.aborted.length = 0;
@@ -29,26 +32,25 @@
     };
 
     // fetch：超时覆盖整个生命周期（含 body 读取/解析，E-05 对 api.js 的批评点）
-    scope.fetchJSON = (url, timeoutMs) => {
+    // 每请求子 controller：超时 abort 子级（不影响兄弟）；页面父级 abort 仍然级联
+    const childFetch = (url, timeoutMs, json) => {
       if (scope.dead) return Promise.resolve(null);
-      const timer = setTimeout(() => ctl.abort(), timeoutMs || 10000);
-      const done = () => clearTimeout(timer);
-      return fetch(url, { credentials: 'omit', signal: scope.signal,
-        headers: { 'Accept': 'application/json' } })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => { done(); return scope.dead ? null : d; })
-        .catch(() => { done(); return null; });
+      const child = new AbortController();
+      const onParentAbort = () => child.abort();
+      parent.signal.addEventListener('abort', onParentAbort, { once: true });
+      const timer = setTimeout(() => child.abort(), timeoutMs || 10000);
+      const cleanup = () => {
+        clearTimeout(timer);
+        parent.signal.removeEventListener('abort', onParentAbort);
+      };
+      return fetch(url, { credentials: 'omit', signal: child.signal,
+        headers: json ? { 'Accept': 'application/json' } : undefined })
+        .then((r) => (r.ok ? (json ? r.json() : r.text()) : null))
+        .then((d) => { cleanup(); return scope.dead ? null : d; })
+        .catch(() => { cleanup(); return null; });
     };
-
-    scope.fetchText = (url, timeoutMs) => {
-      if (scope.dead) return Promise.resolve(null);
-      const timer = setTimeout(() => ctl.abort(), timeoutMs || 12000);
-      const done = () => clearTimeout(timer);
-      return fetch(url, { credentials: 'omit', signal: scope.signal })
-        .then((r) => (r.ok ? r.text() : null))
-        .then((t) => { done(); return scope.dead ? null : t; })
-        .catch(() => { done(); return null; });
-    };
+    scope.fetchJSON = (url, timeoutMs) => childFetch(url, timeoutMs, true);
+    scope.fetchText = (url, timeoutMs) => childFetch(url, timeoutMs, false);
 
     // 定时器（登记+失效清空）
     scope.delay = (ms, fn) => {

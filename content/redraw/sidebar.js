@@ -131,65 +131,48 @@
       } catch (e) { /* storage 不可用则静默 */ }
     });
     foot.appendChild(btn);
-    // EF-06（v1.19.3）：本地常用板块（storage.sync pinned fids，置顶组）——零新数据源
+    // EF-06（v1.19.3）+ ER-07（v1.19.6 重构）：本地常用板块。
+    // 实例内 refreshPinnedGroup 重建常用组；storage 监听为模块级单例（仅通知，
+    // 调当前实例的刷新函数——避免旧闭包绑定首挂载 DOM；宿主已移除则跳过）
+    const refreshPinnedGroup = () => {
+      try {
+        sin.querySelectorAll('.sdg-pinned').forEach((n) => n.remove());
+        chrome.storage.sync.get({ sdgPinned: [] }, (st) => {
+          if (!document.getElementById('sdg-sidebar')) return; // 宿主已卸载
+          const pinned = (st && Array.isArray(st.sdgPinned) ? st.sdgPinned : [])
+            .map(String).slice(0, 5);
+          if (!pinned.length) return;
+          const all = {};
+          (groups || []).forEach((g) => (g.secs || []).forEach((sec) => { all[String(sec.fid)] = sec; }));
+          const grp = el('div', { class: 'grp sdg-pinned', text: '常用' });
+          sin.insertBefore(grp, foot);
+          pinned.forEach((fid) => {
+            const sec = all[fid];
+            if (!sec) return;
+            const a = el('a', { class: 'bd sdg-pinned', href: `forum.php?mod=forumdisplay&fid=${fid}&mobile=2` });
+            if (sec.icon) {
+              const im = el('img', { src: sec.icon, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
+              im.addEventListener('error', () => { im.style.display = 'none'; });
+              a.appendChild(im);
+            }
+            a.appendChild(el('span', { class: 'nm', text: sec.name || `fid${fid}` }));
+            sin.insertBefore(a, foot);
+          });
+        });
+      } catch (e) { /* ignore */ }
+    };
+    refreshPinnedGroup();
     try {
-      chrome.storage.sync.get({ sdgPinned: [] }, (st) => {
-        const pinned = (st && Array.isArray(st.sdgPinned) ? st.sdgPinned : [])
-          .map(String).slice(0, 5);
-        if (!pinned.length) return;
-        const all = {};
-        (groups || []).forEach((g) => (g.secs || []).forEach((sec) => { all[String(sec.fid)] = sec; }));
-        const grp = el('div', { class: 'grp', text: '常用' });
-        sin.insertBefore(grp, foot);
-        pinned.forEach((fid) => {
-          const sec = all[fid];
-          if (!sec) return;
-          const a = el('a', { class: 'bd', href: `forum.php?mod=forumdisplay&fid=${fid}&mobile=2` });
-          if (sec.icon) {
-            const im = el('img', { src: sec.icon, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
-            im.addEventListener('error', () => { im.style.display = 'none'; });
-            a.appendChild(im);
+      if (!window.__sdgPinnedListener) {
+        window.__sdgPinnedListener = (changes, area) => {
+          if (area !== 'sync' || !changes.sdgPinned) return;
+          if (window.SDGRedraw && window.SDGRedraw.refreshPinnedGroup) {
+            window.SDGRedraw.refreshPinnedGroup(); // 只通知；当前实例执行（无旧闭包）
           }
-          a.appendChild(el('span', { class: 'nm', text: sec.name || `fid${fid}` }));
-          sin.insertBefore(a, foot);
-        });
-      });
-    } catch (e) { /* ignore */ }
-    // W2（v1.19.4）：sdgPinned 变化 → 原地重建常用组（移除旧组后重插）
-    try {
-      chrome.storage.onChanged.addListener((changes, area) => {
-        if (area !== 'sync' || !changes.sdgPinned) return;
-        const stale = [...sin.querySelectorAll('.grp, a.bd')].filter((n) => {
-          const prev = n.previousSibling;
-          void prev;
-          return n.classList.contains('grp') && n.textContent === '常用'
-            || (n.classList.contains('bd') && n.dataset.sdgPinned === '1');
-        });
-        // 简化：重建整个树（ groups 数据仍在闭包，renderGroups 幂等）
-        sin.querySelectorAll('.grp, a.bd, .tree-hint').forEach((n) => n.remove());
-        host.dataset.treeFilled = '';
-        renderGroups(groups);
-        // 重新渲染常用组
-        const pinned = (changes.sdgPinned.newValue || []).map(String).slice(0, 5);
-        if (!pinned.length) return;
-        const all = {};
-        (groups || []).forEach((g) => (g.secs || []).forEach((sec) => { all[String(sec.fid)] = sec; }));
-        const grp = el('div', { class: 'grp', text: '常用' });
-        sin.insertBefore(grp, foot);
-        pinned.forEach((fid) => {
-          const sec = all[fid];
-          if (!sec) return;
-          const a = el('a', { class: 'bd', href: `forum.php?mod=forumdisplay&fid=${fid}&mobile=2` });
-          a.dataset.sdgPinned = '1';
-          if (sec.icon) {
-            const im = el('img', { src: sec.icon, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
-            im.addEventListener('error', () => { im.style.display = 'none'; });
-            a.appendChild(im);
-          }
-          a.appendChild(el('span', { class: 'nm', text: sec.name || `fid${fid}` }));
-          sin.insertBefore(a, foot);
-        });
-      });
+        };
+        chrome.storage.onChanged.addListener(window.__sdgPinnedListener);
+      }
+      window.SDGRedraw.refreshPinnedGroup = refreshPinnedGroup; // 当前实例接管
     } catch (e) { /* ignore */ }
     sin.appendChild(foot); // 必须先入树：下方 renderGroups 的 insertBefore 以 foot 为参照
     // 树渲染（插入到 foot 之前）；跨标签副本（storage.local）供深链/新标签无会话缓存时异步补渲染

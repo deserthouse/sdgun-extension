@@ -173,10 +173,14 @@
       if (raw) items = (JSON.parse(raw).items || []).slice(0, 8);
     } catch (e) { /* ignore */ }
     if (items.length) return buildNoticeRail(items, opts);
-    // 深链/新标签打开板块页：会话缓存为空——读 storage.local 镜像（forumlist 侧写入），有数据再挂
+    // 深链/新标签打开板块页：会话缓存为空——读 storage.local 镜像（forumlist 侧写入），有数据再挂。
+    // ER-07（v1.19.6）：回调先查宿主/开关仍健康——关闭重绘/卸载后不得复活
     try {
       chrome.storage.local.get({ sdg_river_cache_ls: null }, (st) => {
         try {
+          if (!document.getElementById('sdg-redraw-list')) return; // 主重绘已卸载（关开关/换页）→ 不复活
+          if (!document.documentElement.classList.contains('sdg-redraw-active')) return;
+          if (document.getElementById('sdg-rail')) return; // 已有实例
           if (!st || !st.sdg_river_cache_ls) return;
           const arr = (JSON.parse(st.sdg_river_cache_ls).items || []).slice(0, 8);
           if (arr.length) buildNoticeRail(arr, opts);

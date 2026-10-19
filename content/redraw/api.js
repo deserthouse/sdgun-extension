@@ -11,24 +11,21 @@
 
   function get(base, path, params) {
     const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), TIMEOUT);
+    const timer = setTimeout(() => ctl.abort(), TIMEOUT); // ER-05：覆盖含 body 读取的全程
     const url = new URL(base + path);
     for (const [k, v] of Object.entries(params || {})) {
       if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v);
     }
+    const done = () => clearTimeout(timer);
     return fetch(url.toString(), {
       method: 'GET',
       credentials: 'omit',
       signal: ctl.signal,
       headers: { 'Accept': 'application/json' },
-    }).then((r) => {
-      clearTimeout(timer);
-      if (!r.ok) return null;
-      return r.json();
-    }).then((d) => {
-      if (!d || d.success !== true) return null;
-      return d;
-    }).catch(() => null);
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { done(); return (d && d.success === true) ? d : null; })
+      .catch(() => { done(); return null; });
   }
 
   // ---- 板块帖子列表：每帖 tid/标题/类型 typeid/封面 pics[]/视频/作者+头像/查看(格式化)/
