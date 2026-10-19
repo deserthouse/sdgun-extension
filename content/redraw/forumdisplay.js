@@ -566,4 +566,5 @@
   window.SDGRedraw = window.SDGRedraw || {};
   window.SDGRedraw.mountForumDisplay = mountForumDisplay;
   window.SDGRedraw.parseThreads = parseThreads; // 单测导出
+  window.SDGRedraw.applyRow = applyRow; // A3（v1.20.1）：行升级单入口（enrich/测试消费）
 })();
