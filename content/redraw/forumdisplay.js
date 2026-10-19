@@ -433,8 +433,9 @@
               .then((d) => {
                 if (d && Array.isArray(d.list) && d.list.length) {
                   window.SDGCache.set('forumview', fvKey, d);
+                  return d.list; // 返回数组（消费方 indexThreads 期望数组，非原始响应对象）
                 }
-                return d;
+                return null;
               });
           });
         }

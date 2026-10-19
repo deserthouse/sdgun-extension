@@ -62,6 +62,12 @@
     }).then((d) => (d && Array.isArray(d.list) ? d.list : null));
   }
 
+  // ---- Mixed Content 修复（v1.20.2）：站方 API 下发图片 URL 是 http://，HTTPS 页面加载被浏览器拦截 ----
+  function httpsImg(u) {
+    if (typeof u !== 'string') return u;
+    return u.replace(/^http:\/\/(picapp\.sdgun\.net|bbs\.sdgun\.com\.cn)\//i, 'https://$1/');
+  }
+
   // ---- 万单位解析（E-09）：'1.4万'→14000、'28'→28、'28阅读'→28；无法解析→0 ----
   function parseWan(s) {
     const t = String(s == null ? '' : s).trim();
@@ -77,10 +83,10 @@
     const map = {};
     for (const it of list || []) {
       if (it && it.tid != null) map[String(it.tid)] = {
-        cover: (Array.isArray(it.pics) && it.pics[0]) || '',
-        pics: (Array.isArray(it.pics) ? it.pics : []).slice(0, 3), // W1：悬停组图（≤3）
+        cover: httpsImg((Array.isArray(it.pics) && it.pics[0]) || ''),
+        pics: (Array.isArray(it.pics) ? it.pics : []).slice(0, 3).map(httpsImg),
         videos: Array.isArray(it.videos) ? it.videos.length : 0,
-        authorHead: it.user_head || '',
+        authorHead: httpsImg(it.user_head || ''),
         click: String(it.click || '').replace(/阅读\s*$/, ''),
         replies: String(it.reply_count || '').replace(/\D/g, ''),
         relative: it.dateline || '',
