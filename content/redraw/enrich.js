@@ -45,13 +45,9 @@
   }
 
   function readCache(cb) {
-    try {
-      chrome.storage.local.get({ [CACHE_KEY]: '{}' }, (st) => {
-        let map = {};
-        try { map = JSON.parse(st[CACHE_KEY] || '{}') || {}; } catch (e) { map = {}; }
-        cb(map);
-      });
-    } catch (e) { cb({}); }
+    // A1（v1.20.0）：SDGCache threads 组。SDGCache 未载时兜底空表（fail-open）
+    if (!window.SDGCache) { cb({}); return; }
+    window.SDGCache.get(CACHE_KEY, 'all').then((map) => cb(map || {}));
   }
 
   function writeCache(map) {
@@ -61,8 +57,8 @@
         keys.sort((a, b) => (map[a].t || 0) - (map[b].t || 0));
         for (const k of keys.slice(0, keys.length - CACHE_MAX)) delete map[k];
       }
-      chrome.storage.local.set({ [CACHE_KEY]: JSON.stringify(map) });
-    } catch (e) { /* 存储满则放弃 */ }
+      if (window.SDGCache) window.SDGCache.set(CACHE_KEY, 'all', map);
+    } catch (e) { /* 存储满等静默 */ }
   }
 
   // ---- 骨架占位（v1.17.3 零位移版）：与挂载同任务落位（首帧即最终版式），

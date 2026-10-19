@@ -135,13 +135,12 @@
   function resolveOwnerUid(floors) {
     const page = currentPage();
     const tid = (location.search.match(/tid=(\d+)/) || [])[1];
-    const key = 'sdg_owner:' + tid;
+    const key = tid || '';
     const filtered = /(?:^|&)authorid=/.test(location.search);
     const readCache = () => {
       try {
-        const raw = sessionStorage.getItem(key);
-        if (!raw) return null;
-        const o = JSON.parse(raw);
+        // A1（v1.20.0）：owner 组（getSync 同步快路径；值 {uid, ev}）
+        const o = window.SDGCache && window.SDGCache.getSync('owner', key);
         return (o && o.uid) ? o.uid : null;
       } catch (e) { return null; }
     };
@@ -151,11 +150,7 @@
       const isFloorOne = floorNo === '1#' || floorNo === '' || floorNo === '1';
       const uid = (f0.authorHref.match(/uid=(\d+)/) || [])[1] || '';
       if (isFloorOne && uid) {
-        const strong = JSON.stringify({ uid, ev: 'floor1' });
-        try {
-          const prev = sessionStorage.getItem(key);
-          if (prev !== strong) sessionStorage.setItem(key, strong);
-        } catch (e) { /* */ }
+        try { if (window.SDGCache) window.SDGCache.set('owner', key, { uid, ev: 'floor1' }); } catch (e) { /* */ }
         return uid;
       }
       // 首楼缺号/匿名：不覆盖已有缓存，也不晋升下一楼

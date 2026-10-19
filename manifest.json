@@ -55,6 +55,7 @@
         "content/selectors.js",
         "content/redraw/base.js",
         "content/redraw/scope.js",
+        "content/redraw/cache.js",
         "content/redraw/api.js",
         "content/redraw/viewthread.js",
         "content/redraw/forumdisplay.js",
@@ -62,6 +63,9 @@
         "content/redraw/sidebar.js",
         "content/redraw/rightrail.js",
         "content/redraw/enrich.js",
+        "content/redraw/river.js",
+        "content/redraw/hotfeed.js",
+        "content/redraw/feed.js",
         "content/boot.js"
       ],
       "css": [

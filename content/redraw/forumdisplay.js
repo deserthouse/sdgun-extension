@@ -423,23 +423,22 @@
       const apiPage = Math.ceil(htmlPage / 2);
       const scope = window.SDGScope.register(window.SDGScope.create());
       // ER-09（v1.19.7）：forumView 会话缓存（fid+apiPage，5min TTL）——翻页回访零请求
-      const fvKey = `sdg_fv:${apiFid}:${apiPage}`;
-      const FV_TTL = 5 * 60e3;
+      // A1（v1.20.0）：forumView 会话缓存（forumview 组 5min TTL）
+      const fvKey = `${apiFid}:${apiPage}`;
       const fetchForumView = () => {
-        const cached = sessionStorage.getItem(fvKey);
-        if (cached) {
-          try {
-            const c = JSON.parse(cached);
-            if (c && Date.now() - c.t < FV_TTL) return Promise.resolve(c.list);
-          } catch (e) { /* ignore */ }
-        }
-        return scope.fetchJSON(`https://app.sdgun.com.cn/mag/circle/v1/forum/forumView?fid=${apiFid}&p=${apiPage}&step=20`, 10000)
-          .then((d) => {
-            if (d && Array.isArray(d.list) && d.list.length) {
-              try { sessionStorage.setItem(fvKey, JSON.stringify({ t: Date.now(), list: d.list })); } catch (e) { /* */ }
-            }
-            return d;
+        if (window.SDGCache) {
+          return window.SDGCache.get('forumview', fvKey).then((c) => {
+            if (c && c.list) return c.list;
+            return scope.fetchJSON(`https://app.sdgun.com.cn/mag/circle/v1/forum/forumView?fid=${apiFid}&p=${apiPage}&step=20`, 10000)
+              .then((d) => {
+                if (d && Array.isArray(d.list) && d.list.length) {
+                  window.SDGCache.set('forumview', fvKey, d);
+                }
+                return d;
+              });
           });
+        }
+        return scope.fetchJSON(`https://app.sdgun.com.cn/mag/circle/v1/forum/forumView?fid=${apiFid}&p=${apiPage}&step=20`, 10000);
       };
       fetchForumView()
         .then((list) => {
