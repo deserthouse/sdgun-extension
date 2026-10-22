@@ -1,0 +1,109 @@
+// G3/M6-A 消息真实路由：游客=登录提示；登录态=通知摘要+会话组列表+详情面板。
+// 红线：消息族端点 read-may-mutate（读取可能标已读）——详情不调真实端点，
+// 只渲染列表项自带字段；完整会话历史留后续批次（端点参数未定，不猜）。
+import { useEffect, useState } from 'react';
+import { useEndpoint } from '../../lib/queries';
+import { getAuth, type AuthInfo } from '../../lib/auth';
+import { StateBlock, StateBadge } from './StateBlock';
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+export function MessagesPage() {
+  const [auth, setAuth] = useState<AuthInfo | null | 'loading'>('loading');
+  useEffect(() => {
+    getAuth().then(setAuth).catch(() => setAuth(null));
+  }, []);
+
+  if (auth === 'loading') return <p style={{ color: 'var(--text3)' }}>…</p>;
+  if (!auth) {
+    return (
+      <div data-test="messages-guest">
+        <div className="state-card" data-test="messages-guest-prompt">
+          消息需登录后查看。
+          <div style={{ marginTop: 10 }}>
+            <a className="btn" href="#/my" data-test="messages-goto-login">前往登录 ›</a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return <MessagesAuthed />;
+}
+
+function MessagesAuthed() {
+  const [tab, setTab] = useState<'msg' | 'notify'>('msg');
+  const [openGroup, setOpenGroup] = useState<any | null>(null);
+  const msg = useEndpoint(tab === 'msg' ? 'userMessageGroupList' : 'userNotifyIndex',
+    tab === 'msg' ? { p: 1 } : {});
+  const items = (msg.data as any)?.list ?? [];
+  const notify = (msg.data as any)?.data ?? null;
+
+  return (
+    <div data-test="messages-authed">
+      <div className="chiprow">
+        <button className={'btn' + (tab === 'msg' ? ' on' : '')} data-test="tab-msg"
+          style={tab === 'msg' ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}}
+          onClick={() => { setTab('msg'); setOpenGroup(null); }}>消息</button>
+        <button className={'btn' + (tab === 'notify' ? ' on' : '')} data-test="tab-notify"
+          style={tab === 'notify' ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}}
+          onClick={() => { setTab('notify'); setOpenGroup(null); }}>通知</button>
+      </div>
+      <StateBlock state={msg.state} fail={msg.fail} onRetry={() => msg.refetch()} skeletonRows={3} />
+
+      {tab === 'msg' && msg.state !== 'InitialLoading' && items.length === 0 && !openGroup && (
+        <div className="state-card" data-test="empty">暂无消息会话</div>
+      )}
+      {tab === 'msg' && !openGroup && items.map((m: any) => (
+        <button key={String(m.id)} className="card" data-test="msg-group"
+          style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}
+          onClick={() => setOpenGroup(m)}>
+          <div className="card-title">{m.name ?? m.title ?? m.user_name ?? '(会话)'}</div>
+          {m.last_summary ?? m.content ? (
+            <div className="card-sub">{String(m.last_summary ?? m.content ?? '').slice(0, 60)}</div>
+          ) : null}
+        </button>
+      ))}
+      {tab === 'msg' && openGroup && (
+        <div className="card" data-test="msg-detail">
+          <div className="card-meta">
+            <button className="btn" data-test="detail-back"
+              onClick={() => setOpenGroup(null)}>‹ 返回列表</button>
+          </div>
+          <div className="card-title" style={{ marginTop: 8 }}>
+            {openGroup.name ?? openGroup.title ?? '(会话)'}
+          </div>
+          {openGroup.last_summary ?? openGroup.content ? (
+            <div className="card-sub">{String(openGroup.last_summary ?? openGroup.content ?? '')}</div>
+          ) : null}
+          <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 10 }}>
+            完整会话历史需消息详情接口（后续批次接入；当前仅展示会话摘要，不触发已读上报）。
+          </p>
+        </div>
+      )}
+
+      {tab === 'notify' && msg.state !== 'InitialLoading' && notify && (
+        <div data-test="notify-summary">
+          {(() => {
+            const rows = [
+              ['私信', notify.has_letter ? '有新私信' : '暂无新私信'],
+              ['系统通知', String(notify.system_notify_count ?? 0)],
+              ['好友申请', String(notify.friend_apply_count ?? 0)],
+            ];
+            return rows.map(([k, v]) => (
+              <div key={k} className="card" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span className="card-title">{k}</span>
+                <span className="card-meta">{v}</span>
+              </div>
+            ));
+          })()}
+          {notify.service ? (
+            <div className="card">
+              <div className="card-title">{String(notify.service.name ?? '官方客服')}</div>
+              <div className="card-sub">{String(notify.service.content ?? '')}</div>
+            </div>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}

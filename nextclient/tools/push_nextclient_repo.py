@@ -18,6 +18,7 @@ contracts/（api+fixtures）+ 生成的 BUILD-INFO.md；Release 资产=wxt 产�
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -68,7 +69,12 @@ def build_via_wxt():
         print('WXT FAIL:', r.stderr[-400:])
         sys.exit(1)
     manifest = json.loads((NEXT / '.output/chrome-mv3/manifest.json').read_text(encoding='utf-8'))
-    numeric = pkg['version'].split('-')[0]
+    # alpha.N → 整数映射 alpha.1=2.0.0、alpha.N=2.0.{N-1}（E70-08 同款）
+    am = re.match(r'^(\d+\.\d+)\.(\d+)-alpha\.(\d+)$', pkg['version'])
+    if am:
+        numeric = f"{am.group(1)}.{max(0, int(am.group(2)) + int(am.group(3)) - 1)}"
+    else:
+        numeric = pkg['version'].split('-')[0]
     if manifest['version'] != numeric:
         print(f'FATAL: 版本单源审计失败 manifest={manifest["version"]} != package.json 数字段={numeric}')
         sys.exit(1)

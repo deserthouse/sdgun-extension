@@ -40,18 +40,36 @@ export interface CallOpts {
 }
 
 // 测试缝：host 覆盖（离线夹具服务器）。产品代码绝不调用 setter。
-let hostOverride: string | null = null;
-
+// 存 localStorage——reload 存活 + 跨 chunk 实例一致（模块变量/window 都被
+// reload 或分包打穿过，E1-4/M1-b 双实证）。
 export function setHostOverride(h: string | null): void {
-  hostOverride = h;
+  try {
+    if (h === null) localStorage.removeItem('sdg2.hostOverride');
+    else localStorage.setItem('sdg2.hostOverride', h);
+  } catch { /* 非 extension 页环境忽略 */ }
+}
+
+function hostOverride(): string | null {
+  try {
+    return localStorage.getItem('sdg2.hostOverride');
+  } catch {
+    return null;
+  }
+}
+
+// 测试缝：合成端点注册（仅 mutation 离线测试使用；产品构建不调用）。
+const syntheticEndpoints: Record<string, typeof ENDPOINTS[string]> = {};
+
+export function registerSyntheticEndpoint(id: string, def: typeof ENDPOINTS[string]): void {
+  syntheticEndpoints[id] = def;
 }
 
 export async function callEndpoint<T = unknown>(id: string, opts: CallOpts = {}): Promise<T> {
-  const def = ENDPOINTS[id];
+  const def = syntheticEndpoints[id] ?? ENDPOINTS[id];
   if (!def) {
     throw { kind: 'Unsupported', msg: `unregistered endpoint: ${id}` } as Fail;
   }
-  const url = new URL((hostOverride ?? 'https://' + def.host) + def.path);
+  const url = new URL((hostOverride() ?? 'https://' + def.host) + def.path);
   for (const [k, v] of Object.entries(opts.params ?? {})) {
     url.searchParams.set(k, String(v));
   }
@@ -132,6 +150,8 @@ declare global {
       call: typeof callEndpoint;
       deriveState: typeof deriveState;
       setHost: (h: string | null) => void;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      register: (id: string, def: any) => void;
     };
   }
 }
@@ -142,6 +162,8 @@ export function exposeTestSeam(): void {
       call: callEndpoint,
       deriveState,
       setHost: setHostOverride,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      register: registerSyntheticEndpoint as (id: string, def: any) => void,
     };
   }
 }

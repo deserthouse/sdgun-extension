@@ -1,63 +1,87 @@
 // G2 帖子纵向链：主楼（threadView）+ 楼层（commentList）+ 分页 + 只看楼主 + 灯箱。
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
 import { useEndpoint } from '../../lib/queries';
 import { sanitizeContent, extractImages } from '../../lib/sanitize';
 import { StateBlock, StateBadge } from './StateBlock';
+import { getAuth } from '../../lib/auth';
+import { draftKey, GUEST_OWNER } from '../../lib/draft';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+// E70-06 重构：Radix Dialog 承担焦点陷阱/Esc/回焦/可访问名；图片点击切换
+// 原始尺寸与适配模式；←/→ 翻组内图片。
 function Lightbox({ srcs, index, onClose }: { srcs: string[]; index: number; onClose: () => void }) {
   const [i, setI] = useState(index);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowRight') setI((v) => Math.min(v + 1, srcs.length - 1));
-      if (e.key === 'ArrowLeft') setI((v) => Math.max(v - 1, 0));
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, srcs.length]);
+  const [zoom, setZoom] = useState(false);
+  useEffect(() => { setZoom(false); }, [i]);
   return (
-    <div data-test="lightbox" onClick={onClose}
-      style={{ position: 'fixed', inset: 0, zIndex: 2147483000, background: 'rgba(0,0,0,.92)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <img src={srcs[i]} alt="" referrerPolicy="no-referrer"
-        style={{ maxWidth: '94vw', maxHeight: '94vh', objectFit: 'contain' }}
-        onClick={(e) => e.stopPropagation()} />
-      {srcs.length > 1 && (
-        <div style={{ position: 'fixed', bottom: 18, color: '#fff', fontSize: 13 }}
-          onClick={(e) => e.stopPropagation()}>
-          {i + 1} / {srcs.length}
-          <button className="btn" style={{ marginLeft: 10 }} onClick={() => setI((v) => Math.max(v - 1, 0))}>←</button>
-          <button className="btn" style={{ marginLeft: 6 }} onClick={() => setI((v) => Math.min(v + 1, srcs.length - 1))}>→</button>
-        </div>
-      )}
-      <button className="btn" data-test="lightbox-close" style={{ position: 'fixed', top: 14, right: 14 }}
-        onClick={onClose}>关闭 (Esc)</button>
-    </div>
+    <Dialog.Root open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <Dialog.Portal>
+        <Dialog.Overlay style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.92)', zIndex: 2147483000 }} />
+        <Dialog.Content aria-label={`图片 ${i + 1} / ${srcs.length}`} data-test="lightbox"
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowRight') setI((v) => Math.min(v + 1, srcs.length - 1));
+            if (e.key === 'ArrowLeft') setI((v) => Math.max(v - 1, 0));
+          }}
+          style={{ position: 'fixed', inset: 0, zIndex: 2147483001, background: 'transparent',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+          <Dialog.Title style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden',
+            clip: 'rect(0 0 0 0)' }}>
+            图片 {i + 1} / {srcs.length}
+          </Dialog.Title>
+          <img src={srcs[i]} alt={`图片 ${i + 1} / ${srcs.length}`} referrerPolicy="no-referrer"
+            onClick={() => setZoom((z) => !z)}
+            style={zoom
+              ? { maxWidth: 'none', maxHeight: 'none', cursor: 'zoom-out',
+                  transform: 'translate(0,0)' }
+              : { maxWidth: '94vw', maxHeight: '88vh', objectFit: 'contain', cursor: 'zoom-in' }} />
+          <div style={{ color: '#fff', fontSize: 13, marginTop: 10 }}>
+            {i + 1} / {srcs.length}
+            <button className="btn" data-test="lightbox-prev" style={{ marginLeft: 10 }}
+              onClick={() => setI((v) => Math.max(v - 1, 0))}>←</button>
+            <button className="btn" data-test="lightbox-next" style={{ marginLeft: 6 }}
+              onClick={() => setI((v) => Math.min(v + 1, srcs.length - 1))}>→</button>
+            <button className="btn" data-test="lightbox-close" style={{ marginLeft: 6 }}
+              onClick={onClose}>关闭 (Esc)</button>
+            <span style={{ marginLeft: 8, fontSize: 11, opacity: 0.8 }}>
+              点击图片切换 100%/适配
+            </span>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
+// E70-06 重构：事件委托绑定在容器 ref 上（不再 document 级）；
+// 图片组=本容器清洗后的稳定序列，索引=容器内序号（此前属性挂在 div 上、
+// img 查询落空 → 任意图触发多回调且索引恒 0）。
 function ContentView({ html, onImg }: { html: string; onImg: (srcs: string[], i: number) => void }) {
   const clean = useMemo(() => sanitizeContent(html), [html]);
+  const ref = useRef<HTMLDivElement | null>(null);
+  const gallery = useMemo(() => extractImages(clean), [clean]);
   useEffect(() => {
-    const imgs = [...document.querySelectorAll<HTMLImageElement>('img[data-sdg-content]')];
-    imgs.forEach((im, i) => {
-      im.dataset.sdgIdx = String(i);
+    const el = ref.current;
+    if (!el) return;
+    el.querySelectorAll('img').forEach((im) => {
       im.style.maxWidth = '100%';
       im.style.cursor = 'zoom-in';
     });
     const handler = (e: Event) => {
       const t = e.target as HTMLElement;
-      if (t.tagName !== 'IMG') return;
-      const all = extractImages(clean);
-      const i = Number(t.dataset.sdgIdx ?? 0);
-      if (all.length) onImg(all, i);
+      if (t.tagName !== 'IMG' || !gallery.length) return;
+      const kids = [...el.querySelectorAll('img')];
+      const i = kids.indexOf(t as HTMLImageElement);
+      if (i < 0) return;
+      const srcs = kids.map((im) => im.getAttribute('src') || '').filter(Boolean);
+      const idx = kids.indexOf(t as HTMLImageElement);
+      onImg(srcs.length ? srcs : gallery, idx);
     };
-    document.addEventListener('click', handler);
-    return () => document.removeEventListener('click', handler);
-  }, [clean, onImg]);
-  return <div data-sdg-content="1" className="content-html" dangerouslySetInnerHTML={{ __html: clean }} />;
+    el.addEventListener('click', handler);
+    return () => el.removeEventListener('click', handler);
+  }, [clean, gallery, onImg]);
+  return <div ref={ref} className="content-html" dangerouslySetInnerHTML={{ __html: clean }} />;
 }
 
 export function ThreadPage({ tid }: { tid: string }) {
@@ -137,24 +161,33 @@ export function ThreadPage({ tid }: { tid: string }) {
 }
 
 
-// G4 回复草稿：本地持久化（localStorage，按 tid）；真实发布写面封存——
-// 提交按钮展示诚实状态（Draft 已保存/未开放），绝不伪造成功。
+// G4 回复草稿：owner+tid 键隔离（E70-04 修复）；真实发布写面封存——诚实禁用。
 function ReplyDraft({ tid }: { tid: string }) {
-  const key = `sdg2.draft.${tid}`;
+  const [owner, setOwner] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [saved, setSaved] = useState('');
   const [restored, setRestored] = useState(false);
 
   useEffect(() => {
+    getAuth().then((a) => setOwner(a ? `u${a.userId}` : GUEST_OWNER)).catch(() => setOwner(GUEST_OWNER));
+  }, []);
+
+  const key = owner ? draftKey(owner, tid) : null;
+
+  useEffect(() => {
+    if (!key) return;
+    // 键切换无条件恢复（含清空）——E70-04：只在新值非空时 setText 会跨帖串留
     const v = localStorage.getItem(key) ?? '';
-    if (v) { setText(v); setRestored(true); }
+    setText(v);
+    setRestored(v.length > 0);
+    setSaved('');
   }, [key]);
 
   return (
     <div className="card" data-test="reply-draft" style={{ marginTop: 18 }}>
       <div className="card-title" style={{ marginBottom: 8 }}>回复草稿（本机保存）</div>
       <textarea data-test="draft-input" value={text}
-        onChange={(e) => { setText(e.target.value); localStorage.setItem(key, e.target.value); setSaved('已保存'); }}
+        onChange={(e) => { setText(e.target.value); if (key) localStorage.setItem(key, e.target.value); setSaved('已保存'); }}
         placeholder="撰写回复草稿（自动保存在本机）…"
         style={{ width: '100%', minHeight: 90, borderRadius: 10, border: '1px solid var(--border2)',
           background: 'var(--surface)', color: 'var(--text)', padding: 10, fontSize: 14,
@@ -164,7 +197,7 @@ function ReplyDraft({ tid }: { tid: string }) {
           {restored ? '已恢复上次草稿 · ' : ''}{text.length} 字 {saved}
         </span>
         <button className="btn" data-test="draft-clear"
-          onClick={() => { localStorage.removeItem(key); setText(''); setRestored(false); setSaved(''); }}>
+          onClick={() => { if (key) localStorage.removeItem(key); setText(''); setRestored(false); setSaved(''); }}>
           清空草稿
         </button>
         <button className="btn" data-test="draft-submit" disabled

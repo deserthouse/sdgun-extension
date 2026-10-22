@@ -3,6 +3,8 @@ import { applyTheme, setThemeMode, themeMode, watchSystemTheme, type ThemeMode }
 import { epochProbe, epochStart, type EpochProbe } from '../../lib/epoch';
 import { setTakeoverEnabled, takeoverEnabled } from '../../lib/switch';
 import { BoardPage, CommunityPage, FocusPage, MyPage } from './pages';
+import { MessagesPage } from './messages';
+import { EditorPage } from './editor';
 import { ThreadPage } from './thread';
 
 const TABS = [
@@ -18,6 +20,8 @@ function currentRoute(): { name: string; param?: string } {
   if (board) return { name: 'board', param: board[1] };
   const thread = h.match(/^thread\/(\d+)/);
   if (thread) return { name: 'thread', param: thread[1] };
+  if (h === 'editor') return { name: 'editor' };
+  if (h === 'settings') return { name: 'settings' };
   if (TABS.some((t) => t.id === h)) return { name: h };
   return { name: 'focus' };
 }
@@ -86,44 +90,60 @@ export default function App() {
         <a className="chip nav-collapse" data-test="search-h5"
           href="https://bbs.sdgun.com.cn/search.php?mod=forum&mobile=2"
           target="_blank" rel="noreferrer" style={{ marginTop: 10 }}>🔍 H5 搜索</a>
-        <div style={{ marginTop: 'auto', fontSize: 12, color: 'var(--text3)' }}>
-          <div className="nav-collapse">epoch：{probe ? (probe.epoch ?? '无') : '…'}</div>
-          <div className="nav-collapse">auth 规则：{probe ? probe.rulesCount : '…'}</div>
-          <select
-            data-test="theme"
-            value={mode}
-            onChange={(e) => { const v = e.target.value as ThemeMode; setMode(v); setThemeMode(v); }}
-            style={{
-              marginTop: 8, background: 'var(--surface2)', color: 'var(--text2)',
-              border: '1px solid var(--border2)', borderRadius: 8, padding: '6px 8px',
-            }}>
-            <option value="auto">跟随系统</option>
-            <option value="light">浅色</option>
-            <option value="dark">深色</option>
-          </select>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, cursor: 'pointer' }}>
-            <input data-test="takeover" type="checkbox" checked={takeover === true}
-              disabled={takeover === null}
-              onChange={(e) => { const v = e.target.checked; setTakeover(v); setTakeoverEnabled(v); }} />
-            启用站点接管
-          </label>
-        </div>
+        <a data-test="settings-link" href="#/settings" title="设置"
+          style={{ marginTop: 'auto', fontSize: 13, color: 'var(--text2)', textDecoration: 'none',
+            padding: '8px 10px', borderRadius: 10 }}>
+          ⚙ <span className="nav-collapse">设置</span>
+        </a>
       </nav>
       <main style={{ padding: '32px 40px', maxWidth: 860 }}>
         {route.name === 'board'
-          ? <BoardPage fid={route.param!} />
+          ? <BoardPage key={route.param} fid={route.param!} />
           : route.name === 'thread'
-          ? <ThreadPage tid={route.param!} />
+          ? <ThreadPage key={route.param} tid={route.param!} />
+          : route.name === 'editor'
+          ? <EditorPage />
+          : route.name === 'settings'
+          ? (
+            <div data-test="settings-page" style={{ maxWidth: 520 }}>
+              <h1 style={{ fontSize: 24, margin: '0 0 16px' }} data-test="page-title">设置</h1>
+              <div className="card" style={{ display: 'flex', alignItems: 'center',
+                justifyContent: 'space-between' }}>
+                <label htmlFor="theme-select" style={{ fontSize: 14 }}>外观主题</label>
+                <select id="theme-select" data-test="theme" value={mode}
+                  onChange={(e) => { const v = e.target.value as ThemeMode; setMode(v); setThemeMode(v); }}
+                  style={{ background: 'var(--surface2)', color: 'var(--text2)',
+                    border: '1px solid var(--border2)', borderRadius: 8, padding: '6px 10px' }}>
+                  <option value="auto">跟随系统</option>
+                  <option value="light">浅色</option>
+                  <option value="dark">深色</option>
+                </select>
+              </div>
+              <div className="card" style={{ display: 'flex', alignItems: 'center',
+                justifyContent: 'space-between' }}>
+                <label htmlFor="takeover-check" style={{ fontSize: 14 }}>启用站点接管</label>
+                <input id="takeover-check" data-test="takeover" type="checkbox"
+                  checked={takeover === true} disabled={takeover === null}
+                  onChange={(e) => { const v = e.target.checked; setTakeover(v); setTakeoverEnabled(v); }} />
+              </div>
+              <p style={{ fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.6 }}>
+                站点接管开启后，论坛页面将改由本客户端渲染（当前版本尚未接线，开启无效果）。
+              </p>
+              <details style={{ marginTop: 14, fontSize: 12.5, color: 'var(--text3)' }}>
+                <summary style={{ cursor: 'pointer' }}>诊断信息（开发者）</summary>
+                <div style={{ marginTop: 8 }}>
+                  epoch：{probe ? (probe.epoch ?? '无') : '…'}<br />
+                  auth 规则：{probe ? probe.rulesCount : '…'}
+                </div>
+              </details>
+            </div>
+          )
           : (
             <>
               <h1 style={{ fontSize: 24, margin: '0 0 8px' }} data-test="page-title">{tab.label}</h1>
               {route.name === 'focus' && <FocusPage />}
               {route.name === 'community' && <CommunityPage />}
-              {route.name === 'messages' && (
-                <p style={{ color: 'var(--text2)', fontSize: 14 }}>
-                  消息读面由 G3 接入（读取副作用单列）。
-                </p>
-              )}
+              {route.name === 'messages' && <MessagesPage />}
               {route.name === 'my' && <MyPage />}
             </>
           )}

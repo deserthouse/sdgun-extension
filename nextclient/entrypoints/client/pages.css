@@ -4,7 +4,7 @@
   color: var(--text); }
 .card-title { font-size: 14.5px; font-weight: 600; line-height: 1.5; }
 .card-sub { font-size: 13px; color: var(--text2); margin-top: 4px; line-height: 1.5; }
-.card-meta { font-size: 12px; color: var(--text3); margin-top: 6px; }
+.card-meta { font-size: 13px; color: var(--text2); margin-top: 6px; }
 .info-card:hover, .thread-row:hover, .board-card:hover { border-color: var(--accent); }
 .thread-row { display: flex; gap: 10px; align-items: baseline; }
 .pin { flex: none; font-size: 11px; color: var(--accent); border: 1px solid var(--accent);
@@ -29,7 +29,7 @@
 .btn:disabled { opacity: .45; cursor: default; }
 /* G2：楼层/正文/响应式 */
 .floor { border-left: 3px solid var(--surface2); }
-.content-html { font-size: 14.5px; line-height: 1.7; color: var(--text); margin-top: 6px;
+.content-html { font-size: 16px; line-height: 1.75; color: var(--text); margin-top: 6px;
   word-break: break-word; }
 .content-html img { border-radius: 8px; margin: 6px 0; }
 .content-html blockquote { border-left: 3px solid var(--border2); margin: 8px 0;

@@ -4,6 +4,18 @@
 import { browser } from 'wxt/browser';
 import { magSsKey, LOGIN_URL, USERINFO_URL, encryptPassword } from './rsa';
 
+// 测试缝：与 broker 同一 override 源（localStorage），离线驱动可重定向认证端点
+function resolveUrl(url: string): string {
+  try {
+    const override = localStorage.getItem('sdg2.hostOverride');
+    if (!override) return url;
+    const u = new URL(url);
+    return override + u.pathname;
+  } catch {
+    return url;
+  }
+}
+
 export interface AuthInfo {
   token: string;
   userId: string;
@@ -20,7 +32,7 @@ export async function getAuth(): Promise<AuthInfo | null> {
 async function apiPost(url: string, form: Record<string, string>): Promise<unknown> {
   // host_permissions 已授权 mag1；mag-ss-key 头经扩展特权请求直发（无 CORS 阻碍）；
   // MAGAPPX UA 由 DNR 规则注入（fetch 禁设 UA 头）。
-  const resp = await fetch(url, {
+  const resp = await fetch(resolveUrl(url), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',

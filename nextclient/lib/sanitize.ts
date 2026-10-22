@@ -16,14 +16,37 @@ DOMPurify.addHook('afterSanitizeAttributes', (node: any) => {
   }
 });
 
+// 懒加载归一化（E70-02 修复，清洗前执行）：站方正文 img 常把真图放在
+// data-original/data-src/data-lazy-src 而 src 为占位/缩略——清洗白名单剥属性会
+// 导致全部图片丢失可加载 src（60 图主楼零图实证）。归一化规则：
+//   懒加载属性即显示图 → 无条件提升为 src；旧 src（常为占位 none.gif/缩略）留
+//   data-sdg-thumb。首版"占位才提升"的规则被回归抓出：占位 gif 本身是合法
+//   https，按协议判定会把真图留在 data-original 永不显示。
+const LAZY_ATTRS = ['data-original', 'data-src', 'data-lazy-src'];
+
+export function normalizeLazyImages(html: string): string {
+  const wrap = document.createElement('div');
+  wrap.innerHTML = html;
+  wrap.querySelectorAll('img').forEach((im) => {
+    const lazy = LAZY_ATTRS.map((a) => im.getAttribute(a) || '').find((v) => ALLOWED_IMG.test(v));
+    if (lazy) {
+      const oldSrc = im.getAttribute('src') || '';
+      im.setAttribute('src', lazy);
+      if (oldSrc && oldSrc !== lazy) im.setAttribute('data-sdg-thumb', oldSrc);
+    }
+    LAZY_ATTRS.forEach((a) => im.removeAttribute(a));
+  });
+  return wrap.innerHTML;
+}
+
 export function sanitizeContent(html: string): string {
-  return DOMPurify.sanitize(html, {
+  return DOMPurify.sanitize(normalizeLazyImages(html), {
     ALLOWED_TAGS: ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 's', 'blockquote',
       'ul', 'ol', 'li', 'img', 'a', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
       'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'pre', 'code', 'span', 'div', 'font',
       'strike', 'hr', 'sub', 'sup'],
     ALLOWED_ATTR: ['src', 'href', 'alt', 'class', 'style', 'colspan', 'rowspan',
-      'color', 'size', 'referrerpolicy', 'data-sdg-idx'],
+      'color', 'size', 'referrerpolicy', 'data-sdg-idx', 'data-sdg-orig', 'data-sdg-thumb'],
     ALLOW_DATA_ATTR: false,
   });
 }

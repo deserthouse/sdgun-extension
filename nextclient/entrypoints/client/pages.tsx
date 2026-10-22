@@ -1,6 +1,6 @@
 // E1-5 游客阅读链页面：聚焦（资讯+板块速览）、社区（板块树）、板块（forumView 列表）。
 // E1-6：我的（登录表单/账号视图/退出）。
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useEndpoint } from '../../lib/queries';
 import { StateBlock, StateBadge } from './StateBlock';
 import { epochStart, epochStop, epochProbe } from '../../lib/epoch';
@@ -60,15 +60,19 @@ export function MyPage() {
       <>
         <form data-test="login" onSubmit={doLogin}
           style={{ maxWidth: 380, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <input value={account} onChange={(e) => setAccount(e.target.value)}
+          <label style={{ fontSize: 13, color: 'var(--text2)' }} htmlFor="login-account">账号</label>
+          <input id="login-account" value={account} onChange={(e) => setAccount(e.target.value)}
             placeholder="账号" autoComplete="username"
             style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border2)',
               background: 'var(--surface)', color: 'var(--text)' }} />
-          <input value={password} onChange={(e) => setPassword(e.target.value)} type="password"
-            placeholder="密码" autoComplete="current-password"
+          <label style={{ fontSize: 13, color: 'var(--text2)' }} htmlFor="login-password">密码</label>
+          <input id="login-password" value={password} onChange={(e) => setPassword(e.target.value)}
+            type="password" placeholder="密码" autoComplete="current-password"
+            aria-describedby={err ? 'login-error' : undefined}
             style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border2)',
               background: 'var(--surface)', color: 'var(--text)' }} />
-          {err && <div data-test="login-error" style={{ color: 'var(--accent)', fontSize: 13 }}>{err}</div>}
+          {err && <div id="login-error" data-test="login-error" role="alert"
+            style={{ color: 'var(--accent)', fontSize: 13 }}>{err}</div>}
           <button className="btn" data-test="login-submit" disabled={busy || !account || !password}>
             {busy ? '登录中…' : '登录'}
           </button>
@@ -89,7 +93,9 @@ export function MyPage() {
   return (
     <div data-test="account">
       <AccountCard auth={auth as AuthInfo} info={info} onLogout={doLogout} />
-      <MessagesPanel />
+      <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 12 }}>
+        消息与通知已移至左栏「消息」页。
+      </p>
     </div>
   );
 }
@@ -108,55 +114,6 @@ function AccountCard({ auth, info, onLogout }: { auth: AuthInfo; info: Record<st
         </div>
       </div>
       <button className="btn" data-test="logout" onClick={onLogout}>退出登录</button>
-    </div>
-  );
-}
-
-function MessagesPanel() {
-  const [tab, setTab] = useState<'msg' | 'notify'>('msg');
-  const msg = useEndpoint(tab === 'msg' ? 'userMessageGroupList' : 'userNotifyIndex',
-    tab === 'msg' ? { p: 1 } : {});
-  const items = (msg.data as any)?.list ?? [];
-  return (
-    <div style={{ marginTop: 18 }}>
-      <div className="chiprow">
-        <button className={'btn' + (tab === 'msg' ? ' on' : '')} data-test="tab-msg"
-          style={tab === 'msg' ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}}
-          onClick={() => setTab('msg')}>消息</button>
-        <button className={'btn' + (tab === 'notify' ? ' on' : '')} data-test="tab-notify"
-          style={tab === 'notify' ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}}
-          onClick={() => setTab('notify')}>通知</button>
-      </div>
-      <StateBlock state={msg.state} fail={msg.fail} onRetry={() => msg.refetch()} skeletonRows={3} />
-      {tab === 'msg' && msg.state !== 'InitialLoading' && items.length === 0 && (
-        <div className="state-card" data-test="empty">暂无消息会话</div>
-      )}
-      {tab === 'msg' && items.map((m: any) => (
-        <div key={String(m.id)} className="card">
-          <div className="card-title">{m.name ?? m.title ?? m.user_name ?? '(消息)'}</div>
-          {m.last_summary ?? m.content ? (
-            <div className="card-sub">{String(m.last_summary ?? m.content ?? '').slice(0, 60)}</div>
-          ) : null}
-        </div>
-      ))}
-      {tab === 'notify' && msg.state !== 'InitialLoading' && msg.data && (
-        <div data-test="notify-summary">
-          {(() => {
-            const d = (msg.data as any).data ?? {};
-            const rows = [
-              ['私信', d.has_letter ? '有新私信' : '暂无新私信'],
-              ['系统通知', String(d.system_notify_count ?? 0)],
-              ['好友申请', String(d.friend_apply_count ?? 0)],
-            ];
-            return rows.map(([k, v]) => (
-              <div key={k} className="card" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span className="card-title">{k}</span>
-                <span className="card-meta">{v}</span>
-              </div>
-            ));
-          })()}
-        </div>
-      )}
     </div>
   );
 }
@@ -196,7 +153,7 @@ export function FocusPage() {
       </h2>
       <StateBlock state={tree.state} fail={tree.fail} onRetry={() => tree.refetch()} skeletonRows={2} />
       {tree.state !== 'InitialLoading' && row(tree.data).slice(0, 2).map((g: any) => (
-        <div key={g.id} className="chiprow">
+        <div key={g.id} className="chiprow" data-test="board-chips">
           {g.circle_list.slice(0, 4).map((c: any) => (
             <a key={c.id} className="chip" href={`#/board/${c.type_value}`}>{c.name}</a>
           ))}
@@ -233,12 +190,27 @@ export function CommunityPage() {
   );
 }
 
+// E70-03 分页适配器：响应无 total_page 元数据时不得用 rows<step 推定 EOF——
+// 允许试探下一页；空页或整页重复才结束（endReached）。切 fid 由 App key 重挂载重置。
 export function BoardPage({ fid }: { fid: string }) {
   const [page, setPage] = useState(1);
   const STEP = 20;
   const q = useEndpoint('forumView', { fid, p: page, step: STEP });
-  const rows = row(q.data);
-  const atEnd = rows.length < STEP;
+  const seenRef = useRef<Set<string>>(new Set());
+  const [endReached, setEndReached] = useState(false);
+  const rowsAll = row(q.data);
+  // 去重 + is_top 枚举正规化（实测 -1=普通/正值=置顶，不得真值判断）
+  const rows = rowsAll.filter((t: any) => {
+    const k = String(t.tid);
+    if (seenRef.current.has(k)) return false;
+    seenRef.current.add(k);
+    return true;
+  });
+  useEffect(() => {
+    if (q.isPending) return;
+    if (rows.length === 0) setEndReached(true); // 空页/整页重复 = 真结束
+  }, [q.data, q.isPending]);
+  const isPinned = (t: any) => Number(t.is_top) > 0;
   return (
     <section>
       <p style={{ margin: '0 0 10px', fontSize: 13 }}>
@@ -248,7 +220,7 @@ export function BoardPage({ fid }: { fid: string }) {
       <StateBlock state={q.state} fail={q.fail} onRetry={() => q.refetch()} />
       {q.state !== 'InitialLoading' && rows.map((t: any) => (
         <a key={String(t.tid)} className="card thread-row" href={`#/thread/${t.tid}`}>
-          {t.is_top ? <span className="pin">置顶</span> : null}
+          {isPinned(t) ? <span className="pin">置顶</span> : null}
           <div>
             <div className="card-title">{t.subject}</div>
             <div className="card-meta">
@@ -260,9 +232,10 @@ export function BoardPage({ fid }: { fid: string }) {
       <div className="chiprow" style={{ justifyContent: 'center', marginTop: 14 }}>
         <button className="btn" disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页</button>
         <span style={{ color: 'var(--text3)', fontSize: 12 }}>第 {page} 页</span>
-        <button className="btn" disabled={atEnd || rows.length === 0}
+        <button className="btn" data-test="next-page" disabled={endReached}
           onClick={() => setPage(page + 1)}>下一页</button>
       </div>
+      {endReached && <div className="state-card" data-test="no-more">没有更多了</div>}
     </section>
   );
 }

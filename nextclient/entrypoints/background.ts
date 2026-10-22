@@ -46,6 +46,17 @@ async function installUaRules(utdid: string, token?: string): Promise<void> {
 }
 
 export default defineBackground(() => {
+  // E70-08：工具栏点击 → 打开客户端页（已开则聚焦）
+  browser.action.onClicked.addListener(async () => {
+    const url = browser.runtime.getURL('/client.html#/focus');
+    const tabs = await browser.tabs.query({ url: url.split('#')[0] + '*' });
+    if (tabs.length) {
+      await browser.tabs.update(tabs[0].id, { active: true });
+    } else {
+      await browser.tabs.create({ url });
+    }
+  });
+
   // N-4：会话状态只住 storage.session（SW 重启可重建、浏览器重启归零），
   // 模块级不持任何可变状态（强停后旧内存态自然丢弃=epoch 栅栏的另一半）。
   browser.runtime.onMessage.addListener(async (msg: LabMsg) => {

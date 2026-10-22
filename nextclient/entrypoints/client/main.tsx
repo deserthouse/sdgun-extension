@@ -19,11 +19,14 @@ const style = document.createElement('style');
 style.textContent = TOKENS + "html,body{margin:0}#root{min-height:100vh}";
 document.head.appendChild(style);
 import './pages.css';
+import { SessionProvider } from '../../lib/session';
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <QueryClientProvider client={qc}>
-      <App />
+      <SessionProvider>
+        <App />
+      </SessionProvider>
     </QueryClientProvider>
   </React.StrictMode>,
 );
