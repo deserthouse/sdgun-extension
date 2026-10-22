@@ -71,8 +71,9 @@
     .preview.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
     .preview.grid img { aspect-ratio: 1/1; max-height: none; border-radius: 8px; }
     .filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+    .glabel { font-size: 11.5px; font-weight: 600; color: var(--text3); padding: 6px 2px; letter-spacing: .5px; }
     .fchip { border: 1px solid var(--border2); background: var(--surface); color: var(--text2);
-      border-radius: 999px; padding: 4px 13px; font-size: 12.5px; text-decoration: none; transition: all .12s; }
+      border-radius: 999px; padding: 6px 14px; font-size: 12.5px; text-decoration: none; transition: all .12s; }
     .fchip:hover { border-color: var(--accent); color: var(--accent); }
     .fchip.on { border-color: var(--accent); color: var(--accent);
       background: color-mix(in srgb, var(--accent) 8%, transparent); font-weight: 600; }
@@ -80,7 +81,7 @@
     .empty-text { color: var(--text3); font-size: 14px; margin-bottom: 10px; }
     .pager { display: flex; gap: 8px; justify-content: center; margin: 18px 0 4px; }
     .pager button { border: 1px solid var(--border2); background: var(--surface); color: var(--text2);
-      border-radius: 10px; padding: 8px 22px; font-size: 14px; cursor: pointer; transition: all .12s; }
+      border-radius: 10px; padding: 9px 24px; font-size: 14px; cursor: pointer; transition: all .12s; }
     .pager button:hover { border-color: var(--accent); color: var(--accent); }
     .pager button:disabled { opacity: .4; cursor: default; }
     .hint { text-align: center; color: var(--text3); font-size: 12px; margin-top: 6px; }
@@ -157,7 +158,7 @@
     .author:hover { color: var(--accent); }
     .meta { color: var(--text3); font-size: 12px; }
     .floor { margin-left: auto; color: var(--text3); font-size: 12.5px; flex: none; }
-    .body { font-size: 15.5px; line-height: 1.75; color: var(--text); word-break: break-word; }
+    .body { font-size: 16px; line-height: 1.75; color: var(--text); word-break: break-word; }
     .body img { max-width: 100%; height: auto; border-radius: 10px; margin: 4px 0; background: var(--surface2); }
     .body a { color: var(--accent); }
     .body blockquote, .body .quote { background: var(--surface2); border-left: 3px solid var(--border2);
@@ -230,14 +231,29 @@
     let n = host.nextElementSibling;
     const groups = (window.SDG && SDG.scaffold) || {};
     const selectors = [].concat(...Object.values(groups).map((arr) => arr || []));
+    const hidden = []; // R14/EV-08：收集实际隐藏节点
     const match = (el) => {
       try { return selectors.some((sel) => el.matches(sel)); } catch (e) { return false; }
     };
     while (n) {
       const next = n.nextElementSibling;
-      if (match(n) || !n.id) hideEl(n); // 无 id 的结构性节点仍隐藏；带 id 的未知模块放过
+      if (match(n) || !n.id) { hideEl(n); hidden.push(n); } // 无 id 的结构性节点仍隐藏；带 id 的未知模块放过
       n = next;
     }
+    return hidden; // R14/EV-08：返回实际隐藏节点
+  }
+
+  // R14/EV-08：按节点清单精确恢复隐藏（挂载事务逆操作；只动带本层标记的节点）
+  function restoreHidden(nodes) {
+    (nodes || []).forEach((n) => {
+      try {
+        if (n && n.hasAttribute && n.hasAttribute('data-sdg-hidden')) {
+          n.style.display = n.getAttribute('data-sdg-prev-display') || '';
+          n.removeAttribute('data-sdg-prev-display');
+          n.removeAttribute('data-sdg-hidden');
+        }
+      } catch (e) { /* 单节点恢复失败不阻断 */ }
+    });
   }
 
   // ---------- 灯箱（v1.18.2 E-01 重写）：单例、白名单类、键盘/焦点/滚动锁 ----------
@@ -247,9 +263,10 @@
 
   function closeLightbox() {
     if (!lightboxState) return;
-    const { overlay, prevFocus, cleanup } = lightboxState;
+    const { overlay, img, prevFocus, cleanup } = lightboxState;
     lightboxState = null;
     try { document.removeEventListener('keydown', onLightboxKey, true); } catch (e) { /* */ }
+    try { if (img) img.src = ''; } catch (e) { /* */ } // R12/EV-07：关闭即中断在途原图加载
     try {
       document.documentElement.style.overflow = overlay.dataset.sdgPrevOverflow || '';
     } catch (e) { /* */ }
@@ -286,6 +303,22 @@
       alt: alt || '',
       style: 'max-width:96vw;max-height:96vh;border-radius:4px;display:block;',
     });
+    // R12/EV-07：原图加载失败可见可重试（src 因 data-orig 可能与列表缩略不同源，失败须有出口）
+    let currentSrc = src;
+    const errBox = el('div', {
+      text: '原图加载失败 · 点击重试',
+      style: 'position:absolute;inset:0;display:none;align-items:center;justify-content:center;'
+        + 'color:#fff;font:14px/1.6 system-ui,sans-serif;background:rgba(0,0,0,.55);cursor:pointer;',
+    });
+    errBox.addEventListener('click', (e) => {
+      e.stopPropagation();
+      errBox.style.display = 'none';
+      // 重试：先摘 src 再赋值——同值赋 src 不触发重新加载（实测 complete=true/nw=0 原地不动）
+      img.removeAttribute('src');
+      img.src = currentSrc;
+    });
+    img.addEventListener('error', () => { errBox.style.display = 'flex'; });
+    img.addEventListener('load', () => { errBox.style.display = 'none'; });
     // EF-04（v1.19.2）+ ER-08（v1.19.7）：图组模式；打开即按被点图索引初始化
     // （src 与计数同步——此前恒从 0 开始，点第二张显示第二图却标 1/20）
     let idx = Math.max(0, Math.min(startIdx || 0, (gallery ? gallery.length : 1) - 1));
@@ -299,7 +332,8 @@
     const show = (i) => {
       if (!list) return;
       idx = (i + list.length) % list.length;
-      img.src = list[idx];
+      currentSrc = list[idx];
+      img.src = currentSrc;
       counter.textContent = `${idx + 1} / ${list.length}`;
     };
     const navBtn = (text, dir) => {
@@ -327,6 +361,7 @@
       if (e.target === overlay) closeLightbox();
     });
     overlay.appendChild(img);
+    overlay.appendChild(errBox);
     overlay.appendChild(closeBtn);
     if (list) {
       overlay.appendChild(navBtn('‹', -1));
@@ -337,7 +372,7 @@
     closeBtn.focus();
     document.addEventListener('keydown', onLightboxKey, true);
     lightboxState = {
-      overlay, prevFocus, cleanup: null,
+      overlay, img, prevFocus, cleanup: null,
       onKey: (ev) => {
         if (!list) return;
         if (ev.key === 'ArrowLeft') { ev.preventDefault(); show(idx - 1); }
@@ -360,10 +395,12 @@
       const scopeImgs = [img.closest('.body') || img.closest('.fmain') || img.getRootNode()]
         .flatMap((root) => (root ? [...root.querySelectorAll('.body img')] : []))
         .filter((im) => im.src && !im.classList.contains('avatar') && !im.classList.contains('icon'));
-      const gallery = scopeImgs.length > 1 ? scopeImgs.map((im) => im.src) : null;
+      // R12/EV-07：原图优先——API 升级行的缩略带 data-orig（列表只加载 240 小图，原图按需）
+      const origOf = (im) => im.dataset.orig || im.src;
+      const gallery = scopeImgs.length > 1 ? scopeImgs.map(origOf) : null;
       // ER-08（v1.19.7）：startIdx 按被点图在组内的实际位置（点第二张开=2/20，不再恒 1/20）
       const startIdx = gallery ? Math.max(0, scopeImgs.indexOf(img)) : 0;
-      openLightbox(img.src, img.alt, gallery, startIdx);
+      openLightbox(origOf(img), img.alt, gallery, startIdx);
     }, true);
   }
 
@@ -455,7 +492,9 @@
     hideScaffold(variant) {
       const groups = SDG.scaffold || {};
       const list = groups[variant] || groups.standard || [];
-      list.forEach((sel) => document.querySelectorAll(sel).forEach(hideEl));
+      const hidden = [];
+      list.forEach((sel) => document.querySelectorAll(sel).forEach((n) => { hideEl(n); hidden.push(n); }));
+      return hidden; // R14/EV-08：返回实际隐藏节点（挂载事务逆操作按此精确还原）
     },
     // 空壳判定（2026-10-04 全页覆盖，按页型）：脚手架在场 + 该页型内容签名缺失 = 服务器壳响应。
     // 按页型隔离签名——m1 帖子页的 div.bm 里也有 forumdisplay 面包屑，全局 OR 链会误判（单测抓出）。
@@ -492,6 +531,17 @@
       }
       return false;
     },
+    // EV-06：站方"合法空结果"判别——空板块/零匹配筛选会返回完整模板+明确空提示文本，
+    // 不能沿用"无帖子锚点=服务器壳"的单一判据（此前误报"服务器响应不完整"并自动重试，
+    // fid=153 热帖筛选实测）。判据从严：脚手架在场 ∧ 站方空提示文本命中 ∧ 无任何帖子锚点；
+    // 只凭"列表容器在场+零行"不判合法空（截断壳同样呈现该形态，宁重试不误报空）。
+    looksLegitEmpty(kind) {
+      if (kind !== 'forumdisplay') return false;
+      if (!document.querySelector('.hd, .ft, .footer')) return false;
+      const txt = document.body.textContent || '';
+      if (!/指定的范围内尚无主题|尚无主题|暂无主题|没有相关主题|本版块或指定的范围内/.test(txt)) return false;
+      return !document.querySelector('a[href*="mod=viewthread"], a[href*="tid="]');
+    },
   };
 
   window.SDGRedrawBase = {
@@ -499,6 +549,7 @@
     wireLightbox, unmount, util, normalizeCloned,
     openLightbox, closeLightbox, // E-01：单例灯箱（原版页面与重绘层共用）
     collectActionLinks, // EF-05：显式调用（时机由调用方控制，不藏在 markActive）
+    restoreHidden, // R14/EV-08：挂载事务逆操作
   };
   // unmount 挂到主命名空间（boot.js 的开关切换调用 window.SDGRedraw.unmount）
   window.SDGRedraw = window.SDGRedraw || {};

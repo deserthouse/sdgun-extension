@@ -58,7 +58,7 @@
     let groups = [];
     try {
       // A1（v1.20.0）：读 SDGCache tree 组（getSync 同步快路径；local 镜像异步回填由下方 compat 段承担）
-      const cached = window.SDGCache && window.SDGCache.getSync('tree', 'all');
+      const cached = window.SDGCache && window.SDGCache.getSync(window.SDGCache.GROUPS.TREE, 'all');
       if (cached) groups = cached;
     } catch (e) { /* 无缓存则只显示首页 */ }
 

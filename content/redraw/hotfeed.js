@@ -11,10 +11,18 @@
     .hotfeed .hhead { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
     .hotfeed .hhead .ht { font-weight: 700; font-size: 15px; color: var(--text); }
     .hotfeed .hhead .hsub { font-size: 12px; color: var(--text3); }
-    .hotfeed .hgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    /* R15/EV-09：折叠开关（默认折叠，展开才拉取——折叠期零请求） */
+    .hotfeed .hToggle { border: none; background: none; color: var(--text3); font-size: 12px;
+      cursor: pointer; padding: 4px 8px; margin-left: auto; border-radius: 6px; }
+    .hotfeed .hToggle:hover { color: var(--accent); background: var(--surface2); }
+    .hotfeed.collapsed .hgrid, .hotfeed.collapsed .hloading { display: none; }
+    /* EV-04：minmax(0,1fr) —— 裸 1fr 的隐式 min-size=auto 会让长标题/大数字把轨道
+       撑出视口（760px 实测右列卡被截出屏外）；min-width:0 允许内容收缩换行截断 */
+    .hotfeed .hgrid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; }
     @media (max-width: 719px) { .hotfeed .hgrid { grid-template-columns: 1fr; } }
     .hotfeed a.hitem { display: flex; gap: 10px; padding: 9px 10px; border: 1px solid var(--border);
-      border-radius: 12px; text-decoration: none; transition: background .12s, border-color .12s; }
+      border-radius: 12px; text-decoration: none; min-width: 0;
+      transition: background .12s, border-color .12s; }
     .hotfeed a.hitem:hover { background: var(--surface2); border-color: var(--border2); }
     .hotfeed .hitem img.hthumb { width: 84px; height: 56px; border-radius: 8px; object-fit: cover;
       flex: none; background: var(--surface2); }
@@ -36,8 +44,6 @@
       display: flex; align-items: center; justify-content: center; }
     @keyframes sdg-pulse { 0%, 100% { opacity: .5; } 50% { opacity: .95; } }
   `;
-  const HOT_CACHE_KEY = 'sdg_hot_cache';
-  const HOT_TTL = 30 * 60e3;
   const HOT_BOARDS = 5;
   const HOT_PER_BOARD = 3;
   const HOT_GAP = 1200;
@@ -51,13 +57,22 @@
     return isNaN(n) ? 0 : n;
   }
 
-  function renderHotFeed(box, el, items, pending) {
+  function renderHotFeed(box, el, items, pending, scope, toggle) {
     box.textContent = '';
     const head = el('div', { class: 'hhead' }, [
       el('span', { class: 'ht', text: '热帖速览' }),
       el('span', { class: 'hsub', text: '活跃板块 · 近期回复' }),
     ]);
+    if (toggle) {
+      // R15/EV-09：折叠开关——默认折叠（EV-09：不默认长串铺开），展开态会话内记忆
+      const btn = el('button', { class: 'hToggle', text: toggle.expanded ? '收起 ▴' : '展开 ▾',
+        title: '默认折叠；展开时才拉取数据' });
+      btn.addEventListener('click', toggle.onToggle);
+      head.appendChild(btn);
+    }
     box.appendChild(head);
+    if (!items) { box.classList.add('collapsed'); return; } // 折叠壳：仅头部，零请求
+    box.classList.toggle('collapsed', !(toggle && toggle.expanded));
     const grid = el('div', { class: 'hgrid' });
     items.slice(0, HOT_BOARDS * HOT_PER_BOARD).forEach((it) => {
       const a = el('a', { class: 'hitem', href: it.href });
@@ -83,8 +98,10 @@
     });
     box.appendChild(grid);
     if (pending) box.appendChild(el('div', { class: 'hloading', text: '热帖加载中…' }));
-    else if (window.SDGRedraw.enrichHotFeed) {
-      try { window.SDGRedraw.enrichHotFeed(box); } catch (e) { /* 回填失败静默 */ }
+    else if (scope && window.SDGRedraw.enrichHotFeed) {
+      // R10/EV-03：页面 scope 贯穿——回填不再自建 scope（自建曾绕过 cancelAllScopes，页面
+      // 卸载/重挂载后旧批次仍可发请求/写缓存）
+      try { window.SDGRedraw.enrichHotFeed(box, scope); } catch (e) { /* 回填失败静默 */ }
     }
   }
 
@@ -120,14 +137,32 @@
       boards.sort((a, b) => b.score - a.score);
       const picked = boards.slice(0, HOT_BOARDS);
 
-      const render = (items, pending) => renderHotFeed(box, el, items, pending);
+      // R15/EV-09：默认折叠——折叠期零请求（拉取推迟到首次展开）；展开态会话内记忆
+      let expanded = false;
+      try { expanded = sessionStorage.getItem('sdg_hf_open') === '1'; } catch (e) { /* */ }
+      let dataDone = false; // 数据已渲染或拉取已在途
+      const toggleState = {
+        get expanded() { return expanded; },
+        onToggle: () => {
+          expanded = !expanded;
+          try { sessionStorage.setItem('sdg_hf_open', expanded ? '1' : '0'); } catch (e) { /* */ }
+          if (expanded) {
+            if (!dataDone) { dataDone = true; hotCheck(); } // 缓存命中直渲，miss 进 fetchBoards
+            else box.classList.remove('collapsed');
+          } else {
+            box.classList.add('collapsed');
+          }
+        },
+      };
+      const render = (items, pending) => renderHotFeed(box, el, items, pending, scope, toggleState);
       const draw = (all, pending) => {
         all.sort((a, b) => (b.replies * 10 + (b.views || 0) * 1) - (a.replies * 10 + (a.views || 0) * 1));
         render(all, pending);
       };
 
       const persist = (items) => {
-        if (window.SDGCache) window.SDGCache.set('hotfeed', 'all', items); // A1：30min TTL+mirror
+        // R9/EV-02：DTO {items}——v1.20.0~1.20.3 写裸数组、读侧要求 c.items，缓存永不命中
+        if (window.SDGCache) window.SDGCache.set(window.SDGCache.GROUPS.HOTFEED, 'all', { items });
       };
 
       const fetchBoards = () => {
@@ -135,7 +170,8 @@
         let done = 0;
         const results = [];
         picked.forEach((b, i) => {
-          setTimeout(() => {
+          // R10/EV-03：错峰定时器入页面 scope（取消即清空，不再用裸 setTimeout）
+          scope.delay(i * HOT_GAP, () => {
             // E-08（v1.18.3）：API 首选/HTML 回退封装——三态区分（成功列表/成功空/失败）；
             // 失败或坏形状每板块至多回退一次 HTML；万单位经 parseWan（'1.4万'≠14）
             const fetchBoardHot = () => {
@@ -183,29 +219,32 @@
               results.push(...items);
             }).catch(() => { /* 单板块失败跳过 */ }).then(() => {
               done += 1;
+              if (scope.isDead()) return; // R10/EV-03：取消后零 DOM 写回、零缓存写回
               // v1.17.3：网格一次成型（此前每板块重绘一次，首页内容被反复推下）
               if (done === picked.length) {
                 draw(results, false);
                 if (results.length) persist(results);
               }
             });
-          }, i * HOT_GAP);
+          });
         });
       };
 
-      // 缓存优先（A1：hotfeed 组 30min TTL + mirror 内聚于 SDGCache）
+      // 缓存优先（A1：hotfeed 组 30min TTL + mirror 内聚于 SDGCache；R9：DTO {items}）
       const hotCheck = () => {
         if (window.SDGCache) {
-          window.SDGCache.get('hotfeed', 'all').then((c) => {
+          window.SDGCache.get(window.SDGCache.GROUPS.HOTFEED, 'all').then((c) => {
             if (sc_dead_check()) return;
-            if (c && c.items && c.items.length) { render(c.items, false); return; }
+            if (c && Array.isArray(c.items) && c.items.length) { render(c.items, false); return; }
             fetchBoards();
           });
         } else {
           fetchBoards();
         }
       };
-      hotCheck();
+      // 初始：展开 → 直接取数据；折叠（默认）→ 仅头部壳，零请求
+      if (expanded) { dataDone = true; hotCheck(); }
+      else render(null, false);
     } catch (e) { /* 热帖流失败静默 */ }
   }
 

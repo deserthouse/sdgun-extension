@@ -83,7 +83,7 @@
       // 内容未变则不重写：mirror 写 storage.local 会触发 boot 的 onChanged 重挂载循环（2026-10-08 事故）
       if (contentKey !== lastTreeKey) {
         lastTreeKey = contentKey;
-        if (window.SDGCache) window.SDGCache.set('tree', 'all', data.map((g) => ({ name: g.name, secs: g.secs })));
+        if (window.SDGCache) window.SDGCache.set(window.SDGCache.GROUPS.TREE, 'all', data.map((g) => ({ name: g.name, secs: g.secs })));
       }
     }
     // 简易变体的原列表容器（如 #forumlist）在渲染后隐藏
@@ -133,6 +133,25 @@
           text: parts.length ? parts.join(' · ').slice(0, 100) : txt.slice(0, 80) }));
       }
     }
+
+    // R15/EV-09：常用板块 chips（sdgPinned ≤5；无常用不渲染）——首屏入口优先
+    try {
+      chrome.storage.sync.get({ sdgPinned: [] }, (st) => {
+        try {
+          const pinned = (st && Array.isArray(st.sdgPinned) ? st.sdgPinned : []).map(String).slice(-5);
+          if (!pinned.length) return;
+          const nameOf = {};
+          data.forEach((g) => (g.secs || []).forEach((s) => { nameOf[String(s.fid)] = s.name; }));
+          const pinRow = el('div', { class: 'filters pinrow' });
+          pinned.forEach((fid) => {
+            if (!nameOf[fid]) return;
+            pinRow.appendChild(el('a', { class: 'fchip on',
+              href: `forum.php?mod=forumdisplay&fid=${fid}&mobile=2`, text: '📌 ' + nameOf[fid] }));
+          });
+          if (pinRow.children.length) wrap.insertBefore(pinRow, wrap.querySelector('.group-title'));
+        } catch (e) { /* 常用行失败不影响主列 */ }
+      });
+    } catch (e) { /* storage 不可用跳过 */ }
 
     data.forEach((grp) => {
       if (!grp.secs.length) return;

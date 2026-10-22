@@ -140,7 +140,7 @@
     const readCache = () => {
       try {
         // A1（v1.20.0）：owner 组（getSync 同步快路径；值 {uid, ev}）
-        const o = window.SDGCache && window.SDGCache.getSync('owner', key);
+        const o = window.SDGCache && window.SDGCache.getSync(window.SDGCache.GROUPS.OWNER, key);
         return (o && o.uid) ? o.uid : null;
       } catch (e) { return null; }
     };
@@ -150,7 +150,7 @@
       const isFloorOne = floorNo === '1#' || floorNo === '' || floorNo === '1';
       const uid = (f0.authorHref.match(/uid=(\d+)/) || [])[1] || '';
       if (isFloorOne && uid) {
-        try { if (window.SDGCache) window.SDGCache.set('owner', key, { uid, ev: 'floor1' }); } catch (e) { /* */ }
+        try { if (window.SDGCache) window.SDGCache.set(window.SDGCache.GROUPS.OWNER, key, { uid, ev: 'floor1' }); } catch (e) { /* */ }
         return uid;
       }
       // 首楼缺号/匿名：不覆盖已有缓存，也不晋升下一楼
@@ -430,14 +430,29 @@
 
     shadow.appendChild(wrap);
 
-    // ER-06（v1.19.5）：先 commit 再 hideEl（同 forumdisplay）
+    // R14/EV-08：提交事务（同 forumdisplay.commitList）——任一步异常逆序回滚后
+    // return false 走 boot 挂载失败链，不向外抛异常。
     const anchor0 = B.util.contentAnchor();
-    if (anchor0 !== document.body) anchor0.classList.add('sdg-host');
-    anchor0.appendChild(host);
-    B.hideEl(container);
-    B.markActive();
-    B.util.hideScaffold('viewthread');
-    B.hideTrailingSiblings(anchor0);
+    const anchorIsBody = anchor0 === document.body;
+    const undos = [];
+    try {
+      if (!anchorIsBody) anchor0.classList.add('sdg-host');
+      undos.push(() => { if (!anchorIsBody) anchor0.classList.remove('sdg-host'); });
+      anchor0.appendChild(host);
+      undos.push(() => { try { host.remove(); } catch (e) { /* */ } });
+      const hiddenNow = [];
+      if (container) { B.hideEl(container); hiddenNow.push(container); }
+      undos.push(() => B.restoreHidden(hiddenNow));
+      B.markActive();
+      undos.push(() => document.documentElement.classList.remove('sdg-redraw-active'));
+      const scaffolded = B.util.hideScaffold('viewthread');
+      undos.push(() => B.restoreHidden(scaffolded));
+      const trailing = B.hideTrailingSiblings(anchor0);
+      undos.push(() => B.restoreHidden(trailing));
+    } catch (e) {
+      for (const u of undos.reverse()) { try { u(); } catch (e2) { /* */ } }
+      return false;
+    }
 
     B.wireLightbox(shadow);
     // EF-03（v1.19.2）：楼层点赞数——1 次 commentList（PageScope），id=pid 匹配当页楼层；

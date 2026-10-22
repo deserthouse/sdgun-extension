@@ -8,7 +8,11 @@
 (function () {
   'use strict';
   const B = window.SDGRedrawBase || {};
-  const CACHE_KEY = 'sdg_tx_cache_v2'; // v2（E-10：版本化 key，旧键停读不再续用）
+  // R9/EV-01：组名走 SDGCache 注册常量。v1.20.0~1.20.3 曾错用未注册组名（注册组是
+  // threads），get 恒 null、set 静默丢——宣称的 7 天逐帖缓存从未生效。
+  // 源码级守卫（unit_architecture_regress）禁止旧键名字面量再现，历史名见复审报告。
+  const CACHE_KEY = (window.SDGCache && window.SDGCache.GROUPS
+    && window.SDGCache.GROUPS.THREADS) || 'threads';
   const CACHE_MAX = 600;      // 条目上限（约 200KB），超限按时间淘汰
   const TTL = 7 * 86400e3;    // 首楼内容基本不变，7 天足够
   const PER_PAGE_CAP = 12;    // 覆盖满页（bygsjw 每页 10~14 行）
@@ -47,7 +51,13 @@
   function readCache(cb) {
     // A1（v1.20.0）：SDGCache threads 组。SDGCache 未载时兜底空表（fail-open）
     if (!window.SDGCache) { cb({}); return; }
-    window.SDGCache.get(CACHE_KEY, 'all').then((map) => cb(map || {}));
+    // RC-04/W-B3：once 护栏——cb 自身抛错时 catch 不再二次触发（此前 cb 异常会经
+    // .catch 重调，enrichRows 重入；存储真失败时仍恰好一次兜底空表）
+    let done = false;
+    const once = (v) => { if (done) return; done = true; cb(v); };
+    try {
+      window.SDGCache.get(CACHE_KEY, 'all').then((map) => once(map || {})).catch(() => once({}));
+    } catch (e) { once({}); }
   }
 
   function writeCache(map) {
@@ -107,46 +117,36 @@
     row.insertBefore(t, row.querySelector('.main'));
   }
 
-  // 终态落位：img 或 tile 二选一进图位；摘要在场则填文本，**不在场也保留空槽**（18px，
-  // v1.18.0 零位移终解——行高与数据有无完全解耦）；撤骨架
+  // 终态落位（R14/EV-10：经 SDGRedraw.applyRow 单入口落位——"三写入者全部经 applyRow"
+  // 自此为真；此前本函数自建 img/ex，绕过单入口）。封面走互斥表；无图/落图失败 → 字块终态。
   function settleRow(shadowRoot, tid, d) {
     const row = locateRow(shadowRoot, tid);
     if (!row) return;
-    if (!row.querySelector('img.thumb') && !row.querySelector('.sdg-tile')) {
-      if (d && d.img) {
-        const im = document.createElement('img');
-        im.className = 'thumb';
-        im.loading = 'lazy';
-        im.alt = '';
-        im.src = d.img;
-        im.addEventListener('error', () => {
-          im.remove();
-          if (!row.isConnected) return;
-          insertTile(row, (row.querySelector('.t') || {}).textContent);
-        });
-        row.insertBefore(im, row.querySelector('.main'));
-      } else {
+    if (d && d.img) {
+      window.SDGRedraw.applyRow(row, { cover: d.img, ex: d.ex || '' }, 'enrich');
+    } else {
+      if (!row.querySelector('img.thumb') && !row.querySelector('.sdg-tile')) {
         insertTile(row, (row.querySelector('.t') || {}).textContent);
       }
-    }
-    const main = row.querySelector('.main');
-    if (main && !main.querySelector('.ex')) {
-      const ex = document.createElement('div');
-      ex.className = 'ex';
-      ex.textContent = (d && d.ex) || '';
-      main.appendChild(ex);
+      window.SDGRedraw.applyRow(row, { ex: (d && d.ex) || '' }, 'enrich');
     }
     removeSkeleton(row);
   }
   // （ex 槽位保持 enrich 自管——applyRow 的互斥只管封面，摘要槽位两源共享）
 
   // 入口：列表挂载后同步调用（骨架与挂载同任务→首帧即终版式；缓存命中/拉取在后续任务原地换真身）
+  // R10/EV-03：scope 必传（同 enrichHotFeed——forumdisplay 生产调用方已贯穿；自建回退曾产生未托管 scope）
   function enrichRows(shadowRoot, scope) {
     // E-04/E-05（v1.18.3）：scope 驱动——真串行（上一任务 settle 后再隔 gap）、可取消、
     // 预算切片先行（超预算项立即字块终态，杜绝孤儿骨架）；行定位用精确 tid 解析（防 tid=12 命中 123）。
-    const sc = scope || (window.SDGScope && window.SDGScope.create());
+    if (!scope) {
+      try { console.error('[sdg-enrich] enrichRows: page scope required (EV-03)'); } catch (e) { /* */ }
+      return;
+    }
+    const sc = scope;
+    if (sc.isDead()) return;
     const rows = [...shadowRoot.querySelectorAll('.trow')].filter((r) => !r.querySelector('img.thumb'));
-    if (!rows.length || !sc) return;
+    if (!rows.length) return;
     const candidates = [];
     rows.forEach((row) => {
       const a = row.querySelector('a.t');
@@ -200,9 +200,16 @@
   // 此处只做终态解析——图或字块二选一换入，槽位永在（卡片零位移）。
   // E-04/E-05：预算切片先行（超 cap 卡立即字块终态）、scope 真串行、精确 tid 定位。
   const HOT_BACKFILL_CAP = 3;
+  // R10/EV-03：scope 必传——自建 scope 会绕过 cancelAllScopes（v1.20.4 前的反例：
+  // 调用方 unmount 后该生产 scope 仍 dead=false，旧批次可继续发请求/写缓存）。
+  // 调用方不传属编程错误：开发态 console.error 可见，不静默自建。
   function enrichHotFeed(box, scope) {
-    const sc = scope || (window.SDGScope && window.SDGScope.create());
-    if (!sc) return;
+    if (!scope) {
+      try { console.error('[sdg-enrich] enrichHotFeed: page scope required (EV-03)'); } catch (e) { /* */ }
+      return;
+    }
+    const sc = scope;
+    if (sc.isDead()) return;
     const items = [...box.querySelectorAll('a.hitem')].filter((a) => a.querySelector('.sdg-skel-hthumb'));
     if (!items.length) return;
     const locate = (tid) => {
@@ -286,4 +293,5 @@
   window.SDGRedraw.enrichRows = enrichRows;
   window.SDGRedraw.enrichHotFeed = enrichHotFeed;
   window.SDGRedraw.parseThreadPage = parseThreadPage; // 单测导出
+  window.SDGRedraw.readCache = readCache; // 单测导出（RC-04/W-B3）
 })();

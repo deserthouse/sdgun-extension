@@ -11,6 +11,11 @@
     .feed .fhead2 { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
     .feed .fhead2 .ft { font-weight: 700; font-size: 15px; color: var(--text); }
     .feed .fhead2 .hsub { font-size: 12px; color: var(--text3); }
+    /* R15/EV-09：折叠开关（默认折叠，展开才拉取——折叠期零请求） */
+    .feed .fToggle { border: none; background: none; color: var(--text3); font-size: 12px;
+      cursor: pointer; padding: 4px 8px; margin-left: auto; border-radius: 6px; }
+    .feed .fToggle:hover { color: var(--accent); background: var(--surface2); }
+    .feed.collapsed .fitem { display: none; }
     .feed a.fitem { display: flex; gap: 10px; padding: 9px 10px; border: 1px solid var(--border);
       border-radius: 12px; text-decoration: none; margin-bottom: 8px; transition: background .12s, border-color .12s; }
     .feed a.fitem:last-child { margin-bottom: 0; }
@@ -28,7 +33,6 @@
       flex: none; transition: all .12s; }
     .feed .fitem button.fshare:hover { border-color: var(--accent); color: var(--accent); }
   `;
-  const FEED_TTL = 30 * 60e3;
   function firstFeedPic(item) {
     const arr = item && Array.isArray(item.pics_arr) ? item.pics_arr : [];
     for (const p of arr) {
@@ -39,12 +43,7 @@
   }
   function loadFeed(el, wrap, opts, scope) {
     try {
-      // 会话缓存（30min，A1：feed 组）
-      if (window.SDGCache) {
-        window.SDGCache.get('feed', 'all').then((c) => {
-          if (c && c.items && c.items.length) renderFeed(el, wrap, c.items);
-        });
-      }
+      const sc_dead = () => scope.isDead();
       // catId 解析：config.global_wap_index_cat_id → 空/无数据回退 cat=1；各一次，结果缓存
       const tryCat = (catId, fallback) => {
         scope.fetchJSON(`https://mag1.sdgun.net/mag/info/v2/channel/infoListByCatId?cat_id=${catId}&step=20&p=1`, 10000)
@@ -52,7 +51,7 @@
             if (sc_dead()) return;
             const list = d && Array.isArray(d.list) ? d.list : [];
             if (list.length) {
-              try { if (window.SDGCache) window.SDGCache.set('feedcat', 'all', String(catId)); } catch (e) { /* */ }
+              try { if (window.SDGCache) window.SDGCache.set(window.SDGCache.GROUPS.FEEDCAT, 'all', String(catId)); } catch (e) { /* */ }
               finish(list);
             } else if (fallback) {
               tryCat(fallback, null);
@@ -60,7 +59,6 @@
           })
           .catch(() => { if (fallback) tryCat(fallback, null); });
       };
-      const sc_dead = () => scope.isDead();
       const finish = (list) => {
         const items = list.slice(0, 8).map((it) => ({
           title: String(it.title || '').trim(),
@@ -75,25 +73,77 @@
             + (it.applaud_count ? ` · 👍 ${window.SDGApi ? window.SDGApi.parseWan(it.applaud_count) : it.applaud_count}` : ''),
         })).filter((x) => x.title);
         if (!items.length) return;
-        try { if (window.SDGCache) window.SDGCache.set('feed', 'all', items); } catch (e) { /* */ }
-        scope.delay(0, () => { if (!scope.isDead()) renderFeed(el, wrap, items); });
+        // R9/EV-02：DTO {items}（此前写裸数组、读侧要求 c.items，缓存永不命中）
+        try { if (window.SDGCache) window.SDGCache.set(window.SDGCache.GROUPS.FEED, 'all', { items }); } catch (e) { /* */ }
+        scope.delay(0, () => { if (!scope.isDead()) renderFeed(el, wrap, items, toggleState); });
       };
-      let preferred = '1';
-      try { preferred = (window.SDGCache && window.SDGCache.getSync('feedcat', 'all')) || preferred; } catch (e) { /* */ }
-      // config 只在无缓存且未解析过频道时取（+1 请求，会话一次）
-      scope.fetchJSON('https://mag1.sdgun.net/mag/index/v2/Index/config', 10000).then((d) => {
-        if (sc_dead()) return;
-        const cfg = d && d.data ? d.data : {};
-        const cfgCat = String(cfg.global_wap_index_cat_id || '').trim();
-        tryCat(cfgCat && cfgCat !== '0' ? cfgCat : '1', cfgCat === '1' ? null : '1');
-      }).catch(() => tryCat(preferred, null));
+      // R9/EV-02：缓存命中 → 渲染即止（不再拉 config/频道）；未命中且 feedcat 已解析 →
+      // 直接拉已解析频道；仅"无缓存且频道未知"才 +1 config 请求（旧代码无条件拉 config，
+      // 注释声称"会话一次"与实现不符）。stale=TTL 过期即 miss，不做后台刷新。
+      const startFetch = () => {
+        let resolved = '';
+        try { resolved = (window.SDGCache && window.SDGCache.getSync(window.SDGCache.GROUPS.FEEDCAT, 'all')) || ''; } catch (e) { /* */ }
+        if (resolved && resolved !== '0') { tryCat(resolved, null); return; }
+        scope.fetchJSON('https://mag1.sdgun.net/mag/index/v2/Index/config', 10000).then((d) => {
+          if (sc_dead()) return;
+          const cfg = d && d.data ? d.data : {};
+          const cfgCat = String(cfg.global_wap_index_cat_id || '').trim();
+          tryCat(cfgCat && cfgCat !== '0' ? cfgCat : '1', cfgCat === '1' ? null : '1');
+        }).catch(() => tryCat('1', null));
+      };
+      // R15/EV-09：默认折叠——折叠期零请求（拉取推迟到首次展开）；展开态会话内记忆
+      let expanded = false;
+      try { expanded = sessionStorage.getItem('sdg_fd_open') === '1'; } catch (e) { /* */ }
+      let dataDone = false;
+      let pendingData = false; // 折叠期缓存 miss，展开后需拉取
+      const toggleState = {
+        get expanded() { return expanded; },
+        onToggle: () => {
+          expanded = !expanded;
+          try { sessionStorage.setItem('sdg_fd_open', expanded ? '1' : '0'); } catch (e) { /* */ }
+          const bx = wrap.querySelector('.feed');
+          if (expanded) {
+            if (!dataDone) {
+              dataDone = true;
+              if (pendingData) startFetch();
+              else tryLoad();
+            } else if (bx) bx.classList.remove('collapsed');
+          } else if (bx) {
+            bx.classList.add('collapsed');
+          }
+        },
+      };
+      const tryLoad = () => {
+        // 缓存优先（命中即渲染零请求）；miss 记 pending，按折叠态决定立即拉或推迟
+        if (window.SDGCache) {
+          window.SDGCache.get(window.SDGCache.GROUPS.FEED, 'all').then((c) => {
+            if (sc_dead()) return;
+            if (c && Array.isArray(c.items) && c.items.length) {
+              dataDone = true;
+              renderFeed(el, wrap, c.items, toggleState);
+              return;
+            }
+            pendingData = true;
+            if (expanded) { dataDone = true; startFetch(); }
+          });
+        } else {
+          dataDone = true;
+          startFetch();
+        }
+      };
+      // 初始：展开 → 取数据；折叠（默认）→ 仅头部壳，零请求
+      if (expanded) { dataDone = true; tryLoad(); }
+      else renderFeed(el, wrap, null, toggleState);
     } catch (e) { /* feed 失败静默 */ }
   }
-  function renderFeed(el, wrap, items) {
+  function renderFeed(el, wrap, items, toggle) {
     try {
-      if (wrap.querySelector('.feed')) return; // 单例
-      const box = el('div', { class: 'feed' });
-      wrap.insertBefore(box, wrap.querySelector('.group-title, .card, .hint'));
+      let box = wrap.querySelector('.feed');
+      const shellOnly = !items; // R15/EV-09：折叠壳（仅头部，零请求零位移）
+      if (!box) {
+        box = el('div', { class: 'feed' });
+        wrap.insertBefore(box, wrap.querySelector('.group-title, .card, .hint'));
+      }
       const host = wrap.getRootNode().host;
       if (host && !host.dataset.feedCss) {
         host.dataset.feedCss = '1';
@@ -101,10 +151,20 @@
         st.textContent = FEED_CSS;
         host.shadowRoot.appendChild(st);
       }
-      box.appendChild(el('div', { class: 'fhead2' }, [
+      box.textContent = '';
+      const head = el('div', { class: 'fhead2' }, [
         el('span', { class: 'ft', text: '官方精选' }),
         el('span', { class: 'hsub', text: '编辑推荐 · mag 资讯' }),
-      ]));
+      ]);
+      if (toggle) {
+        const btn = el('button', { class: 'fToggle', text: toggle.expanded ? '收起 ▴' : '展开 ▾',
+          title: '默认折叠；展开时才拉取数据' });
+        btn.addEventListener('click', toggle.onToggle);
+        head.appendChild(btn);
+      }
+      box.appendChild(head);
+      if (shellOnly) { box.classList.add('collapsed'); return; }
+      box.classList.toggle('collapsed', !(toggle && toggle.expanded));
       items.forEach((it) => {
         const a = el('a', { class: 'fitem', href: it.href });
         if (it.img) {

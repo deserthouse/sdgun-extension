@@ -19,6 +19,8 @@
     .river a.ritem .rt2 { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .river a.ritem .rd { flex: none; color: var(--text3); font-size: 12.5px; }
     .river .rempty { padding: 6px 18px 12px; color: var(--text3); font-size: 13px; }
+    .river a.rmore { color: var(--text3); font-size: 12.5px; justify-content: flex-end; }
+    .river a.rmore:hover { color: var(--accent); }
   `;
   const RIVER_FID = 39;      // 站务公告——站方公告流，作为"最近动态"源
   const RIVER_URL = `forum.php?mod=forumdisplay&fid=${RIVER_FID}&mobile=2`;
@@ -53,7 +55,7 @@
   function boardNameOf(fid) {
     try {
       // A1（v1.20.0）：读 SDGCache tree 组（getSync 同步快路径；异步 mirror 未回填时自然缺名）
-      const groups = window.SDGCache && window.SDGCache.getSync('tree', 'all');
+      const groups = window.SDGCache && window.SDGCache.getSync(window.SDGCache.GROUPS.TREE, 'all');
       for (const g of (groups || [])) {
         for (const b of g.secs || []) if (String(b.fid) === String(fid)) return b.name;
       }
@@ -81,12 +83,18 @@
       box.appendChild(el('div', { class: 'rempty', text: '暂未获取到（服务器不稳时常见）' }));
       return;
     }
-    items.forEach((it) => {
+    // R15/EV-09：首页公告摘要 ≤3 条，全部入口进 fid=39（不默认长串铺开）
+    items.slice(0, 3).forEach((it) => {
       const a = el('a', { class: 'ritem', href: it.href });
       a.appendChild(el('span', { class: 'rt2', text: it.t }));
       if (it.d) a.appendChild(el('span', { class: 'rd', text: B.util.toRelative(it.d) || it.d }));
       box.appendChild(a);
     });
+    if (items.length > 3) {
+      const more = el('a', { class: 'ritem rmore', href: RIVER_URL, title: '进入站务公告板块查看全部' });
+      more.appendChild(el('span', { class: 'rt2', text: `查看全部公告（${items.length} 条）→` }));
+      box.appendChild(more);
+    }
   }
 
   function loadRiver(el, wrap, opts, scope, force) {
@@ -112,7 +120,7 @@
       // 缓存优先（A1：river 组 getSync 快路径）
       let items = [];
       try {
-        const cached = window.SDGCache && window.SDGCache.getSync('river', 'all');
+        const cached = window.SDGCache && window.SDGCache.getSync(window.SDGCache.GROUPS.RIVER, 'all');
         if (cached) items = cached.slice(0, 10);
       } catch (e) { /* */ }
       const done = force ? false : !!sessionStorage.getItem('sdg_river_done');
@@ -130,7 +138,7 @@
           const parsed = html ? parseRiverItems(html) : [];
           if (parsed.length) {
             // A1（v1.20.0）：SDGCache river 组（mirror 双写，rightrail 经镜像读）
-            if (window.SDGCache) window.SDGCache.set('river', 'all', parsed);
+            if (window.SDGCache) window.SDGCache.set(window.SDGCache.GROUPS.RIVER, 'all', parsed);
             renderRiver(box, el, parsed, opts);
           } else if (attempt === 0) {
             retry(1); // 服务器壳响应（结构在数据缺）：4 秒后自动补一枪

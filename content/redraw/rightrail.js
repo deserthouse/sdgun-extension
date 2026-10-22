@@ -167,10 +167,14 @@
 
   // 列表页右栏：公告卡（数据=内容河缓存 fid=39 最新帖；会话无缓存时读跨标签镜像；都无则隐藏右栏）
   function mountNoticeRail(opts) {
+    // R15/EV-09→AR-P0/VR-1：首页主列已有公告河——右栏公告卡跳过（去重）。
+    // 判据用页型类（html 上的 sdg-page-forumlist，light DOM 可查）——此前查 '.river' 在
+    // sdg-redraw-list 的 shadowRoot 内，document.querySelector 穿不透，守卫恒假（VR-1）。
+    if (document.documentElement.classList.contains('sdg-page-forumlist')) return false;
     let items = [];
     try {
       // A1（v1.20.0）：SDGCache river 组（getSync 快路径）
-      const cached = window.SDGCache && window.SDGCache.getSync('river', 'all');
+      const cached = window.SDGCache && window.SDGCache.getSync(window.SDGCache.GROUPS.RIVER, 'all');
       if (cached) items = cached.slice(0, 8);
     } catch (e) { /* ignore */ }
     if (items.length) return buildNoticeRail(items, opts);
@@ -178,7 +182,7 @@
     // ER-07（v1.19.6）：回调先查宿主/开关仍健康——关闭重绘/卸载后不得复活
     try {
       if (window.SDGCache) {
-        window.SDGCache.get('river', 'all').then((items2) => {
+        window.SDGCache.get(window.SDGCache.GROUPS.RIVER, 'all').then((items2) => {
           try {
             if (!document.getElementById('sdg-redraw-list')) return; // 主重绘已卸载（关开关/换页）→ 不复活
             if (!document.documentElement.classList.contains('sdg-redraw-active')) return;

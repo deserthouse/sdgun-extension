@@ -86,23 +86,31 @@
   }
 
   // ---- 行数据升级（forumdisplay 消费）：按 tid 建索引，只保留渲染需要的字段。
-  // click 保留格式化字符串（"1.4万"/"28"）用于渲染；数值请用 parseWan ----
+  // click 保留格式化字符串（"1.4万"/"28"）用于渲染；数值请用 parseWan。
+  // R12/EV-07：cover/pics 双 URL——缩略（imageView2/240，列表用）+ 原图（灯箱用）；
+  // v1.20.2~1.20.3 只存缩略 URL 丢掉了原图引用，列表灯箱只能放大 240px 小图 ----
   function indexThreads(list) {
     const map = {};
     for (const it of list || []) {
-      if (it && it.tid != null) map[String(it.tid)] = {
-        cover: thumbUrl((Array.isArray(it.pics) && it.pics[0]) || '', 240),
-        pics: (Array.isArray(it.pics) ? it.pics : []).slice(0, 3).map((u) => thumbUrl(u, 240)),
-        videos: Array.isArray(it.videos) ? it.videos.length : 0,
-        authorHead: httpsImg(it.user_head || ''),
-        click: String(it.click || '').replace(/阅读\s*$/, ''),
-        replies: String(it.reply_count || '').replace(/\D/g, ''),
-        relative: it.dateline || '',
-        lastpost: it.last_reply_time || '',
-        applaud: String(it.applaud_count || '').replace(/\D/g, ''),
-        typeid: it.typeid || '',
-        isTop: it.is_top === 1,
-      };
+      if (it && it.tid != null) {
+        const rawPics = Array.isArray(it.pics) ? it.pics : [];
+        const rawCover = rawPics[0] || '';
+        map[String(it.tid)] = {
+          cover: thumbUrl(rawCover, 240),
+          coverOrig: httpsImg(rawCover),
+          pics: rawPics.slice(0, 3).map((u) => thumbUrl(u, 240)),
+          picsOrig: rawPics.slice(0, 3).map((u) => httpsImg(u)),
+          videos: Array.isArray(it.videos) ? it.videos.length : 0,
+          authorHead: httpsImg(it.user_head || ''),
+          click: String(it.click || '').replace(/阅读\s*$/, ''),
+          replies: String(it.reply_count || '').replace(/\D/g, ''),
+          relative: it.dateline || '',
+          lastpost: it.last_reply_time || '',
+          applaud: String(it.applaud_count || '').replace(/\D/g, ''),
+          typeid: it.typeid || '',
+          isTop: it.is_top === 1,
+        };
+      }
     }
     return map;
   }

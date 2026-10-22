@@ -112,7 +112,7 @@ const SDG = {
     pagerPrevByClass: 'a.prev',
     pagerNextByText: '下一页',
     pagerPrevByText: '上一页',
-    filterLinks: 'a[href*="filter="], a[href*="orderby="]',
+    filterLinks: 'a[href*="filter="], a[href*="orderby="], a[href*="typeid="]',
     viewthreadAnchor: 'a[href*="mod=viewthread"]',
   },
 
