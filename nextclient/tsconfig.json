@@ -1,0 +1,12 @@
+{
+  "extends": "./.wxt/tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": { "zod": ["./node_modules/zod"] }
+  },
+  "include": ["entrypoints", "wxt.config.ts", ".wxt/wxt.d.ts"]
+}

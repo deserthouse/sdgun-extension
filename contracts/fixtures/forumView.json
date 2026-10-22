@@ -1,0 +1,33 @@
+{
+  "_meta": "shape-true fixture (E1-5 real-shape correction 2026-10-22): TOP-LEVEL list envelope {success,code:100,msg,list,toplist}; no data wrapper; synthetic values",
+  "success": true,
+  "code": 100,
+  "msg": null,
+  "list": [
+    {
+      "tid": "101",
+      "fid": "39",
+      "subject": "夹具主题甲",
+      "des": "摘要占位",
+      "user_id": "1",
+      "user_name": "u1",
+      "pics": "[]",
+      "pics_count": "0",
+      "reply_count": "3",
+      "click": "1.2万阅读",
+      "dateline": "09-27",
+      "lastpost": "昨天23:43",
+      "is_top": false,
+      "typeid": "0"
+    },
+    {
+      "tid": "102",
+      "fid": "39",
+      "subject": "夹具主题乙",
+      "user_name": "u2",
+      "reply_count": "0",
+      "is_top": true
+    }
+  ],
+  "toplist": []
+}

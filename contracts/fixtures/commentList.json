@@ -1,0 +1,32 @@
+{
+  "_meta": "shape-true fixture (E1-5 real-shape correction): TOP-LEVEL envelope {success,code,msg,list,page,total_page,step,count}; floors are STRINGS starting at 2 (C01a); row key id (pid is legacy); content=HTML cleaned client-side",
+  "success": true,
+  "code": 100,
+  "msg": null,
+  "page": 1,
+  "total_page": 3,
+  "step": 10,
+  "count": 24,
+  "list": [
+    {
+      "id": "90001",
+      "tid": "101",
+      "floor": "2",
+      "content": "<p>夹具楼层正文</p><img src=\"https://picapp.sdgun.net/a.jpg\">",
+      "user_name": "u2",
+      "user_head": "",
+      "is_publisher": false,
+      "time": "09-27",
+      "applaud_count": "0"
+    },
+    {
+      "id": "90002",
+      "tid": "101",
+      "floor": "3",
+      "content": "<p>引用层</p>",
+      "user_name": "u3",
+      "is_publisher": true,
+      "time": "09-27"
+    }
+  ]
+}

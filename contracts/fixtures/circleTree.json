@@ -1,0 +1,36 @@
+{
+  "_meta": "shape-true fixture: TOP-LEVEL list of groups {id,name,circle_list:[{type_value=fid,...}]}; 5 groups live; synthetic 2 groups here",
+  "success": true,
+  "code": 100,
+  "msg": null,
+  "list": [
+    {
+      "id": 22,
+      "name": "公告",
+      "circle_list": [
+        {
+          "id": 111,
+          "type": 1,
+          "type_value": "39",
+          "name": "站务公告",
+          "icon_url": "",
+          "des": ""
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "name": "总分区",
+      "circle_list": [
+        {
+          "id": 120,
+          "type": 1,
+          "type_value": "153",
+          "name": "卫星区",
+          "icon_url": "",
+          "des": ""
+        }
+      ]
+    }
+  ]
+}

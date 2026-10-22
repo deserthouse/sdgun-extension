@@ -1,0 +1,48 @@
+/* E1-5 页面样式（令牌引用） */
+.card { display: block; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; text-decoration: none;
+  color: var(--text); }
+.card-title { font-size: 14.5px; font-weight: 600; line-height: 1.5; }
+.card-sub { font-size: 13px; color: var(--text2); margin-top: 4px; line-height: 1.5; }
+.card-meta { font-size: 12px; color: var(--text3); margin-top: 6px; }
+.info-card:hover, .thread-row:hover, .board-card:hover { border-color: var(--accent); }
+.thread-row { display: flex; gap: 10px; align-items: baseline; }
+.pin { flex: none; font-size: 11px; color: var(--accent); border: 1px solid var(--accent);
+  border-radius: 6px; padding: 1px 6px; }
+.chiprow { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.chip { border: 1px solid var(--border2); border-radius: 999px; padding: 5px 14px;
+  font-size: 13px; color: var(--text2); text-decoration: none; }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.board-card { display: flex; gap: 10px; align-items: center; }
+.board-icon { width: 40px; height: 40px; border-radius: 10px; object-fit: cover;
+  background: var(--surface2); flex: none; }
+.board-icon-empty { display: flex; align-items: center; justify-content: center;
+  color: var(--text2); font-weight: 700; }
+.skel-row { height: 64px; border-radius: 12px; margin-bottom: 8px;
+  background: linear-gradient(90deg, var(--surface2), var(--surface), var(--surface2)); }
+.state-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 20px; color: var(--text2); font-size: 14px; margin-bottom: 8px; }
+.btn { background: var(--surface); color: var(--text2); border: 1px solid var(--border2);
+  border-radius: 8px; padding: 6px 14px; font-size: 13px; cursor: pointer; }
+.btn:not(:disabled):hover { border-color: var(--accent); color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: default; }
+/* G2：楼层/正文/响应式 */
+.floor { border-left: 3px solid var(--surface2); }
+.content-html { font-size: 14.5px; line-height: 1.7; color: var(--text); margin-top: 6px;
+  word-break: break-word; }
+.content-html img { border-radius: 8px; margin: 6px 0; }
+.content-html blockquote { border-left: 3px solid var(--border2); margin: 8px 0;
+  padding: 4px 12px; color: var(--text2); background: var(--surface2); border-radius: 6px; }
+/* <900px：导航收窄为 rail（总设计 760~999 单内容+收起导航） */
+@media (max-width: 899px) {
+  .shell { grid-template-columns: 64px 1fr !important; }
+  .nav-collapse { display: none !important; }
+}
+
+/* G6：shell 布局入类（媒体查询可覆盖；grid 不可留在内联——优先级压过媒体查询） */
+.shell { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh;
+  background: var(--bg); color: var(--text);
+  font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; }
+/* 导航列 sticky（长帖滚动时导航常驻） */
+.navcol { position: sticky; top: 0; height: 100vh; overflow-y: auto; }

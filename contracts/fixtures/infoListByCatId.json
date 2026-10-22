@@ -1,0 +1,20 @@
+{
+  "_meta": "shape-true fixture: TOP-LEVEL list + cat_name; id=InfoId namespace; live cat_id=7 returned 1 item",
+  "success": true,
+  "code": 100,
+  "msg": null,
+  "cat_name": "资讯",
+  "list": [
+    {
+      "id": 55101,
+      "title": "夹具资讯甲",
+      "des": "占位",
+      "from": "",
+      "publish_time_str": "09-27",
+      "user_name": "u9",
+      "comment_count": "1",
+      "pics_count": "0",
+      "type_value": "39"
+    }
+  ]
+}

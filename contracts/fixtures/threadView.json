@@ -1,0 +1,12 @@
+{
+  "_meta": "synthetic; title is the single source of thread title (C01a); shape sample not full 40-field dump",
+  "success": true,
+  "data": {
+    "title": "夹具主楼标题",
+    "tid": 101,
+    "content": "<p>主楼正文</p>",
+    "author": {
+      "id": 1
+    }
+  }
+}

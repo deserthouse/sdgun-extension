@@ -1,0 +1,103 @@
+// C01 扩展侧端点登记表（G0/N-5）。对齐：Android 侧 C01a 定案（docs/g0_android_contracts_2026-10-21.md）
+// + 服务器全量测绘（docs/server_topology_full_2026-10-21.md，8f83b785）。
+// 纪律：只登记已验证 host+path 组合；不猜版本互通（app 与 mag1 在已对照 v1 路径行为一致，
+// 但不因此互换）；GET 也可能非只读——语义副作用按测绘口径逐端点声明。
+import { z } from 'zod';
+import * as S from './schemas';
+
+export type SideEffect = 'read-only' | 'read-may-mutate' | 'write';
+
+export interface EndpointDef {
+  endpointId: string;
+  method: 'GET' | 'POST';
+  host: 'app.sdgun.com.cn' | 'mag1.sdgun.net';
+  path: string; // 精确路径（不含 query）
+  sideEffect: SideEffect;
+  auth: 'guest-ok' | 'token-required';
+  pagination: 'page' | 'none';
+  response: z.ZodTypeAny;
+  notes: string;
+}
+
+export const ENDPOINTS: Record<string, EndpointDef> = {
+  forumView: {
+    endpointId: 'forumView',
+    method: 'GET',
+    host: 'app.sdgun.com.cn',
+    path: '/mag/circle/v1/forum/forumView',
+    sideEffect: 'read-only',
+    auth: 'guest-ok',
+    pagination: 'page',
+    response: S.ForumViewResp,
+    notes: '列表行含 des/pics/is_top/typeid/applaud_count；meta page/total_page/count。游客实测通（R-A0）。',
+  },
+  commentList: {
+    endpointId: 'commentList',
+    method: 'GET',
+    host: 'app.sdgun.com.cn',
+    path: '/mag/circle/v1/Forum/commentList',
+    sideEffect: 'read-only',
+    auth: 'guest-ok',
+    pagination: 'page',
+    response: S.CommentListResp,
+    notes: '恒从 floor=2 起（主楼由 threadView 独立承载，C01a）；order=2 正序/1 倒序；authorid=只看楼主；step 被服务端忽略。',
+  },
+  threadView: {
+    endpointId: 'threadView',
+    method: 'GET',
+    host: 'app.sdgun.com.cn',
+    path: '/mag/circle/v1/forum/threadView',
+    sideEffect: 'read-only',
+    auth: 'guest-ok',
+    pagination: 'none',
+    response: S.ThreadViewResp,
+    notes: '主楼独立端点（C01a 定案，title 唯一源，40 字段形态）；夹具为形态采样非全字段。',
+  },
+  circleTree: {
+    endpointId: 'circleTree',
+    method: 'GET',
+    host: 'app.sdgun.com.cn',
+    path: '/mag/circle/v1/Circle/circleTree',
+    sideEffect: 'read-only',
+    auth: 'guest-ok',
+    pagination: 'none',
+    response: S.CircleTreeResp,
+    notes: '游客全量 5 分组树（8f83b785 修正：树活着）；type_value=论坛 fid，circle id 独立保存。',
+  },
+  userMessageGroupList: {
+    endpointId: 'userMessageGroupList',
+    method: 'POST',
+    host: 'mag1.sdgun.net',
+    path: '/mag/user/v1/UserNotify/userMessageGroupList',
+    sideEffect: 'read-may-mutate', // 消息读取可能标已读——读取副作用单列（总设计 §3 F21）
+    auth: 'token-required',
+    pagination: 'page',
+    response: S.MsgGroupResp,
+    notes: 'G3 实测当前账号空列表（合法空）；详情端点参数待 G3+ 补测。',
+  },
+  userNotifyIndex: {
+    endpointId: 'userNotifyIndex',
+    method: 'POST',
+    host: 'mag1.sdgun.net',
+    path: '/mag/user/v1/UserNotify/userNotifyIndex',
+    sideEffect: 'read-may-mutate',
+    auth: 'token-required',
+    pagination: 'none',
+    response: S.NotifyResp,
+    notes: '通知分类索引；同上空容忍。',
+  },
+  infoListByCatId: {
+    endpointId: 'infoListByCatId',
+    method: 'GET',
+    host: 'mag1.sdgun.net',
+    path: '/mag/info/v2/channel/infoListByCatId',
+    sideEffect: 'read-only',
+    auth: 'guest-ok',
+    pagination: 'page',
+    response: S.InfoListResp,
+    notes: 'mag1 资讯流（游客全开，R-A0 既有）；mag1 域与 app 域不互换版本/路径。',
+  },
+};
+
+// ID 命名空间（总设计 §4）：fid/circleId/tid/pid/ShowContentId/InfoId 互不混用
+export type IdNamespace = 'fid' | 'circleId' | 'tid' | 'pid' | 'showContentId' | 'infoId';
