@@ -102,8 +102,34 @@ function MessagesAuthed() {
               <div className="card-sub">{String(notify.service.content ?? '')}</div>
             </div>
           ) : null}
+          <NotifyHistory />
         </div>
       )}
+    </div>
+  );
+}
+
+// C4-1 通知历史（notifyList v3）：端点为 read-may-mutate——读取可能触发站方已读
+// 上报（如实披露）；响应整体信封待真数据验证（C4 凭据批），当前渲染行公共字段。
+function NotifyHistory() {
+  const nl = useEndpoint('notifyList', { p: 1 });
+  const rows = ((nl.data as any)?.list ?? []) as any[];
+  return (
+    <div data-test="notify-history" style={{ marginTop: 16 }}>
+      <h2 style={{ fontSize: 15, color: 'var(--text2)', margin: '0 0 8px' }}>
+        通知历史 <StateBadge state={nl.state} />
+      </h2>
+      <StateBlock state={nl.state} fail={nl.fail} onRetry={() => nl.refetch()} skeletonRows={3} />
+      {nl.state !== 'InitialLoading' && rows.map((n, i) => (
+        <div key={String(n.id ?? n.notifyId ?? i)} className="card" data-test="notify-row">
+          <div className="card-title">{String(n.title ?? '(通知)')}</div>
+          {n.content ? <div className="card-sub">{String(n.content).slice(0, 80)}</div> : null}
+          <div className="card-meta">{String(n.time ?? '')}</div>
+        </div>
+      ))}
+      <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 6 }}>
+        读取通知列表可能触发站方已读上报（消息族端点副作用如实披露）。
+      </p>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { applyTheme, setThemeMode, themeMode, watchSystemTheme, type ThemeMode } from '../../lib/theme';
-import { epochProbe, epochStart, type EpochProbe } from '../../lib/epoch';
+import { epochProbe, type EpochProbe } from '../../lib/epoch';
 import { setTakeoverEnabled, takeoverEnabled } from '../../lib/switch';
 import { BoardPage, CommunityPage, FocusPage, MyPage } from './pages';
 import { MessagesPage } from './messages';
@@ -14,23 +15,26 @@ const TABS = [
   { id: 'my', label: '我的' },
 ] as const;
 
-function currentRoute(): { name: string; param?: string } {
+function currentRoute(): { name: string; param?: string; param2?: string } {
   const h = location.hash.replace(/^#\/?/, '');
   const board = h.match(/^board\/(\d+)/);
   if (board) return { name: 'board', param: board[1] };
-  const thread = h.match(/^thread\/(\d+)/);
-  if (thread) return { name: 'thread', param: thread[1] };
-  if (h === 'editor') return { name: 'editor' };
+  const thread = h.match(/^thread\/(\d+)(?:\/(\d+))?/);
+  if (thread) return { name: 'thread', param: thread[1], param2: thread[2] };
+  const editor = h.match(/^editor(?:\?tid=(\d+))?/); // C1-5：#/editor?tid=N=回复模式
+  if (editor) return { name: 'editor', param: editor[1] };
   if (h === 'settings') return { name: 'settings' };
   if (TABS.some((t) => t.id === h)) return { name: h };
   return { name: 'focus' };
 }
 
 export default function App() {
-  const [route, setRoute] = useState<{ name: string; param?: string }>(currentRoute);
+  const [route, setRoute] = useState<{ name: string; param?: string; param2?: string }>(currentRoute);
   const [probe, setProbe] = useState<EpochProbe | null>(null);
   const [mode, setMode] = useState<ThemeMode>(themeMode);
   const [takeover, setTakeover] = useState<boolean | null>(null); // null=未读
+  const [cacheMsg, setCacheMsg] = useState('');
+  const qc = useQueryClient();
 
   useEffect(() => { takeoverEnabled().then(setTakeover).catch(() => setTakeover(false)); }, []);
 
@@ -44,16 +48,35 @@ export default function App() {
 
   useEffect(() => {
     let alive = true;
+    // 诊断探针只读（epochStart 已移入 SessionProvider ready 守卫——C3-4）
     epochProbe()
-      // E1-5：客户端启动自动开游客会话（装游客 UA 规则）；已有 epoch 不覆盖
-      .then((p0) => (p0 && p0.epoch ? p0 : epochStart(`guest-${Date.now().toString(36)}`)))
-      .then((p) => { if (alive && p && 'ok' in (p as object)) setProbe(p as EpochProbe); })
+      .then((p) => { if (alive) setProbe(p); })
       .catch(() => {});
     return () => { alive = false; };
   }, [route]);
 
   const tab = TABS.find((t) => t.id === route.name) ?? TABS[0];
   const isTab = TABS.some((t) => t.id === route.name);
+
+  // C1-6 清除本机缓存：查询缓存（内存）+ localStorage sdg2.* 残留键。
+  // 草稿（sdg2.draft.*，用户内容）与主题（sdg2.theme，偏好）明确保留——
+  // 计划原字面「清 sdg2.*」会连用户草稿一起删，收窄（auth/epoch=登出语义不动）。
+  function clearCache() {
+    qc.clear();
+    let n = 0;
+    try {
+      const kill: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('sdg2.') && !k.startsWith('sdg2.draft.') && k !== 'sdg2.theme') {
+          kill.push(k);
+        }
+      }
+      kill.forEach((k) => localStorage.removeItem(k));
+      n = kill.length;
+    } catch { /* 存储不可用时仅清内存缓存 */ }
+    setCacheMsg(`已清除查询缓存${n > 0 ? `与 ${n} 项残留键` : ''}（草稿与主题保留）`);
+  }
 
   return (
     <>
@@ -100,9 +123,9 @@ export default function App() {
         {route.name === 'board'
           ? <BoardPage key={route.param} fid={route.param!} />
           : route.name === 'thread'
-          ? <ThreadPage key={route.param} tid={route.param!} />
+          ? <ThreadPage key={route.param} tid={route.param!} pid={route.param2} />
           : route.name === 'editor'
-          ? <EditorPage />
+          ? <EditorPage key={route.param ?? 'compose'} tid={route.param} />
           : route.name === 'settings'
           ? (
             <div data-test="settings-page" style={{ maxWidth: 520 }}>
@@ -126,6 +149,16 @@ export default function App() {
                   checked={takeover === true} disabled={takeover === null}
                   onChange={(e) => { const v = e.target.checked; setTakeover(v); setTakeoverEnabled(v); }} />
               </div>
+              <div className="card" style={{ display: 'flex', alignItems: 'center',
+                justifyContent: 'space-between' }}>
+                <label style={{ fontSize: 14 }} htmlFor="clear-cache-btn">清除本机缓存</label>
+                <button id="clear-cache-btn" className="btn" data-test="clear-cache"
+                  onClick={clearCache}>清除</button>
+              </div>
+              {cacheMsg && (
+                <p data-test="clear-cache-msg" style={{ fontSize: 12.5, color: 'var(--text3)',
+                  margin: '8px 2px' }}>{cacheMsg}</p>
+              )}
               <p style={{ fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.6 }}>
                 站点接管开启后，论坛页面将改由本客户端渲染（当前版本尚未接线，开启无效果）。
               </p>

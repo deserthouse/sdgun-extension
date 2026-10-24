@@ -1,9 +1,9 @@
 // M6-B 编辑器页：标题/板块/正文/附件占位/预览 + 诚实提交（写面封存）。
 // 测试经 __broker.register 合成端点 + host override 走全状态机；产品构建提交禁用。
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useEndpoint } from '../../lib/queries';
 import { sanitizeContent } from '../../lib/sanitize';
-import { draftKey, GUEST_OWNER } from '../../lib/draft';
+import { draftKey, loadReplyDraftText, saveReplyDraftText, GUEST_OWNER } from '../../lib/draft';
 import { getAuth, type AuthInfo } from '../../lib/auth';
 import { runMutation, type MutationState } from '../../lib/mutation';
 import { StateBlock } from './StateBlock';
@@ -15,8 +15,9 @@ type SubmitState =
   | { phase: 'busy'; state: MutationState }
   | { phase: 'done'; state: MutationState; msg?: string };
 
-export function EditorPage() {
-  const tree = useEndpoint('circleTree');
+// tid 模式（C1-5）：从帖子页「回复」进入——无标题/板块选择（目标已定），
+// 草稿与帖子页 ReplyDraft 共用 owner+tid 键（loadReplyDraftText 统一格式）。
+export function EditorPage({ tid }: { tid?: string }) {
   const [auth, setAuth] = useState<AuthInfo | null>(null);
   const [title, setTitle] = useState('');
   const [board, setBoard] = useState('');
@@ -31,49 +32,66 @@ export function EditorPage() {
   }, []);
 
   const owner = auth ? `u${auth.userId}` : GUEST_OWNER;
-  const draftK = draftKey(owner, 'editor');
-  const dLoaded = useRef(false);
+  const replyMode = Boolean(tid);
+  const draftK = replyMode ? draftKey(owner, tid!) : draftKey(owner, 'editor');
+  // E24-04 修复：key=null（身份未 ready）→ 不加载也不允许编辑；
+  // key 变化 → 无条件恢复存值或清空（不做 dLoaded 单次封死——异步 auth 变化会换 key）
+  const identityReady = draftK !== null;
 
   useEffect(() => {
-    if (dLoaded.current) return;
-    dLoaded.current = true;
-    const saved = localStorage.getItem(draftK);
-    if (saved) {
-      try {
+    if (!draftK) return;
+    if (replyMode) {
+      const c = loadReplyDraftText(draftK);
+      setContent(c);
+      setTitle('');
+      setBoard('');
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(draftK);
+      if (saved) {
         const d = JSON.parse(saved);
         setTitle(d.title ?? '');
         setContent(d.content ?? '');
         setBoard(d.board ?? '');
-      } catch { /* 损坏草稿按空处理 */ }
-    }
-  }, [draftK]);
+      } else {
+        setTitle('');
+        setContent('');
+        setBoard('');
+      }
+    } catch { setTitle(''); setContent(''); setBoard(''); }
+  }, [draftK, replyMode]);
 
   function saveDraft(t: string, b: string, c: string) {
-    localStorage.setItem(draftK, JSON.stringify({ title: t, board: b, content: c }));
+    if (!draftK) return;
+    if (replyMode) saveReplyDraftText(draftK, c);
+    else localStorage.setItem(draftK, JSON.stringify({ title: t, board: b, content: c }));
   }
 
-  const boards = useMemo(() => {
-    const out: { fid: string; name: string }[] = [];
-    for (const g of (tree.data as any)?.list ?? []) {
-      for (const c of g.circle_list ?? []) out.push({ fid: String(c.type_value), name: c.name });
-    }
-    return out;
-  }, [tree.data]);
-
-  const canSubmit = title.trim() && content.trim() && board;
+  const canSubmit = replyMode ? content.trim() : (title.trim() && content.trim() && board);
 
   async function doSubmit() {
     if (!canSubmit || submit.phase === 'busy') return;
     setSubmit({ phase: 'busy', state: 'Validating' });
+    // C2-3：回复模式走 synthetic.replyAdd（tid+content）；Confirmed=已发布（合成）→ 清草稿
+    // （已发布内容不应留作草稿）；OutcomeUnknown=结果未知 → 草稿保留。
     const r = await runMutation({
-      endpointId: 'synthetic.threadAdd',
+      endpointId: replyMode ? 'synthetic.replyAdd' : 'synthetic.threadAdd',
       validate: () => {
+        if (replyMode) {
+          if (!content.trim()) throw new Error('回复内容不能为空');
+          return;
+        }
         if (!title.trim()) throw new Error('标题不能为空');
         if (!content.trim()) throw new Error('正文不能为空');
       },
-      params: { title, board, content },
+      params: replyMode ? { tid: tid!, content } : { title, board, content },
       timeoutMs: 8000,
     });
+    if (replyMode && r.state === 'Confirmed' && draftK) {
+      localStorage.removeItem(draftK);
+      setContent('');
+    }
     setSubmit({ phase: 'done', state: r.state, msg: r.msg });
   }
 
@@ -85,28 +103,25 @@ export function EditorPage() {
 
   return (
     <div data-test="editor" style={{ maxWidth: 720 }}>
-      <div className="card">
-        <label style={{ fontSize: 13, color: 'var(--text2)' }} htmlFor="ed-title">标题</label>
-        <input id="ed-title" data-test="ed-title" value={title}
-          onChange={(e) => { setTitle(e.target.value); saveDraft(e.target.value, board, content); }}
-          style={{ width: '100%', padding: '10px 12px', borderRadius: 10,
-            border: '1px solid var(--border2)', background: 'var(--surface)',
-            color: 'var(--text)', marginTop: 4, boxSizing: 'border-box' }} />
-      </div>
-      <div className="card">
-        <label style={{ fontSize: 13, color: 'var(--text2)' }} htmlFor="ed-board">板块</label>
-        <div>
-          <StateBlock state={tree.state === 'Data' ? 'Data' : tree.state}
-            fail={tree.fail} onRetry={() => tree.refetch()} skeletonRows={1} />
+      {replyMode && (
+        <p style={{ fontSize: 13, color: 'var(--text2)', margin: '0 0 10px' }} data-test="ed-reply-context">
+          回复帖子 tid={tid}（草稿与帖子页共用；真实发布属用户红线动作，当前为合成验证通道）
+        </p>
+      )}
+      {!replyMode && (
+        <div className="card">
+          <label style={{ fontSize: 13, color: 'var(--text2)' }} htmlFor="ed-title">标题</label>
+          <input id="ed-title" data-test="ed-title" value={title} disabled={!identityReady}
+            onChange={(e) => { setTitle(e.target.value); saveDraft(e.target.value, board, content); }}
+            style={{ width: '100%', padding: '10px 12px', borderRadius: 10,
+              border: '1px solid var(--border2)', background: 'var(--surface)',
+              color: 'var(--text)', marginTop: 4, boxSizing: 'border-box' }} />
         </div>
-        <select id="ed-board" data-test="ed-board" value={board}
-          onChange={(e) => { setBoard(e.target.value); saveDraft(title, e.target.value, content); }}
-          style={{ marginTop: 6, background: 'var(--surface2)', color: 'var(--text2)',
-            border: '1px solid var(--border2)', borderRadius: 8, padding: '6px 10px' }}>
-          <option value="">选择板块…</option>
-          {boards.map((b) => <option key={b.fid} value={b.fid}>{b.name}</option>)}
-        </select>
-      </div>
+      )}
+      {!replyMode && (
+        <BoardSelect value={board} identityReady={identityReady}
+          onChange={(v) => { setBoard(v); saveDraft(title, v, content); }} />
+      )}
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
           <label style={{ fontSize: 13, color: 'var(--text2)' }} htmlFor="ed-content">正文</label>
@@ -116,7 +131,7 @@ export function EditorPage() {
         {preview
           ? <div className="content-html" data-test="ed-preview-view"
               dangerouslySetInnerHTML={{ __html: sanitizeContent(content) }} />
-          : <textarea id="ed-content" data-test="ed-content" value={content}
+          : <textarea id="ed-content" data-test="ed-content" value={content} disabled={!identityReady}
               onChange={(e) => { setContent(e.target.value); saveDraft(title, board, e.target.value); }}
               style={{ width: '100%', minHeight: 140, borderRadius: 10,
                 border: '1px solid var(--border2)', background: 'var(--surface)',
@@ -154,6 +169,35 @@ export function EditorPage() {
         };
         return null;
       })()}
+    </div>
+  );
+}
+
+// 发帖模式板块选择（circleTree 请求挂本组件——回复模式不挂载即零请求）
+function BoardSelect({ value, identityReady, onChange }: {
+  value: string; identityReady: boolean; onChange: (v: string) => void;
+}) {
+  const tree = useEndpoint('circleTree');
+  const boards = useMemo(() => {
+    const out: { fid: string; name: string }[] = [];
+    for (const g of (tree.data as any)?.list ?? []) {
+      for (const c of g.circle_list ?? []) out.push({ fid: String(c.type_value), name: c.name });
+    }
+    return out;
+  }, [tree.data]);
+  return (
+    <div className="card">
+      <label style={{ fontSize: 13, color: 'var(--text2)' }} htmlFor="ed-board">板块</label>
+      <div>
+        <StateBlock state={tree.state === 'Data' ? 'Data' : tree.state}
+          fail={tree.fail} onRetry={() => tree.refetch()} skeletonRows={1} />
+      </div>
+      <select id="ed-board" data-test="ed-board" value={value} onChange={(e) => onChange(e.target.value)}
+        style={{ marginTop: 6, background: 'var(--surface2)', color: 'var(--text2)',
+          border: '1px solid var(--border2)', borderRadius: 8, padding: '6px 10px' }}>
+        <option value="">选择板块…</option>
+        {boards.map((b) => <option key={b.fid} value={b.fid}>{b.name}</option>)}
+      </select>
     </div>
   );
 }

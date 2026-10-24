@@ -21,7 +21,8 @@ type LabMsg =
   | { type: 'epoch:stop' }
   | { type: 'epoch:probe' }
   | { type: 'auth:activate'; token: string }
-  | { type: 'auth:deactivate' };
+  | { type: 'auth:deactivate' }
+  | { type: 'sdg2:openClient'; hash: string };
 
 async function installUaRules(utdid: string, token?: string): Promise<void> {
   const ua = magUa(utdid, token);
@@ -59,7 +60,7 @@ export default defineBackground(() => {
 
   // N-4：会话状态只住 storage.session（SW 重启可重建、浏览器重启归零），
   // 模块级不持任何可变状态（强停后旧内存态自然丢弃=epoch 栅栏的另一半）。
-  browser.runtime.onMessage.addListener(async (msg: LabMsg) => {
+  browser.runtime.onMessage.addListener(async (msg: LabMsg, _sender: { tab?: { id?: number } }) => {
     if (msg.type === 'authRules:start') {
       try {
         await browser.declarativeNetRequest.updateSessionRules({
@@ -136,6 +137,12 @@ export default defineBackground(() => {
       const st0 = await browser.storage.sync.get({ 'sdg2.utdid': null });
       const utdid = (st0['sdg2.utdid'] as string | null) ?? newUtdid();
       await installUaRules(utdid); // 降回游客 UA（无凭据）
+      return { ok: true };
+    }
+    if (msg.type === 'sdg2:openClient') {
+      // 同标签导航（sender.tab.id = 发消息的 content script 所在标签）
+      const url = browser.runtime.getURL('/client.html') + (msg as { hash?: string }).hash;
+      await browser.tabs.create({ url });
       return { ok: true };
     }
     if (msg.type === 'epoch:probe') {

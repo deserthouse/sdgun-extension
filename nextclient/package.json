@@ -1,7 +1,7 @@
 {
   "name": "sdgun-next-client",
   "private": true,
-  "version": "2.0.0-alpha.2",
+  "version": "2.0.0-alpha.3",
   "type": "module",
   "description": "SDGun new browser client - G0/E00 lab (work_plan N batch). Source + lockfile tracked; node_modules/.output/.wxt ignored.",
   "scripts": {

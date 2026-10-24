@@ -12,6 +12,7 @@ export interface EndpointDef {
   method: 'GET' | 'POST';
   host: 'app.sdgun.com.cn' | 'mag1.sdgun.net';
   path: string; // 精确路径（不含 query）
+  paramLocation: 'query' | 'form'; // E24-07：参数编码位置
   sideEffect: SideEffect;
   auth: 'guest-ok' | 'token-required';
   pagination: 'page' | 'none';
@@ -23,6 +24,7 @@ export const ENDPOINTS: Record<string, EndpointDef> = {
   forumView: {
     endpointId: 'forumView',
     method: 'GET',
+    paramLocation: 'query' as const,
     host: 'app.sdgun.com.cn',
     path: '/mag/circle/v1/forum/forumView',
     sideEffect: 'read-only',
@@ -34,6 +36,7 @@ export const ENDPOINTS: Record<string, EndpointDef> = {
   commentList: {
     endpointId: 'commentList',
     method: 'GET',
+    paramLocation: 'query' as const,
     host: 'app.sdgun.com.cn',
     path: '/mag/circle/v1/Forum/commentList',
     sideEffect: 'read-only',
@@ -45,6 +48,7 @@ export const ENDPOINTS: Record<string, EndpointDef> = {
   threadView: {
     endpointId: 'threadView',
     method: 'GET',
+    paramLocation: 'query' as const,
     host: 'app.sdgun.com.cn',
     path: '/mag/circle/v1/forum/threadView',
     sideEffect: 'read-only',
@@ -56,6 +60,7 @@ export const ENDPOINTS: Record<string, EndpointDef> = {
   circleTree: {
     endpointId: 'circleTree',
     method: 'GET',
+    paramLocation: 'query' as const,
     host: 'app.sdgun.com.cn',
     path: '/mag/circle/v1/Circle/circleTree',
     sideEffect: 'read-only',
@@ -67,6 +72,7 @@ export const ENDPOINTS: Record<string, EndpointDef> = {
   userMessageGroupList: {
     endpointId: 'userMessageGroupList',
     method: 'POST',
+    paramLocation: 'query' as const,
     host: 'mag1.sdgun.net',
     path: '/mag/user/v1/UserNotify/userMessageGroupList',
     sideEffect: 'read-may-mutate', // 消息读取可能标已读——读取副作用单列（总设计 §3 F21）
@@ -78,17 +84,31 @@ export const ENDPOINTS: Record<string, EndpointDef> = {
   userNotifyIndex: {
     endpointId: 'userNotifyIndex',
     method: 'POST',
+    paramLocation: 'query' as const,
     host: 'mag1.sdgun.net',
     path: '/mag/user/v1/UserNotify/userNotifyIndex',
     sideEffect: 'read-may-mutate',
     auth: 'token-required',
     pagination: 'none',
     response: S.NotifyResp,
-    notes: '通知分类索引；同上空容忍。',
+    notes: '通知分类索引；同上空容忍。（官 APK 现用 v3 messageIndex——v1 为 G3 实测存活版本，不互换。）',
+  },
+  notifyList: {
+    endpointId: 'notifyList',
+    method: 'POST',
+    paramLocation: 'query' as const,
+    host: 'mag1.sdgun.net',
+    path: '/mag/user/v3/UserNotify/notifyList',
+    sideEffect: 'read-may-mutate',
+    auth: 'token-required',
+    pagination: 'page',
+    response: S.NotifyListResp,
+    notes: '通知历史（C4-1 静态取证 2026-10-25：官 APK API.Chat.notifyList v3 路径 + DataPage 分页参数 p/last_time/step + SystemNotifyDbBean 行字段 15 个；响应整体信封待登录实测）。列表读取可能触发站方已读上报——真数据验证=用户门禁。',
   },
   infoListByCatId: {
     endpointId: 'infoListByCatId',
     method: 'GET',
+    paramLocation: 'query' as const,
     host: 'mag1.sdgun.net',
     path: '/mag/info/v2/channel/infoListByCatId',
     sideEffect: 'read-only',

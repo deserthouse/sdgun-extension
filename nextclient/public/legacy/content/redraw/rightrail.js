@@ -1,0 +1,250 @@
+// redraw/rightrail.js — 帖子页右栏（layout_blueprint Batch 3）。
+// 楼主卡（头像/名/本页楼数）+ 楼层速览（本页楼主楼层锚点 chips，点击平滑滚动）。
+// 数据：viewthread mount 导出的 window.SDGRedraw.lastFloors（零额外解析/请求）。
+// 布局：fixed 右栏 208px，仅 ≥1280px 显示（.sdg-rt-on 下 #wp 右让位）；楼层数据缺失则不挂载。
+(function () {
+  'use strict';
+
+  const RT_CSS = `
+    /* 内距必须放内层 .rwrap：站方 mobile/style.css 有 * { margin:0; padding:0 } 通配 reset，
+       文档树 normal 声明按 CSS Scoping 级联压过 :host 声明（树上下文优先）——
+       :host padding 自始不生效（v1.17.2 取证：逐表停用二分定位） */
+    :host { all: initial; display: block; box-sizing: border-box;
+      --surface: #ffffff; --surface2: #f1efee; --border: rgba(0,0,0,.08); --border2: rgba(0,0,0,.14);
+      --text: #1c1917; --text2: #57534e; --text3: #a8a29e; --accent: #b01f28;
+      position: fixed; right: 14px; top: 64px; width: 264px; max-height: calc(100vh - 80px);
+      overflow-y: auto; z-index: 2147483000;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+      font-family: system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 13px;
+      color: var(--text); }
+    :host .rwrap { padding: 20px 18px 18px; }
+    :host .sect { font-size: 11.5px; font-weight: 700; color: var(--text3); margin: 4px 4px 10px; letter-spacing: .8px; }
+    :host a.nitem { display: block; padding: 8px 10px; border-radius: 8px;
+      color: var(--text2); text-decoration: none; font-size: 13px; line-height: 1.5;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: background .12s; }
+    :host a.nitem:hover { background: var(--surface2); color: var(--accent); }
+    :host a.nmore { display: block; margin-top: 10px; padding: 9px 6px 2px; border-top: 1px solid var(--border);
+      color: var(--accent); text-decoration: none; font-size: 12.5px; font-weight: 600; }
+    :host a.nmore:hover { text-decoration: underline; }
+    /* 卡头（2026-10-09 D-3 结构重排；v1.17.2 间距收口：内距全面放大一档） */
+    :host .opcard { display: flex; flex-direction: column; align-items: center; gap: 8px;
+      padding: 4px 6px 16px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+    :host .opcard img { width: 50px; height: 50px; border-radius: 12px; object-fit: cover;
+      background: var(--surface2); margin-top: 2px; }
+    :host .opcard .afb { width: 50px; height: 50px; border-radius: 12px; background: var(--surface2);
+      color: var(--text2); display: flex; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: 700; margin-top: 2px; }
+    :host .opcard a { font-weight: 700; color: var(--text); text-decoration: none; font-size: 13.5px; }
+    :host .opcard a:hover { color: var(--accent); }
+    :host .opcard .cnt { color: var(--text3); font-size: 11.5px; }
+    :host .chips { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 2px; }
+    :host .chips button { border: 1px solid var(--border2); background: var(--surface); color: var(--text2);
+      border-radius: 7px; padding: 3px 10px; font-size: 11.5px; cursor: pointer; }
+    :host .chips button:hover { border-color: var(--accent); color: var(--accent); }
+    /* 断点 1559：右栏占位 278（264+14）——否则 1400-1560 视口下压住内容列（2026-10-08） */
+    @media (max-width: 1559px) { :host { display: none; } }
+  `;
+  const RT_DARK = `
+    :host { --surface: #17181b; --surface2: #222329; --border: #26272c; --border2: #34353b;
+      --text: #e7e5e4; --text2: #a8a29e; --text3: #78716c; --accent: #ff6b7a; }
+  `;
+
+  // E-02 降级态：楼主身份未知 → 纯楼层速览卡（无楼主卡），速览数据=全部楼层的楼层号 chips
+  function mountFloorChipsOnly(floors, opts) {
+    const host = document.createElement('div');
+    host.id = 'sdg-rail';
+    host.className = 'sdg-host';
+    if (opts && opts.dark) host.classList.add('dark');
+    const shadow = host.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+    style.textContent = RT_CSS + (opts && opts.dark ? RT_DARK : '');
+    shadow.appendChild(style);
+
+    const el = (tag, attrs) => {
+      const n = document.createElement(tag);
+      for (const k of Object.keys(attrs || {})) {
+        if (k === 'text') n.textContent = attrs[k];
+        else n.setAttribute(k, attrs[k]);
+      }
+      return n;
+    };
+    const wrapEl = el('div', { class: 'rwrap' });
+    wrapEl.appendChild(el('div', { class: 'sect', text: '楼层速览' }));
+    const chips = el('div', { class: 'chips' });
+    floors.slice(0, 30).forEach((f, i) => {
+      const label = f.floor || `${i + 1}#`;
+      const b = el('button', { text: label });
+      b.addEventListener('click', () => {
+        const n = (String(label).match(/(\d+)/) || [])[1];
+        const hostEl = document.getElementById('sdg-redraw-host');
+        const target = hostEl && hostEl.shadowRoot.querySelector(`[data-floor="${n}"]`);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          target.classList.add('flash');
+          setTimeout(() => target.classList.remove('flash'), 1200);
+        }
+      });
+      chips.appendChild(b);
+    });
+    wrapEl.appendChild(chips);
+    shadow.appendChild(wrapEl);
+    document.body.appendChild(host);
+    document.documentElement.classList.add('sdg-rt-on');
+    return true;
+  }
+
+  function mountRail(opts) {
+    const existing = document.getElementById('sdg-rail');
+    if (existing) existing.remove();
+    // 帖子页：楼主卡+楼层速览（原逻辑）；列表页：公告卡（复用内容河缓存，消灭右侧空白）
+    const isThread = /mod=viewthread/.test(location.search);
+    if (!isThread) return mountNoticeRail(opts);
+    const floors = (window.SDGRedraw || {}).lastFloors;
+    if (!floors || !floors.length) return false;
+    // E-02：楼主身份只消费 viewthread 导出的可信解析（含 tid 缓存），不再独立取 floors[0]；
+    // 未知 → 降级为纯楼层速览（无楼主卡），绝不猜
+    const ownerUid = (window.SDGRedraw || {}).lastOwnerUid || '';
+
+    const op = ownerUid
+      ? floors.find((f) => (f.authorHref.match(/uid=(\d+)/) || [])[1] === ownerUid) || null
+      : null;
+    const opFloors = ownerUid ? floors.filter((f) => (f.authorHref.match(/uid=(\d+)/) || [])[1] === ownerUid) : [];
+    if (!op) return mountFloorChipsOnly(floors, opts);
+
+    const host = document.createElement('div');
+    host.id = 'sdg-rail';
+    host.className = 'sdg-host'; // theme.css 重绘白名单
+    if (opts && opts.dark) host.classList.add('dark');
+    const shadow = host.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+    style.textContent = RT_CSS + (opts && opts.dark ? RT_DARK : '');
+    shadow.appendChild(style);
+
+    const el = (tag, attrs) => {
+      const n = document.createElement(tag);
+      for (const k of Object.keys(attrs || {})) {
+        if (k === 'text') n.textContent = attrs[k];
+        else n.setAttribute(k, attrs[k]);
+      }
+      return n;
+    };
+
+    const wrapEl = el('div', { class: 'rwrap' });
+
+    const card = el('div', { class: 'opcard' });
+    if (op.avatar) card.appendChild(el('img', { src: op.avatar, alt: '', referrerpolicy: 'no-referrer' }));
+    else card.appendChild(el('div', { class: 'afb', text: op.author[0].toUpperCase() }));
+    card.appendChild(el('a', { text: op.author, href: op.authorHref || '#' }));
+    card.appendChild(el('span', { class: 'cnt', text: `本页 ${opFloors.length} 楼` }));
+    wrapEl.appendChild(card);
+
+    wrapEl.appendChild(el('div', { class: 'sect', text: '楼主楼层速览' }));
+    const chips = el('div', { class: 'chips' });
+    opFloors.slice(0, 30).forEach((f) => {
+      const label = f.floor || `${floors.indexOf(f) + 1}#`;
+      const b = el('button', { text: label });
+      b.addEventListener('click', () => {
+        const n = (String(label).match(/(\d+)/) || [])[1];
+        const target = document.querySelector(`#sdg-redraw-host`) &&
+          document.getElementById('sdg-redraw-host').shadowRoot.querySelector(`[data-floor="${n}"]`);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          target.classList.add('flash');
+          setTimeout(() => target.classList.remove('flash'), 1200);
+        }
+      });
+      chips.appendChild(b);
+    });
+    if (opFloors.length > 30) chips.appendChild(el('span', { class: 'cnt', text: `…共 ${opFloors.length} 楼` }));
+    wrapEl.appendChild(chips);
+
+    shadow.appendChild(wrapEl);
+
+    document.body.appendChild(host);
+    document.documentElement.classList.add('sdg-rt-on');
+    return true;
+  }
+
+  // 列表页右栏：公告卡（数据=内容河缓存 fid=39 最新帖；会话无缓存时读跨标签镜像；都无则隐藏右栏）
+  function mountNoticeRail(opts) {
+    // R15/EV-09→AR-P0/VR-1：首页主列已有公告河——右栏公告卡跳过（去重）。
+    // 判据用页型类（html 上的 sdg-page-forumlist，light DOM 可查）——此前查 '.river' 在
+    // sdg-redraw-list 的 shadowRoot 内，document.querySelector 穿不透，守卫恒假（VR-1）。
+    if (document.documentElement.classList.contains('sdg-page-forumlist')) return false;
+    let items = [];
+    try {
+      // A1（v1.20.0）：SDGCache river 组（getSync 快路径）
+      const cached = window.SDGCache && window.SDGCache.getSync(window.SDGCache.GROUPS.RIVER, 'all');
+      if (cached) items = cached.slice(0, 8);
+    } catch (e) { /* ignore */ }
+    if (items.length) return buildNoticeRail(items, opts);
+    // 深链/新标签打开板块页：会话缓存为空——读 storage.local 镜像（forumlist 侧写入），有数据再挂。
+    // ER-07（v1.19.6）：回调先查宿主/开关仍健康——关闭重绘/卸载后不得复活
+    try {
+      if (window.SDGCache) {
+        window.SDGCache.get(window.SDGCache.GROUPS.RIVER, 'all').then((items2) => {
+          try {
+            if (!document.getElementById('sdg-redraw-list')) return; // 主重绘已卸载（关开关/换页）→ 不复活
+            if (!document.documentElement.classList.contains('sdg-redraw-active')) return;
+            if (document.getElementById('sdg-rail')) return; // 已有实例
+            const arr = Array.isArray(items2) ? items2.slice(0, 8) : [];
+            if (arr.length) buildNoticeRail(arr, opts);
+          } catch (e) { /* ignore */ }
+        });
+      } else {
+        chrome.storage.local.get({ sdg_river_cache_ls: null }, (st) => {
+          try {
+            if (!document.getElementById('sdg-redraw-list')) return;
+            if (!document.documentElement.classList.contains('sdg-redraw-active')) return;
+            if (document.getElementById('sdg-rail')) return;
+            if (!st || !st.sdg_river_cache_ls) return;
+            const arr = (JSON.parse(st.sdg_river_cache_ls).items || []).slice(0, 8);
+            if (arr.length) buildNoticeRail(arr, opts);
+          } catch (e) { /* ignore */ }
+        });
+      }
+    } catch (e) { /* ignore */ }
+    return false;
+  }
+
+  function buildNoticeRail(items, opts) {
+    if (document.getElementById('sdg-rail')) return true; // 防异步双挂
+    const host = document.createElement('div');
+    host.id = 'sdg-rail';
+    host.className = 'sdg-host';
+    if (opts && opts.dark) host.classList.add('dark');
+    const shadow = host.attachShadow({ mode: 'open' });
+    const style = document.createElement('style');
+    style.textContent = RT_CSS + (opts && opts.dark ? RT_DARK : '');
+    shadow.appendChild(style);
+
+    const el = (tag, attrs) => {
+      const n = document.createElement(tag);
+      for (const k of Object.keys(attrs || {})) {
+        if (k === 'text') n.textContent = attrs[k];
+        else n.setAttribute(k, attrs[k]);
+      }
+      return n;
+    };
+
+    const wrapEl = el('div', { class: 'rwrap' });
+    wrapEl.appendChild(el('div', { class: 'sect', text: '最新公告' }));
+    items.forEach((it) => {
+      const a = el('a', { class: 'nitem', href: it.href });
+      a.appendChild(el('span', { class: 'nt', text: it.t }));
+      wrapEl.appendChild(a);
+    });
+    const more = el('a', { class: 'nmore', text: '进入站务公告 ›',
+      href: 'forum.php?mod=forumdisplay&fid=39&mobile=2' });
+    wrapEl.appendChild(more);
+
+    shadow.appendChild(wrapEl);
+
+    document.body.appendChild(host);
+    document.documentElement.classList.add('sdg-rt-on');
+    return true;
+  }
+
+  window.SDGRedraw = window.SDGRedraw || {};
+  window.SDGRedraw.mountRail = mountRail;
+})();

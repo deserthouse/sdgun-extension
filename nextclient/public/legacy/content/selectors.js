@@ -1,0 +1,136 @@
+// Centralized selector table for the SDGun touch template (bygsjw_3sjw skin).
+// Every DOM dependency lives here: when the forum re-skins, fix these and
+// nothing else. Verified against live pages on 2026-09-30.
+//
+// Fail-open contract: if a selector stops matching, the corresponding feature
+// silently does nothing - the original page keeps working.
+
+const SDG = {
+  page: {
+    // E-03（2026-10-15 重写）：pathname + URLSearchParams 统一解析，三页型共享同一结果。
+    // 旧正则两处反例（实机 fixture 证实）：`?forumlist=1`（无 mobile）漏判；
+    // 所有 `?mod=X` 页（含 guide/misc/post）都误判 isForumList=True（旧正则的锚点写法不匹配 ?mod=）。
+    _parse() {
+      const params = new URLSearchParams(location.search);
+      return { mod: params.get('mod'), forumlist: params.get('forumlist') === '1',
+        mobile: params.get('mobile') };
+    },
+    isForumList: () => {
+      const p = SDG.page._parse();
+      if (p.mod) return false; // 有 mod（已知或未知页型）一律不是论坛首页
+      if (!/\/forum\.php$/.test(location.pathname)) return false;
+      return p.forumlist || !!p.mobile; // forumlist=1 精确参数，或裸 mobile=N 简易首页
+    },
+    isForumDisplay: () => SDG.page._parse().mod === 'forumdisplay',
+    isViewThread: () => SDG.page._parse().mod === 'viewthread',
+    isLoginPage: () => {
+      const params = new URLSearchParams(location.search);
+      return params.get('mod') === 'logging' && params.get('action') === 'login';
+    },
+  },
+
+  forumDisplay: {
+    // ul.bygsjw threadlist_ul > li.cl rows; title in a.over_two
+    threadRow: 'ul.byg_threadlist_ul > li.cl',
+    threadTitle: 'a.over_two',
+    // 列表行图文预览：3 图条（ul.list_img3，实证活跃于 fid=196/精华视图）+ 单图行变体
+    // （.list_img1_box，模板内联样式块定义；非背景图锚点由 style.backgroundImage 过滤兜住）
+    threadPreview: 'ul.list_img3 a, .list_img1_box a',
+    bottom: '.list_bottom',
+    // 行级字段（2026-10-08 补齐——此前三键从未迁入，querySelector(undefined) 静默匹配空，
+    // 作者/日期/统计自模块拆分日起从未显示。富形态行结构实证见 roadmap 勘误）
+    rowAuthor: '.list_bottom a.z[href*="space"]',
+    rowDate: '.list_bottom em.z',
+    rowStats: '.list_bottom span.y',
+    rowType: 'span.list_typename',
+    rowPin: 'img[alt*="置顶"]',
+    // 子版块行（同一 li.cl 容器：a.forum_img + .forum_names + 双计数 span）
+    subforumRow: 'li.cl a.forum_img',
+    subforumName: '.forum_names',
+    subforumThreads: '.forum_threads',
+    subforumPosts: '.forum_posts',
+    // 板块头统计与收藏（今日/主题 + 收藏本版真实链接）
+    favLink: 'a[href*="action=fav"], a[href*="favthread"]',
+    // pager anchors (real navigation targets)
+    nextLink: 'a.nxt',
+    prevLink: 'a.prev',
+  },
+
+  forumList: {
+    // <div data-byginto class="bm bmw fl"> group > h2 > a (group name)
+    //     div.sub_forum > ul > li.cl > .forum_img (icon link w/ alt) + name + counts
+    group: 'div[data-byginto], div.subforumshow',
+    groupName: 'h2 a',
+    sectionRow: 'div.sub_forum li.cl, .sub_forum li.cl',
+    sectionLink: 'a[href*="mod=forumdisplay"]',
+    sectionIcon: 'img',
+    sectionCounts: '.forum_num, li.cl',
+  },
+
+  // profile 3 兜底（h2 分组走查）：此前 forumlist.js 引用此键但表内缺失——
+  // 壳响应（profile 1/2 无数据）时 mount 直接 EXC，旁路壳重试/缓存/覆盖层全套机制（2026-10-08 定位）
+  h2walk: {
+    groupHeader: 'h2',
+    sectionLink: 'a[href*="mod=forumdisplay"]',
+  },
+
+  // 简易模板（mobile=1）的原列表容器 id——渲染后隐藏用（2026-10-08 补：此前为静默死引用，
+  // getElementById(undefined) 不炸但简易列表容器从未被隐藏）
+  legacyListId: 'forumlist',
+
+  viewThread: {
+    // div.postlist > div[id^="pid"] floors; content in .message
+    floor: 'div[id^="pid"]',
+    // 每楼真实回复链接（v1.16 子键门禁首秀抓出的静默死键——此前一直走兜底构造 URL）
+    replyAnchor: 'a[href*="action=reply"]',
+    author: '.post_author .authi a, .authi a',
+    authorAvatar: '.avatar img',
+    postNumber: '.post_number',
+    content: '.message',
+    date: '.grey, .authi .grey',
+    container: '.postlist',
+    toolbar: '.postlist_title',
+  },
+
+  // 重绘激活时需隐藏的模板脚手架（逐变体枚举；白名单化替代霰弹枪隐藏）
+  scaffold: {
+    // Discuz 标准移动模板（mobile=1 简易首页）
+    standard: ['.hd', '.pd2', '.bm', '.footer'],
+    // bygsjw 富模板（版块列表 + 帖子列表 + 帖子页共通头部/页脚）
+    bygsjw: ['.header_z', '.header_c', '.header_y', '.hdc_xin', '.forumdisplay_top',
+             '.bm_xin', '.subforumshow', '.footer', '.pg', '.return_xin', '.byg_return',
+             '.postlist_title', '#mask'],
+    // 壳+AJAX 骨架变体
+    shell: ['.hd', '.ft', '.footer'],
+  },
+
+  util: {
+    contentAnchor: '#wp',
+    boardHeaderFont: '.header_font',
+    boardBreadcrumb: '论坛\\s*>\\s*([^>\\n]{2,20})',
+    pagerNextByClass: 'a.nxt',
+    pagerPrevByClass: 'a.prev',
+    pagerNextByText: '下一页',
+    pagerPrevByText: '上一页',
+    filterLinks: 'a[href*="filter="], a[href*="orderby="], a[href*="typeid="]',
+    viewthreadAnchor: 'a[href*="mod=viewthread"]',
+  },
+
+  // 站方静态资产（模板自带；板块无图标/图标 404 时的回退，与站方对无图标板块的处理一致）
+  assets: {
+    defaultBoardIcon: 'template/bygsjw_3sj/image/forum.png',
+  },
+
+  common: {
+    // page scaffolding
+    body: 'body',
+    contentRoot: '#wp, .wp, body',
+    header: '.header_z, .header_z cl',
+    contentImages: '.message img, .list_img3 img, img[src*="forum.php?mod=image"], img[src*="data/attachment"]',
+  },
+};
+
+// Export for boot.js (same content-script world, plain global)
+if (typeof window !== 'undefined') {
+  window.SDG = SDG;
+}

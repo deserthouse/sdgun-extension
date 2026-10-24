@@ -37,7 +37,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       const auth = await getAuth().catch(() => null);
-      const pr = await epochProbe().catch(() => null);
+      // C3-4 ready 守卫：首开时无 epoch → 先 epochStart（SW 装游客 UA 规则）
+      // 再放开 session——查询（queries.ts enabled 门）在规则就绪前不点火，
+      // 消灭「首请求裸发被 WAF 偶发拦截」竞速（E70-09/B4 根因，2026-10-25 实锤）
+      let pr = await epochProbe().catch(() => null);
+      if (!pr?.epoch) {
+        pr = await epochStart(`guest-${Date.now().toString(36)}`).catch(() => null) as typeof pr;
+      }
       const epoch = pr?.epoch ?? null;
       epochRef.current = epoch;
       setSession({ epoch, auth });

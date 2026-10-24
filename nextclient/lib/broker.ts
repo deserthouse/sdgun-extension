@@ -70,8 +70,15 @@ export async function callEndpoint<T = unknown>(id: string, opts: CallOpts = {})
     throw { kind: 'Unsupported', msg: `unregistered endpoint: ${id}` } as Fail;
   }
   const url = new URL((hostOverride() ?? 'https://' + def.host) + def.path);
-  for (const [k, v] of Object.entries(opts.params ?? {})) {
-    url.searchParams.set(k, String(v));
+  // E24-07：form 端点参数不进 query（放 body）；读端点全为 query
+  const isForm = def.method === 'POST' && def.paramLocation === 'form';
+  const formBody = isForm && opts.params
+    ? new URLSearchParams(Object.entries(opts.params).map(([k, v]) => [k, String(v)])).toString()
+    : undefined;
+  if (!isForm) {
+    for (const [k, v] of Object.entries(opts.params ?? {})) {
+      url.searchParams.set(k, String(v));
+    }
   }
   return withSlot(async () => {
     const ctrl = new AbortController();
@@ -83,6 +90,7 @@ export async function callEndpoint<T = unknown>(id: string, opts: CallOpts = {})
         headers: def.method === 'POST'
           ? { 'Content-Type': 'application/x-www-form-urlencoded' }
           : undefined,
+        ...(formBody !== undefined ? { body: formBody } : {}),
       });
       if (!resp.ok) {
         throw { kind: 'RetryableError', msg: `HTTP ${resp.status}`, code: resp.status } as Fail;

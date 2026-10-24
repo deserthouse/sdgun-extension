@@ -4,30 +4,31 @@ import { useEffect, useRef, useState } from 'react';
 import { useEndpoint } from '../../lib/queries';
 import { StateBlock, StateBadge } from './StateBlock';
 import { epochStart, epochStop, epochProbe } from '../../lib/epoch';
-import { getAuth, login, logout, fetchAccountInfo, type AuthInfo } from '../../lib/auth';
+import { login, fetchAccountInfo, type AuthInfo } from '../../lib/auth';
+import { useSession } from '../../lib/session';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const row = (d: any) => (d?.list ?? []) as any[];
 
 export function MyPage() {
-  const [auth, setAuth] = useState<AuthInfo | null | 'loading'>('loading');
+  const { session, logout: sessionLogout, epochRef } = useSession();
   const [account, setAccount] = useState('');
   const [password, setPassword] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [info, setInfo] = useState<Record<string, unknown> | null>(null);
+  const auth = session === 'loading' ? null : session.auth;
 
   useEffect(() => {
-    getAuth().then(setAuth).catch(() => setAuth(null));
-  }, []);
-
-  useEffect(() => {
-    if (auth && auth !== 'loading' && auth.userId) {
-      fetchAccountInfo(auth.userId).then(setInfo).catch(() => {});
+    if (auth && auth.userId) {
+      const ep = epochRef.current;
+      fetchAccountInfo(auth.userId).then((d) => {
+        if (epochRef.current === ep) setInfo(d); // E24-01：epoch 变了不回填
+      }).catch(() => {});
     } else {
       setInfo(null);
     }
-  }, [auth]);
+  }, [auth?.userId]);
 
   async function doLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -37,7 +38,6 @@ export function MyPage() {
       const r = await login(account, password);
       if (!r.ok) { setErr(r.msg ?? '登录失败'); return; }
       await epochStart(`auth-${Date.now().toString(36)}`);
-      setAuth(r.auth ?? null);
       setPassword('');
     } catch (ex) {
       setErr(String((ex as Error).message ?? ex).slice(0, 120));
@@ -47,14 +47,12 @@ export function MyPage() {
   }
 
   async function doLogout() {
-    await logout();
-    await epochStop();
-    await epochProbe(); // 确认规则清空后回登录面
-    setAuth(null);
+    await sessionLogout(); // E24-01：走 SessionProvider（cancel+清缓存+撤规则+清auth）
+    setErr('');
     setInfo(null);
   }
 
-  if (auth === 'loading') return <p style={{ color: 'var(--text3)' }}>…</p>;
+  if (session === 'loading') return <p style={{ color: 'var(--text3)' }}>…</p>;
   if (!auth) {
     return (
       <>
@@ -118,11 +116,26 @@ function AccountCard({ auth, info, onLogout }: { auth: AuthInfo; info: Record<st
   );
 }
 
+const CHANNELS = [
+  { id: 7, label: '最新' },
+  { id: 12, label: '评测' },
+  { id: 13, label: '攻略' },
+];
+
 export function FocusPage() {
-  const info = useEndpoint('infoListByCatId', { cat_id: 7, step: 20, p: 1 });
+  const [channel, setChannel] = useState(7);
+  const info = useEndpoint('infoListByCatId', { cat_id: channel, step: 20, p: 1 });
   const tree = useEndpoint('circleTree');
   return (
     <section>
+      <div className="chiprow" style={{ marginBottom: 10 }}>
+        {CHANNELS.map((c) => (
+          <button key={c.id} data-test={`channel-${c.id}`}
+            className={'chip' + (channel === c.id ? ' on' : '')}
+            style={channel === c.id ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}}
+            onClick={() => setChannel(c.id)}>{c.label}</button>
+        ))}
+      </div>
       <h2 style={{ fontSize: 15, color: 'var(--text2)', margin: '0 0 10px' }}>
         资讯 <StateBadge state={info.state} />
       </h2>
@@ -190,33 +203,73 @@ export function CommunityPage() {
   );
 }
 
+// C1-1 排序条：forumView order 参数（值域=forumDetail orders 官方枚举，R-A0 实测；
+// 默认 lastpost=官方 Android 同款默认）。切排序=换查询游标：页码回 1、EOF 复位。
+const ORDERS = [
+  { key: 'lastpost', label: '最新回复' },
+  { key: 'dateline', label: '发帖时间' },
+  { key: 'replies', label: '回复数' },
+  { key: 'views', label: '查看数' },
+  { key: 'heat', label: '热门度' },
+] as const;
+
 // E70-03 分页适配器：响应无 total_page 元数据时不得用 rows<step 推定 EOF——
-// 允许试探下一页；空页或整页重复才结束（endReached）。切 fid 由 App key 重挂载重置。
+// 允许试探下一页；空页才结束（endReached；E24-02：内容重复不作 EOF 信号）。
+// 切 fid 由 App key 重挂载重置。
 export function BoardPage({ fid }: { fid: string }) {
   const [page, setPage] = useState(1);
+  const [order, setOrder] = useState<string>('lastpost');
   const STEP = 20;
-  const q = useEndpoint('forumView', { fid, p: page, step: STEP });
-  const seenRef = useRef<Set<string>>(new Set());
+  const q = useEndpoint('forumView', { fid, p: page, step: STEP, order });
+  // C1-4 板块名映射：circleTree（5min 暖缓存，与社区页/编辑器共享）派生 fid→name
+  const tree = useEndpoint('circleTree');
+  const boardName = useMemo(() => {
+    for (const g of (tree.data as any)?.list ?? []) {
+      for (const c of g.circle_list ?? []) {
+        if (String(c.type_value) === fid) return String(c.name);
+      }
+    }
+    return '';
+  }, [tree.data, fid]);
   const [endReached, setEndReached] = useState(false);
   const rowsAll = row(q.data);
-  // 去重 + is_top 枚举正规化（实测 -1=普通/正值=置顶，不得真值判断）
-  const rows = rowsAll.filter((t: any) => {
-    const k = String(t.tid);
-    if (seenRef.current.has(k)) return false;
-    seenRef.current.add(k);
-    return true;
-  });
+  // E24-02 修复：替换页语义（每页独立渲染），去重仅在当前响应内（useMemo 不写 ref）。
+  // EOF 判定=响应空列表（非 render 后过滤恰好 0——此前 seenRef 全局消耗导致回上页清空）。
+  const rows = useMemo(() => {
+    const seen = new Set<string>();
+    return rowsAll.filter((t: any) => {
+      const k = String(t.tid);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  }, [rowsAll]);
   useEffect(() => {
-    if (q.isPending) return;
-    if (rows.length === 0) setEndReached(true); // 空页/整页重复 = 真结束
-  }, [q.data, q.isPending]);
+    if (q.isPending || q.isFetching) return;
+    if (q.data && row(q.data).length === 0) setEndReached(true);
+  }, [q.data, q.isPending, q.isFetching]);
   const isPinned = (t: any) => Number(t.is_top) > 0;
   return (
     <section>
       <p style={{ margin: '0 0 10px', fontSize: 13 }}>
         <a href="#/community" style={{ color: 'var(--accent)' }}>‹ 社区</a>
-        <span style={{ color: 'var(--text3)' }}> · 版块 {fid}</span>
+        <span style={{ color: 'var(--text3)' }} data-test="board-name">
+          · {boardName || `版块 ${fid}`}
+        </span>
       </p>
+      <div className="chiprow" data-test="order-chips" role="group" aria-label="板块排序">
+        {ORDERS.map((o) => (
+          <button key={o.key} type="button" data-test={`order-${o.key}`} aria-pressed={order === o.key}
+            className={'chip' + (order === o.key ? ' on' : '')}
+            style={order === o.key ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}}
+            onClick={() => {
+              if (o.key === order) return;
+              setOrder(o.key);
+              setPage(1);
+              setEndReached(false);
+            }}>{o.label}</button>
+        ))}
+      </div>
       <StateBlock state={q.state} fail={q.fail} onRetry={() => q.refetch()} />
       {q.state !== 'InitialLoading' && rows.map((t: any) => (
         <a key={String(t.tid)} className="card thread-row" href={`#/thread/${t.tid}`}>
