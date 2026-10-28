@@ -1,12 +1,40 @@
 // G3/M6-A 消息真实路由：游客=登录提示；登录态=通知摘要+会话组列表+详情面板。
-// 红线：消息族端点 read-may-mutate（读取可能标已读）——详情不调真实端点，
-// 只渲染列表项自带字段；完整会话历史留后续批次（端点参数未定，不猜）。
+// C4-4：详情面板接 userMessageList 会话历史（静态取证；read-may-mutate 如实披露）。
 import { useEffect, useState } from 'react';
 import { useEndpoint } from '../../lib/queries';
 import { getAuth, type AuthInfo } from '../../lib/auth';
 import { StateBlock, StateBadge } from './StateBlock';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+// C4-4 会话历史（userMessageList，静态取证 LetterChatActivity：参数 uid+page）。
+// peer uid 键名以真实分组行形态为准前取三兜底；read-may-mutate 披露在面板内。
+function MsgHistory({ peer }: { peer: any }) {
+  const uid = String(peer.uid ?? peer.user_id ?? peer.id ?? '');
+  const q = useEndpoint('userMessageList', uid ? { uid, p: 1 } : { p: 1 });
+  const rows = (q.data as any)?.list ?? [];
+  return (
+    <div data-test="msg-history" style={{ marginTop: 12 }}>
+      <StateBlock state={q.state} fail={q.fail} onRetry={() => q.refetch()} skeletonRows={2} />
+      {q.state !== 'InitialLoading' && rows.length === 0 && (
+        <div className="state-card" data-test="msg-history-empty">无更多历史消息</div>
+      )}
+      {rows.map((m: any, i: number) => (
+        <div key={String(m.mid ?? i)} className="card floor" data-test="msg-row">
+          <div className="card-meta">
+            <strong style={{ color: 'var(--text)' }}>{m.name ?? uid}</strong>
+          </div>
+          <div className="content-html" style={{ fontSize: 14 }}>
+            {String(m.content ?? '')}
+          </div>
+        </div>
+      ))}
+      <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 8 }}>
+        读取会话历史可能触发站方已读上报（消息族端点副作用如实披露）。
+      </p>
+    </div>
+  );
+}
 
 export function MessagesPage() {
   const [auth, setAuth] = useState<AuthInfo | null | 'loading'>('loading');
@@ -75,9 +103,7 @@ function MessagesAuthed() {
           {openGroup.last_summary ?? openGroup.content ? (
             <div className="card-sub">{String(openGroup.last_summary ?? openGroup.content ?? '')}</div>
           ) : null}
-          <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 10 }}>
-            完整会话历史需消息详情接口（后续批次接入；当前仅展示会话摘要，不触发已读上报）。
-          </p>
+          <MsgHistory peer={openGroup} />
         </div>
       )}
 

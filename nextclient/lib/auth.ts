@@ -50,15 +50,21 @@ export interface LoginResult {
   ok: boolean;
   msg?: string;
   auth?: AuthInfo;
+  /** F01：服务端要求图形验证码（code 1009）——验证后重试登录 */
+  captchaRequired?: boolean;
 }
 
 export async function login(account: string, password: string): Promise<LoginResult> {
   const body = (await apiPost(LOGIN_URL, {
     account,
     password: encryptPassword(password),
-  })) as { success?: boolean; msg?: string; data?: Record<string, unknown> };
+  })) as { success?: boolean; msg?: string; code?: number; data?: Record<string, unknown> };
   const data = body?.data ?? {};
   if (!body?.success) {
+    // F01（官 APK RequestInterceptor 口径）：code 1009 → 图形验证码流程
+    if (body?.code === 1009) {
+      return { ok: false, captchaRequired: true, msg: body?.msg ?? '请完成图形验证' };
+    }
     return { ok: false, msg: body?.msg ?? '登录失败' };
   }
   let token = String(data.token ?? '');
@@ -94,4 +100,29 @@ export async function fetchAccountInfo(userId: string): Promise<Record<string, u
 export async function logout(): Promise<void> {
   await browser.storage.session.remove([AUTH_KEY]);
   await browser.runtime.sendMessage({ type: 'auth:deactivate' });
+}
+
+// ---- F01 图形验证码链（官 APK 口径：code 1009 → 图 captcha?time= →
+// verifyPicSecurityCode(security_code) → 成功后原动作重试）----
+const VERIFY_PIC_URL = 'https://mag1.sdgun.net/mag/user/v1/User/verifyPicSecurityCode';
+const CAPTCHA_IMG_URL = 'https://mag1.sdgun.net/captcha';
+
+export function captchaImageUrl(): string {
+  // resolveUrl 只拼 pathname 会丢 query——验证码图 time 参数必须保留，手动拼
+  try {
+    const ov = localStorage.getItem('sdg2.hostOverride');
+    if (ov) return `${ov}/captcha?time=${Date.now()}`;
+  } catch { /* 非 extension 页环境 */ }
+  return `${CAPTCHA_IMG_URL}?time=${Date.now()}`;
+}
+
+export async function verifyPicSecurityCode(code: string): Promise<{ ok: boolean; msg?: string }> {
+  try {
+    const body = (await apiPost(VERIFY_PIC_URL, { security_code: code })) as {
+      success?: boolean; msg?: string;
+    };
+    return { ok: Boolean(body?.success), msg: body?.msg };
+  } catch {
+    return { ok: false, msg: '验证请求失败（网络）' };
+  }
 }

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useEndpoint } from '../../lib/queries';
 import { StateBlock, StateBadge } from './StateBlock';
 import { epochStart, epochStop, epochProbe } from '../../lib/epoch';
-import { login, fetchAccountInfo, type AuthInfo } from '../../lib/auth';
+import { login, fetchAccountInfo, verifyPicSecurityCode, captchaImageUrl, type AuthInfo } from '../../lib/auth';
 import { useSession } from '../../lib/session';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -17,6 +17,9 @@ export function MyPage() {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [info, setInfo] = useState<Record<string, unknown> | null>(null);
+  // F01 图形验证码态（code 1009 → 验证后自动重试登录）
+  const [captcha, setCaptcha] = useState(false);
+  const [capCode, setCapCode] = useState('');
   const auth = session === 'loading' ? null : session.auth;
 
   useEffect(() => {
@@ -30,17 +33,44 @@ export function MyPage() {
     }
   }, [auth?.userId]);
 
-  async function doLogin(e: React.FormEvent) {
-    e.preventDefault();
+  async function attemptLogin(): Promise<void> {
     setErr('');
     setBusy(true);
     try {
       const r = await login(account, password);
-      if (!r.ok) { setErr(r.msg ?? '登录失败'); return; }
+      if (!r.ok) {
+        if (r.captchaRequired) setCaptcha(true);
+        setErr(r.msg ?? '登录失败');
+        return;
+      }
+      setCaptcha(false);
+      setCapCode('');
       await epochStart(`auth-${Date.now().toString(36)}`);
       setPassword('');
     } catch (ex) {
       setErr(String((ex as Error).message ?? ex).slice(0, 120));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doLogin(e: React.FormEvent) {
+    e.preventDefault();
+    await attemptLogin();
+  }
+
+  // F01：验证码验证成功 → 原动作重试（官 APK 事件口径：pic_captcha_success → 重发）
+  async function doVerifyCaptcha() {
+    if (!capCode.trim() || busy) return;
+    setBusy(true);
+    setErr('');
+    try {
+      const v = await verifyPicSecurityCode(capCode.trim());
+      if (!v.ok) {
+        setErr(v.msg ?? '验证码不正确');
+        return;
+      }
+      await attemptLogin();
     } finally {
       setBusy(false);
     }
@@ -71,6 +101,29 @@ export function MyPage() {
               background: 'var(--surface)', color: 'var(--text)' }} />
           {err && <div id="login-error" data-test="login-error" role="alert"
             style={{ color: 'var(--accent)', fontSize: 13 }}>{err}</div>}
+          {captcha && (
+            <div className="card" data-test="captcha-block"
+              style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div className="card-title" style={{ fontSize: 13.5 }}>图形验证（F01）</div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <img data-test="captcha-img" src={captchaImageUrl()} alt="图形验证码"
+                  title="点击刷新"
+                  onClick={(e) => { (e.target as HTMLImageElement).src = captchaImageUrl(); }}
+                  style={{ height: 40, borderRadius: 6, border: '1px solid var(--border2)' }} />
+                <input data-test="captcha-input" value={capCode}
+                  onChange={(e) => setCapCode(e.target.value)}
+                  placeholder="输入图中字符"
+                  aria-label="图形验证码输入框"
+                  style={{ flex: 1, padding: '9px 12px', borderRadius: 10,
+                    border: '1px solid var(--border2)', background: 'var(--surface)',
+                    color: 'var(--text)' }} />
+              </div>
+              <button className="btn" data-test="captcha-verify"
+                disabled={busy || !capCode.trim()} onClick={doVerifyCaptcha}>
+                {busy ? '验证中…' : '验证并重试登录'}
+              </button>
+            </div>
+          )}
           <button className="btn" data-test="login-submit" disabled={busy || !account || !password}>
             {busy ? '登录中…' : '登录'}
           </button>
@@ -91,9 +144,43 @@ export function MyPage() {
   return (
     <div data-test="account">
       <AccountCard auth={auth as AuthInfo} info={info} onLogout={doLogout} />
+      <Collections />
       <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 12 }}>
         消息与通知已移至左栏「消息」页。
       </p>
+    </div>
+  );
+}
+
+// C4-3 收藏列表（userCollectList）：静态取证形态渲染——标题/分类/时间，
+// link 为站方原始链接（H5 新标签打开，不猜客户端路由映射）。
+function Collections() {
+  const q = useEndpoint('userCollectList', { p: 1 });
+  const rows = row(q.data);
+  return (
+    <div data-test="collections" style={{ marginTop: 16 }}>
+      <h2 style={{ fontSize: 15, color: 'var(--text2)', margin: '0 0 8px' }}>
+        我的收藏 <StateBadge state={q.state} />
+      </h2>
+      <StateBlock state={q.state} fail={q.fail} onRetry={() => q.refetch()} skeletonRows={2} />
+      {q.state !== 'InitialLoading' && rows.length === 0 && (
+        <div className="state-card" data-test="collections-empty">暂无收藏</div>
+      )}
+      {rows.map((c: any, i: number) => {
+        const link = typeof c.link === 'string' && c.link.startsWith('http') ? c.link : null;
+        const inner = (
+          <>
+            <div className="card-title">{String(c.title ?? '(收藏项)')}</div>
+            <div className="card-meta">
+              {String(c.catName ?? '')}{c.createTimeStr ? ` · ${String(c.createTimeStr)}` : ''}
+            </div>
+          </>
+        );
+        return link
+          ? <a key={String(c.id ?? i)} className="card" data-test="collect-row"
+              href={link} target="_blank" rel="noreferrer">{inner}</a>
+          : <div key={String(c.id ?? i)} className="card" data-test="collect-row">{inner}</div>;
+      })}
     </div>
   );
 }
@@ -122,12 +209,46 @@ const CHANNELS = [
   { id: 13, label: '攻略' },
 ];
 
+// C4-2 我的板块（userCircleList）：登录态聚焦页区块；行=circle 对象
+// （2026-10-21 实采同树形态），fid 取 type_value（树同款）兜底 fid。
+function MyBoards({ userId }: { userId: string }) {
+  const q = useEndpoint('userCircleList', { uid: userId });
+  const rows = row(q.data);
+  return (
+    <div data-test="my-boards" style={{ marginBottom: 16 }}>
+      <h2 style={{ fontSize: 15, color: 'var(--text2)', margin: '0 0 8px' }}>
+        我的板块 <StateBadge state={q.state} />
+      </h2>
+      <StateBlock state={q.state} fail={q.fail} onRetry={() => q.refetch()} skeletonRows={1} />
+      {q.state !== 'InitialLoading' && rows.length === 0 && (
+        <div className="state-card" data-test="my-boards-empty">暂无加入的板块</div>
+      )}
+      {rows.length > 0 && (
+        <div className="chiprow" data-test="my-boards-chips" style={{ marginBottom: 0 }}>
+          {rows.map((c: any, i: number) => {
+            const fid = String(c.type_value ?? c.fid ?? '');
+            if (!fid) return null;
+            return (
+              <a key={`${fid}-${i}`} className="chip" href={`#/board/${fid}`}>
+                {c.name ?? fid}{Number(c.new_content) > 0 ? ' · 有新' : ''}
+              </a>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function FocusPage() {
   const [channel, setChannel] = useState(7);
   const info = useEndpoint('infoListByCatId', { cat_id: channel, step: 20, p: 1 });
   const tree = useEndpoint('circleTree');
+  const { session } = useSession();
+  const auth = session === 'loading' ? null : session.auth;
   return (
     <section>
+      {auth && <MyBoards userId={auth.userId} />}
       <div className="chiprow" style={{ marginBottom: 10 }}>
         {CHANNELS.map((c) => (
           <button key={c.id} data-test={`channel-${c.id}`}

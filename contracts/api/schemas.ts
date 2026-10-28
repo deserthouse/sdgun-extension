@@ -117,3 +117,49 @@ export const NotifyListResp = z.object({
     link: z.string().optional(),
   }).passthrough()),
 }).passthrough();
+
+// C4-2 我的板块：2026-10-21 登录态实采 3 行（api_survey §L60：
+// isjoined/new_content/p_circle/simple_des；行=circle 对象、同树形态 type_value=fid）
+export const UserCircleListResp = z.object({
+  success: z.boolean(),
+  list: z.array(z.object({
+    id: z.unknown().optional(),
+    type_value: z.string().optional(), // =论坛 fid（circle id 另存；树同款）
+    fid: z.unknown().optional(), // 兜底键（形态以实采为准时字段名待登录复核）
+    name: z.string().optional(),
+    icon_url: z.string().optional(),
+    isjoined: z.unknown().optional(),
+    new_content: z.unknown().optional(),
+    simple_des: z.string().optional(),
+  }).passthrough()),
+}).passthrough();
+
+// C4-3 收藏列表：静态取证（UserCollectActivity + UserCollectItem getter 集）
+// id/userId/title/pic/catName/key/link/toUserId/createTimeStr/name…
+export const UserCollectListResp = z.object({
+  success: z.boolean(),
+  list: z.array(z.object({
+    id: z.unknown().optional(),
+    title: z.string().optional(),
+    catName: z.string().optional(),
+    pic: z.string().optional(),
+    link: z.string().optional(),
+    createTimeStr: z.string().optional(),
+    name: z.string().optional(),
+  }).passthrough()),
+}).passthrough();
+
+// C4-4 消息详情：静态取证（LetterChatActivity + LetterChatBean）
+// mid/uid/name/head/title/content/dateline…
+export const UserMessageListResp = z.object({
+  success: z.boolean(),
+  list: z.array(z.object({
+    mid: z.unknown().optional(),
+    uid: z.unknown().optional(),
+    name: z.string().optional(),
+    head: z.string().optional(),
+    title: z.string().optional(),
+    content: z.string().optional(),
+    dateline: z.unknown().optional(),
+  }).passthrough()),
+}).passthrough();
