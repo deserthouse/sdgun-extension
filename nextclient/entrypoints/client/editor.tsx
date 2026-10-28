@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useEndpoint } from '../../lib/queries';
 import { sanitizeContent } from '../../lib/sanitize';
-import { draftKey, loadReplyDraftText, saveReplyDraftText, GUEST_OWNER } from '../../lib/draft';
-import { getAuth, type AuthInfo } from '../../lib/auth';
+import { draftKey, loadReplyDraftText, saveReplyDraftText, useDraftOwner } from '../../lib/draft';
 import { runMutation, type MutationState } from '../../lib/mutation';
 import { StateBlock } from './StateBlock';
 
@@ -18,7 +17,6 @@ type SubmitState =
 // tid 模式（C1-5）：从帖子页「回复」进入——无标题/板块选择（目标已定），
 // 草稿与帖子页 ReplyDraft 共用 owner+tid 键（loadReplyDraftText 统一格式）。
 export function EditorPage({ tid }: { tid?: string }) {
-  const [auth, setAuth] = useState<AuthInfo | null>(null);
   const [title, setTitle] = useState('');
   const [board, setBoard] = useState('');
   const [content, setContent] = useState('');
@@ -27,11 +25,8 @@ export function EditorPage({ tid }: { tid?: string }) {
   const [submit, setSubmit] = useState<SubmitState>({ phase: 'idle' });
   const [synthetic, setSynthetic] = useState(false);
 
-  useEffect(() => {
-    getAuth().then(setAuth).catch(() => {});
-  }, []);
-
-  const owner = auth ? `u${auth.userId}` : GUEST_OWNER;
+  // W1/E28-02：owner 实时派生（身份切换即换键空间）
+  const owner = useDraftOwner() ?? '';
   const replyMode = Boolean(tid);
   const draftK = replyMode ? draftKey(owner, tid!) : draftKey(owner, 'editor');
   // E24-04 修复：key=null（身份未 ready）→ 不加载也不允许编辑；

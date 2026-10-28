@@ -33,22 +33,44 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const qc = useQueryClient();
   const [session, setSession] = useState<Session | 'loading'>('loading');
   const epochRef = useRef<string | null>(null);
+  const tokenRef = useRef<string | null | undefined>(undefined); // undefined=未初始化
 
+  // W1/E28-01：身份变更（任意标签登出/换号）→ 取消在途+清全部查询缓存。
+  // storage.onChanged 在本扩展全部上下文广播——跨标签即时生效；3s 轮询仅作兜底。
+  const refreshIdentity = React.useCallback(async (initial = false) => {
+    const auth = await getAuth().catch(() => null);
+    const token = auth?.token ?? null;
+    if (!initial && token === tokenRef.current) return; // 身份未变
+    const switched = !initial && token !== tokenRef.current;
+    tokenRef.current = token;
+    if (switched) {
+      await qc.cancelQueries(); // 旧身份在途请求全部终止（配合 broker signal）
+      qc.removeQueries(); // 私有缓存整体作废——E28-01：旧账号内容不得跨标签残留
+    }
+    const pr = await epochProbe().catch(() => null);
+    // C3-4 ready 守卫（首开）：无 epoch → epochStart 装游客 UA 规则后再放行
+    let epoch = pr?.epoch ?? null;
+    if (initial && !epoch) {
+      const started = await epochStart(`guest-${Date.now().toString(36)}`)
+        .catch(() => null) as { epoch?: string } | null;
+      epoch = started?.epoch ?? null;
+    }
+    epochRef.current = epoch;
+    setSession({ epoch, auth });
+  }, [qc]);
+
+  useEffect(() => { refreshIdentity(true); }, [refreshIdentity]);
+
+  // W1/E28-01：跨标签广播订阅（session 区 auth.current 变化即刷新）
   useEffect(() => {
-    (async () => {
-      const auth = await getAuth().catch(() => null);
-      // C3-4 ready 守卫：首开时无 epoch → 先 epochStart（SW 装游客 UA 规则）
-      // 再放开 session——查询（queries.ts enabled 门）在规则就绪前不点火，
-      // 消灭「首请求裸发被 WAF 偶发拦截」竞速（E70-09/B4 根因，2026-10-25 实锤）
-      let pr = await epochProbe().catch(() => null);
-      if (!pr?.epoch) {
-        pr = await epochStart(`guest-${Date.now().toString(36)}`).catch(() => null) as typeof pr;
+    const lst = (changes: Record<string, unknown>, area: string) => {
+      if (area === 'session' && 'auth.current' in changes) {
+        void refreshIdentity();
       }
-      const epoch = pr?.epoch ?? null;
-      epochRef.current = epoch;
-      setSession({ epoch, auth });
-    })();
-  }, []);
+    };
+    browser.storage.onChanged.addListener(lst);
+    return () => browser.storage.onChanged.removeListener(lst);
+  }, [refreshIdentity]);
 
   const logout = async (): Promise<void> => {
     // 顺序（E70-05）：先取消在途，再撤身份，再清私有缓存，最后清规则/记账
@@ -60,22 +82,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setSession({ epoch: null, auth: null });
   };
 
-  // 登录成功后由调用方（lib/auth 层）同步上下文：轮询 auth 变化即可
-  // （storage.session 是事件源；这里以轻量对拍保持 session 新鲜）
+  // 登录成功后由调用方（lib/auth 层）同步上下文。W1：轮询只作 onChanged 的兜底，
+  // 统一走 refreshIdentity（token 去重；变更路径含 cancel+removeQueries）
   useEffect(() => {
-    const t = setInterval(async () => {
+    const t = setInterval(() => {
       if (session === 'loading') return;
-      const auth = await getAuth().catch(() => null);
-      const pr = await epochProbe().catch(() => null);
-      const epoch = pr?.epoch ?? null;
-      epochRef.current = epoch;
-      const cur = session as Session;
-      if (cur.auth?.token !== (auth?.token ?? null) || cur.epoch !== epoch) {
-        setSession({ epoch, auth });
-      }
+      void refreshIdentity();
     }, 3000);
     return () => clearInterval(t);
-  }, [session]);
+  }, [session, refreshIdentity]);
 
   return <Ctx.Provider value={{ session, logout, epochRef }}>{children}</Ctx.Provider>;
 }

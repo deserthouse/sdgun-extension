@@ -1,9 +1,8 @@
 // G3/M6-A 消息真实路由：游客=登录提示；登录态=通知摘要+会话组列表+详情面板。
 // C4-4：详情面板接 userMessageList 会话历史（静态取证；read-may-mutate 如实披露）。
-import { useEffect, useState } from 'react';
 import { useEndpoint } from '../../lib/queries';
-import { getAuth, type AuthInfo } from '../../lib/auth';
 import { StateBlock, StateBadge } from './StateBlock';
+import { useSession } from '../../lib/session';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -37,10 +36,9 @@ function MsgHistory({ peer }: { peer: any }) {
 }
 
 export function MessagesPage() {
-  const [auth, setAuth] = useState<AuthInfo | null | 'loading'>('loading');
-  useEffect(() => {
-    getAuth().then(setAuth).catch(() => setAuth(null));
-  }, []);
+  // W1/E28-01：身份走 SessionProvider（onChanged 跨标签广播），不再单次读取
+  const { session } = useSession();
+  const auth = session === 'loading' ? 'loading' : session.auth;
 
   if (auth === 'loading') return <p style={{ color: 'var(--text3)' }}>…</p>;
   if (!auth) {
@@ -78,7 +76,7 @@ function MessagesAuthed() {
       </div>
       <StateBlock state={msg.state} fail={msg.fail} onRetry={() => msg.refetch()} skeletonRows={3} />
 
-      {tab === 'msg' && msg.state !== 'InitialLoading' && items.length === 0 && !openGroup && (
+      {tab === 'msg' && msg.state === 'Empty' && !openGroup && (
         <div className="state-card" data-test="empty">暂无消息会话</div>
       )}
       {tab === 'msg' && !openGroup && items.map((m: any) => (

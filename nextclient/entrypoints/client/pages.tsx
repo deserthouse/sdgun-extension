@@ -163,7 +163,7 @@ function Collections() {
         我的收藏 <StateBadge state={q.state} />
       </h2>
       <StateBlock state={q.state} fail={q.fail} onRetry={() => q.refetch()} skeletonRows={2} />
-      {q.state !== 'InitialLoading' && rows.length === 0 && (
+      {q.state === 'Empty' && (
         <div className="state-card" data-test="collections-empty">暂无收藏</div>
       )}
       {rows.map((c: any, i: number) => {
@@ -220,7 +220,7 @@ function MyBoards({ userId }: { userId: string }) {
         我的板块 <StateBadge state={q.state} />
       </h2>
       <StateBlock state={q.state} fail={q.fail} onRetry={() => q.refetch()} skeletonRows={1} />
-      {q.state !== 'InitialLoading' && rows.length === 0 && (
+      {q.state === 'Empty' && (
         <div className="state-card" data-test="my-boards-empty">暂无加入的板块</div>
       )}
       {rows.length > 0 && (

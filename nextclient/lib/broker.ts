@@ -37,6 +37,8 @@ async function withSlot<T>(fn: () => Promise<T>): Promise<T> {
 export interface CallOpts {
   params?: Record<string, string | number>;
   timeoutMs?: number;
+  /** W1/E28-01：请求信号贯穿——身份切换 cancelQueries 即中止在途旧请求 */
+  signal?: AbortSignal;
 }
 
 // 测试缝：host 覆盖（离线夹具服务器）。产品代码绝不调用 setter。
@@ -82,6 +84,9 @@ export async function callEndpoint<T = unknown>(id: string, opts: CallOpts = {})
   }
   return withSlot(async () => {
     const ctrl = new AbortController();
+    // W1/E28-01：外部 signal（查询取消）与超时组合到同一控制器
+    const onOuterAbort = () => ctrl.abort();
+    opts.signal?.addEventListener('abort', onOuterAbort);
     const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 20000);
     try {
       const resp = await fetch(url.toString(), {
@@ -105,20 +110,30 @@ export async function callEndpoint<T = unknown>(id: string, opts: CallOpts = {})
           throw { kind: 'PermissionDenied', msg: '无权限', code: 1003 } as Fail;
         }
       }
+      // W1/E28-03：业务失败信封先于 schema 判定——失败不得被「schema mismatch」
+      // 掩盖成解析错误，更不得流入「成功空列表」语义
+      if (body && typeof body === 'object'
+        && 'success' in (body as Record<string, unknown>)
+        && (body as { success: unknown }).success === false) {
+        const msg = typeof (body as { msg?: unknown }).msg === 'string'
+          ? (body as { msg: string }).msg : '服务器拒绝了该请求';
+        throw { kind: 'RetryableError', msg } as Fail;
+      }
       const parsed = def.response.safeParse(body);
       if (!parsed.success) {
-        throw { kind: 'RetryableError', msg: 'schema mismatch: ' +
-          parsed.error.issues[0]?.path.join('.') } as Fail;
+        throw { kind: 'RetryableError', msg: '数据格式不符合预期' } as Fail;
       }
       return parsed.data as T;
     } catch (e) {
       if (isFail(e)) throw e;
       if (e instanceof DOMException && e.name === 'AbortError') {
-        throw { kind: 'NetworkError', msg: 'timeout' } as Fail;
+        // 外部取消（身份切换/组件卸载）与超时同形——网络态 Fail 由上层忽略静默
+        throw { kind: 'NetworkError', msg: 'aborted' } as Fail;
       }
       throw { kind: 'NetworkError', msg: String((e as Error)?.message ?? e).slice(0, 120) } as Fail;
     } finally {
       clearTimeout(timer);
+      opts.signal?.removeEventListener('abort', onOuterAbort);
     }
   });
 }

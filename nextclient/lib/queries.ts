@@ -15,9 +15,12 @@ function isEmptyData(d: unknown): boolean {
 export function useEndpoint<T>(id: string, params?: Record<string, string | number>) {
   const { session } = useSession();
   const ready = session !== 'loading'; // 失败也放行（session 恒落定，不悬挂）
+  // W1/E28-01：私有键空间=epoch+owner——身份切换后旧键失活（迟到回填进不了新键），
+  // 旧缓存随 SessionProvider 的 removeQueries 整体作废
+  const ownKey = `${session === 'loading' ? '' : (session.auth ? `u${session.auth.userId}:` : 'guest:')}${session === 'loading' ? '' : session.epoch ?? ''}`;
   const q = useQuery<T>({
-    queryKey: [id, params ?? {}],
-    queryFn: () => callEndpoint<T>(id, { params }),
+    queryKey: [id, params ?? {}, ownKey],
+    queryFn: ({ signal }) => callEndpoint<T>(id, { params, signal }),
     enabled: ready,
     retry: false,
     staleTime: 5 * 60_000,

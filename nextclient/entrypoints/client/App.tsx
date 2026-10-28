@@ -160,7 +160,7 @@ export default function App() {
                   margin: '8px 2px' }}>{cacheMsg}</p>
               )}
               <p style={{ fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.6 }}>
-                站点接管开启后，论坛页面将改由本客户端渲染（当前版本尚未接线，开启无效果）。
+                站点接管开启后，论坛页面将改由本客户端渲染；可随时关闭回到经典模式。
               </p>
               <details style={{ marginTop: 14, fontSize: 12.5, color: 'var(--text3)' }}>
                 <summary style={{ cursor: 'pointer' }}>诊断信息（开发者）</summary>

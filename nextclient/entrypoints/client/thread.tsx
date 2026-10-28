@@ -5,7 +5,7 @@ import { useEndpoint } from '../../lib/queries';
 import { sanitizeContent, extractImages } from '../../lib/sanitize';
 import { StateBlock, StateBadge } from './StateBlock';
 import { getAuth } from '../../lib/auth';
-import { draftKey, loadReplyDraftText, saveReplyDraftText, GUEST_OWNER } from '../../lib/draft';
+import { draftKey, loadReplyDraftText, saveReplyDraftText, useDraftOwner } from '../../lib/draft';
 import { runMutation, type MutationState } from '../../lib/mutation';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -388,16 +388,13 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
 }
 
 
-// G4 回复草稿：owner+tid 键隔离（E70-04 修复）；真实发布写面封存——诚实禁用。
+// G4 回复草稿：owner+tid 键隔离（E70-04）；owner 实时派生（W1/E28-02——
+// 身份切换即换键，后输入写新账号键，旧账号键保留原文）。
 function ReplyDraft({ tid }: { tid: string }) {
-  const [owner, setOwner] = useState<string | null>(null);
+  const owner = useDraftOwner();
   const [text, setText] = useState('');
   const [saved, setSaved] = useState('');
   const [restored, setRestored] = useState(false);
-
-  useEffect(() => {
-    getAuth().then((a) => setOwner(a ? `u${a.userId}` : GUEST_OWNER)).catch(() => setOwner(GUEST_OWNER));
-  }, []);
 
   const key = owner ? draftKey(owner, tid) : null;
 
@@ -414,6 +411,8 @@ function ReplyDraft({ tid }: { tid: string }) {
     <div className="card" data-test="reply-draft" style={{ marginTop: 18 }}>
       <div className="card-title" style={{ marginBottom: 8 }}>回复草稿（本机保存）</div>
       <textarea data-test="draft-input" aria-label="回复草稿输入框" value={text}
+        data-owner={owner ?? ''} disabled={key === null}
+        title={key === null ? '正在确认本机身份…' : undefined}
         onChange={(e) => { setText(e.target.value); if (key) { saveReplyDraftText(key, e.target.value); } setSaved('已保存'); }}
         placeholder="撰写回复草稿（自动保存在本机）…"
         style={{ width: '100%', minHeight: 90, borderRadius: 10, border: '1px solid var(--border2)',
