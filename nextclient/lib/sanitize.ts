@@ -14,6 +14,11 @@ DOMPurify.addHook('afterSanitizeAttributes', (node: any) => {
   if (!ALLOWED_IMG.test(v) && !v.startsWith('data:image/')) {
     node.removeAttribute('src');
   }
+  // W3/批B：CLS 缓解——懒加载+异步解码（无服务端尺寸，无法彻底消除跳动）
+  if (node.getAttribute('src')) {
+    node.setAttribute('loading', 'lazy');
+    node.setAttribute('decoding', 'async');
+  }
 });
 
 // 懒加载归一化（E70-02 修复，清洗前执行）：站方正文 img 常把真图放在

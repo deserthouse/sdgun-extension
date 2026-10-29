@@ -5,14 +5,15 @@ import { epochProbe, type EpochProbe } from '../../lib/epoch';
 import { setTakeoverEnabled, takeoverEnabled } from '../../lib/switch';
 import { BoardPage, CommunityPage, FocusPage, MyPage } from './pages';
 import { MessagesPage } from './messages';
+import { IconFocus, IconCommunity, IconMail, IconUser, IconSearch, IconGear } from './icons';
 import { EditorPage } from './editor';
 import { ThreadPage } from './thread';
 
 const TABS = [
-  { id: 'focus', label: '聚焦' },
-  { id: 'community', label: '社区' },
-  { id: 'messages', label: '消息' },
-  { id: 'my', label: '我的' },
+  { id: 'focus', label: '聚焦', icon: IconFocus },
+  { id: 'community', label: '社区', icon: IconCommunity },
+  { id: 'messages', label: '消息', icon: IconMail },
+  { id: 'my', label: '我的', icon: IconUser },
 ] as const;
 
 function currentRoute(): { name: string; param?: string; param2?: string } {
@@ -34,6 +35,9 @@ export default function App() {
   const [mode, setMode] = useState<ThemeMode>(themeMode);
   const [takeover, setTakeover] = useState<boolean | null>(null); // null=未读
   const [cacheMsg, setCacheMsg] = useState('');
+  const [bannerOpen, setBannerOpen] = useState(() => {
+    try { return localStorage.getItem('sdg2.banner.dismissed') !== '1'; } catch { return true; }
+  });
   const qc = useQueryClient();
 
   useEffect(() => { takeoverEnabled().then(setTakeover).catch(() => setTakeover(false)); }, []);
@@ -80,46 +84,50 @@ export default function App() {
 
   return (
     <>
-      {takeover === false && (  // E1-3：接管未启用提示（grid 外，避免挤压 rail）
-        <div data-test="takeover-banner"
-          style={{
-            background: 'var(--surface2)', color: 'var(--text2)', fontSize: 12.5,
-            padding: '7px 16px', borderBottom: '1px solid var(--border)',
-          }}>
-          站点接管未启用：论坛页仍由经典重绘渲染；本客户端页面始终可用。
-          （设置见左栏底部）
+      {takeover === false && bannerOpen && (  // E1-3 提示；W2 视觉审查：可关闭+去布局耦合文案
+        <div data-test="takeover-banner" style={{
+          background: 'var(--surface2)', color: 'var(--text2)', fontSize: 12.5,
+          padding: '7px 16px', borderBottom: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', gap: 12,
+        }}>
+          <span style={{ flex: 1 }}>
+            站点接管未启用：论坛页仍由经典重绘渲染，本客户端页面始终可用；可在设置中开启。
+          </span>
+          <button className="btn" data-test="banner-dismiss" style={{ padding: '2px 10px' }}
+            onClick={() => { try { localStorage.setItem('sdg2.banner.dismissed', '1'); } catch {} setBannerOpen(false); }}>
+            知道了
+          </button>
         </div>
       )}
       <div className="shell">
-      <nav className="navcol" style={{
-        background: 'var(--surface)', borderRight: '1px solid var(--border)',
-        padding: '20px 14px', display: 'flex', flexDirection: 'column', gap: 4,
-      }}>
-        <div className="nav-collapse" style={{ fontWeight: 700, fontSize: 16, padding: '6px 10px 18px' }}>
-          SDGun <span style={{ color: 'var(--accent)' }}>New</span>
-        </div>
-        {TABS.map((t) => (
-          <a key={t.id} href={`#/${t.id}`} data-tab={t.id} title={t.label}
-            style={{
-              display: 'block', padding: '10px 12px', borderRadius: 10, fontSize: 14,
-              textDecoration: 'none',
-              background: route.name === t.id ? 'var(--surface2)' : 'transparent',
-              color: route.name === t.id ? 'var(--accent)' : 'var(--text2)',
-              fontWeight: route.name === t.id ? 700 : 400,
-            }}>
-            {t.label[0]}<span className="nav-collapse">{t.label.slice(1)}</span>
-          </a>
-        ))}
-        <a className="chip nav-collapse" data-test="search-h5"
+      <nav className="navcol" aria-label="主导航">
+        <div className="navbrand">SDGun <em>New</em></div>
+        {TABS.map((t) => {
+          const Icon = t.icon;
+          return (
+            <a key={t.id} href={`#/${t.id}`} data-tab={t.id} title={t.label}
+              className="navlink"
+              aria-current={(route.name === t.id
+                || (t.id === 'community' && ['board', 'thread', 'editor'].includes(route.name)))
+                ? 'page' : undefined}>
+              <Icon />
+              <span>{t.label}</span>
+            </a>
+          );
+        })}
+        <a className="navlink navtools" data-test="search-h5"
           href="https://bbs.sdgun.com.cn/search.php?mod=forum&mobile=2"
-          target="_blank" rel="noreferrer" style={{ marginTop: 10 }}>🔍 H5 搜索</a>
-        <a data-test="settings-link" href="#/settings" title="设置"
-          style={{ marginTop: 'auto', fontSize: 13, color: 'var(--text2)', textDecoration: 'none',
-            padding: '8px 10px', borderRadius: 10 }}>
-          ⚙ <span className="nav-collapse">设置</span>
+          target="_blank" rel="noreferrer">
+          <IconSearch /><span>H5 搜索</span>
         </a>
+        <div className="navfoot">
+          <a className="navlink" data-test="settings-link" href="#/settings" title="设置"
+            aria-current={route.name === 'settings' ? 'page' : undefined}>
+            <IconGear /><span>设置</span>
+          </a>
+        </div>
       </nav>
-      <main style={{ padding: '32px 40px', maxWidth: 860 }}>
+      <main className="main">
         {route.name === 'board'
           ? <BoardPage key={route.param} fid={route.param!} />
           : route.name === 'thread'
@@ -128,42 +136,41 @@ export default function App() {
           ? <EditorPage key={route.param ?? 'compose'} tid={route.param} />
           : route.name === 'settings'
           ? (
-            <div data-test="settings-page" style={{ maxWidth: 520 }}>
-              <h1 style={{ fontSize: 24, margin: '0 0 16px' }} data-test="page-title">设置</h1>
-              <div className="card" style={{ display: 'flex', alignItems: 'center',
-                justifyContent: 'space-between' }}>
-                <label htmlFor="theme-select" style={{ fontSize: 14 }}>外观主题</label>
-                <select id="theme-select" data-test="theme" value={mode}
-                  onChange={(e) => { const v = e.target.value as ThemeMode; setMode(v); setThemeMode(v); }}
-                  style={{ background: 'var(--surface2)', color: 'var(--text2)',
-                    border: '1px solid var(--border2)', borderRadius: 8, padding: '6px 10px' }}>
+            <div data-test="settings-page">
+              <div className="page-header">
+                <h1 className="page-title" data-test="page-title">设置</h1>
+              </div>
+              <div className="setrow">
+                <label htmlFor="theme-select" className="setrow-label">外观主题</label>
+                <select id="theme-select" className="setrow-select" data-test="theme" value={mode}
+                  onChange={(e) => { const v = e.target.value as ThemeMode; setMode(v); setThemeMode(v); }}>
                   <option value="auto">跟随系统</option>
                   <option value="light">浅色</option>
                   <option value="dark">深色</option>
                 </select>
               </div>
-              <div className="card" style={{ display: 'flex', alignItems: 'center',
-                justifyContent: 'space-between' }}>
-                <label htmlFor="takeover-check" style={{ fontSize: 14 }}>启用站点接管</label>
-                <input id="takeover-check" data-test="takeover" type="checkbox"
-                  checked={takeover === true} disabled={takeover === null}
-                  onChange={(e) => { const v = e.target.checked; setTakeover(v); setTakeoverEnabled(v); }} />
+              <div className="setrow">
+                <label id="takeover-label" className="setrow-label">启用站点接管</label>
+                <button id="takeover-check" className="toggle" data-test="takeover"
+                  role="switch" aria-checked={takeover === true} aria-labelledby="takeover-label"
+                  disabled={takeover === null}
+                  onClick={() => { const v = !(takeover === true); setTakeover(v); setTakeoverEnabled(v); }}>
+                  <span className="toggle-knob" />
+                </button>
               </div>
-              <div className="card" style={{ display: 'flex', alignItems: 'center',
-                justifyContent: 'space-between' }}>
-                <label style={{ fontSize: 14 }} htmlFor="clear-cache-btn">清除本机缓存</label>
-                <button id="clear-cache-btn" className="btn" data-test="clear-cache"
-                  onClick={clearCache}>清除</button>
+              <div className="setrow">
+                <label className="setrow-label">清除本机缓存</label>
+                <button className="btn" data-test="clear-cache" onClick={clearCache}>清除</button>
               </div>
               {cacheMsg && (
-                <p data-test="clear-cache-msg" style={{ fontSize: 12.5, color: 'var(--text3)',
-                  margin: '8px 2px' }}>{cacheMsg}</p>
+                <p data-test="clear-cache-msg" className="page-sub" style={{ margin: '8px 2px' }}>{cacheMsg}</p>
               )}
-              <p style={{ fontSize: 12.5, color: 'var(--text2)', lineHeight: 1.6 }}>
+              <p className="page-sub" style={{ lineHeight: 1.6 }}>
                 站点接管开启后，论坛页面将改由本客户端渲染；可随时关闭回到经典模式。
               </p>
-              <details style={{ marginTop: 14, fontSize: 12.5, color: 'var(--text3)' }}>
-                <summary style={{ cursor: 'pointer' }}>诊断信息（开发者）</summary>
+              <div className="section-title" style={{ color: 'var(--text3)' }}>关于</div>
+              <details className="page-sub">
+                <summary style={{ cursor: 'pointer' }}>诊断信息</summary>
                 <div style={{ marginTop: 8 }}>
                   epoch：{probe ? (probe.epoch ?? '无') : '…'}<br />
                   auth 规则：{probe ? probe.rulesCount : '…'}
@@ -173,7 +180,9 @@ export default function App() {
           )
           : (
             <>
-              <h1 style={{ fontSize: 24, margin: '0 0 8px' }} data-test="page-title">{tab.label}</h1>
+              <div className="page-header">
+                <h1 className="page-title" data-test="page-title">{tab.label}</h1>
+              </div>
               {route.name === 'focus' && <FocusPage />}
               {route.name === 'community' && <CommunityPage />}
               {route.name === 'messages' && <MessagesPage />}

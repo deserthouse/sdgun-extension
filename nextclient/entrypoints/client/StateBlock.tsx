@@ -29,7 +29,14 @@ export function StateBlock(props: {
     );
   }
   if (state === 'AuthRequired') {
-    return <div className="state-card" data-test="auth-required">需要登录后查看</div>;
+    return (
+      <div className="state-card" data-test="auth-required">
+        需要登录后查看。
+        <div style={{ marginTop: 10 }}>
+          <a className="btn btn-primary" data-test="auth-goto-login" href="#/my">去登录 ›</a>
+        </div>
+      </div>
+    );
   }
   if (state === 'PermissionDenied') {
     return <div className="state-card" data-test="denied">当前账号无权限</div>;

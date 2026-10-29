@@ -9,7 +9,8 @@ const ForumRow = z.object({
   tid: z.union([z.number(), z.string()]),
   subject: z.string(),
   des: z.string().optional(),
-  pics: z.unknown().optional(),
+  // 封面图组（2026-10-29 实采：字符串 URL 数组，picapp 域；可为 '[]'/null）
+  pics: z.array(z.string()).nullable().optional(),
   user_name: z.string().optional(),
   reply_count: z.union([z.number(), z.string()]).optional(),
   is_top: z.unknown().optional(),
@@ -116,6 +117,12 @@ export const NotifyListResp = z.object({
     pic: z.string().optional(),
     link: z.string().optional(),
   }).passthrough()),
+}).passthrough();
+
+// 写面通用响应（批D）：写端点响应形态未实测（真实写入=用户 MANUAL）——
+// 只断言 success 布尔，其余透传；broker 在 success:false 时抛业务失败。
+export const WriteResp = z.object({
+  success: z.boolean(),
 }).passthrough();
 
 // C4-2 我的板块：2026-10-21 登录态实采 3 行（api_survey §L60：

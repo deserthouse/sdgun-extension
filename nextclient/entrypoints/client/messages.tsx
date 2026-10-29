@@ -1,14 +1,17 @@
 // G3/M6-A 消息真实路由：游客=登录提示；登录态=通知摘要+会话组列表+详情面板。
 // C4-4：详情面板接 userMessageList 会话历史（静态取证；read-may-mutate 如实披露）。
+import { useState } from 'react';
 import { useEndpoint } from '../../lib/queries';
 import { StateBlock, StateBadge } from './StateBlock';
 import { useSession } from '../../lib/session';
+import { Avatar } from './Avatar';
+import { formatTime } from '../../lib/format';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 // C4-4 会话历史（userMessageList，静态取证 LetterChatActivity：参数 uid+page）。
 // peer uid 键名以真实分组行形态为准前取三兜底；read-may-mutate 披露在面板内。
-function MsgHistory({ peer }: { peer: any }) {
+function MsgHistory({ peer, myId }: { peer: any; myId: string }) {
   const uid = String(peer.uid ?? peer.user_id ?? peer.id ?? '');
   const q = useEndpoint('userMessageList', uid ? { uid, p: 1 } : { p: 1 });
   const rows = (q.data as any)?.list ?? [];
@@ -18,13 +21,18 @@ function MsgHistory({ peer }: { peer: any }) {
       {q.state !== 'InitialLoading' && rows.length === 0 && (
         <div className="state-card" data-test="msg-history-empty">无更多历史消息</div>
       )}
-      {rows.map((m: any, i: number) => (
-        <div key={String(m.mid ?? i)} className="card floor" data-test="msg-row">
-          <div className="card-meta">
-            <strong style={{ color: 'var(--text)' }}>{m.name ?? uid}</strong>
-          </div>
-          <div className="content-html" style={{ fontSize: 14 }}>
-            {String(m.content ?? '')}
+      {rows.filter((m: any) => String(m.content ?? '').trim()).map((m: any, i: number) => (
+        <div key={String(m.mid ?? i)} data-test="msg-row"
+          className={'msg-bubble-row' + (String(m.uid) === myId ? ' mine' : '')}>
+          <div className="msg-bubble">
+            {String(m.uid) !== myId && (
+              <div className="card-meta" style={{ margin: 0 }}>
+                <strong style={{ color: 'var(--text)' }}>{m.name ?? uid}</strong>
+              </div>
+            )}
+            <div style={{ fontSize: 'var(--fs-sm)', lineHeight: 'var(--lh-sm)' }}>
+              {String(m.content ?? '')}
+            </div>
           </div>
         </div>
       ))}
@@ -57,6 +65,8 @@ export function MessagesPage() {
 }
 
 function MessagesAuthed() {
+  const { session } = useSession();
+  const myId = session === 'loading' ? '' : String(session.auth?.userId ?? '');
   const [tab, setTab] = useState<'msg' | 'notify'>('msg');
   const [openGroup, setOpenGroup] = useState<any | null>(null);
   const msg = useEndpoint(tab === 'msg' ? 'userMessageGroupList' : 'userNotifyIndex',
@@ -80,13 +90,16 @@ function MessagesAuthed() {
         <div className="state-card" data-test="empty">暂无消息会话</div>
       )}
       {tab === 'msg' && !openGroup && items.map((m: any) => (
-        <button key={String(m.id)} className="card" data-test="msg-group"
-          style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}
+        <button key={String(m.id)} className="card msg-group" data-test="msg-group"
           onClick={() => setOpenGroup(m)}>
-          <div className="card-title">{m.name ?? m.title ?? m.user_name ?? '(会话)'}</div>
-          {m.last_summary ?? m.content ? (
-            <div className="card-sub">{String(m.last_summary ?? m.content ?? '').slice(0, 60)}</div>
-          ) : null}
+          <Avatar src={m.user_head ?? m.head} name={m.name ?? m.title ?? m.user_name} size={40} />
+          <span className="msg-main">
+            <span className="card-title">{m.name ?? m.title ?? m.user_name ?? '(会话)'}</span>
+            {m.last_summary ?? m.content ? (
+              <span className="card-sub">{String(m.last_summary ?? m.content ?? '').slice(0, 60)}</span>
+            ) : null}
+          </span>
+          {m.time ? <span className="card-meta">{formatTime(m.time)}</span> : null}
         </button>
       ))}
       {tab === 'msg' && openGroup && (
@@ -101,7 +114,7 @@ function MessagesAuthed() {
           {openGroup.last_summary ?? openGroup.content ? (
             <div className="card-sub">{String(openGroup.last_summary ?? openGroup.content ?? '')}</div>
           ) : null}
-          <MsgHistory peer={openGroup} />
+          <MsgHistory peer={openGroup} myId={myId} />
         </div>
       )}
 

@@ -7,6 +7,9 @@ import { StateBlock, StateBadge } from './StateBlock';
 import { getAuth } from '../../lib/auth';
 import { draftKey, loadReplyDraftText, saveReplyDraftText, useDraftOwner } from '../../lib/draft';
 import { runMutation, type MutationState } from '../../lib/mutation';
+import { formatTime, formatCount } from '../../lib/format';
+import { Avatar } from './Avatar';
+import { useSession } from '../../lib/session';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -132,11 +135,13 @@ function useMutationRun() {
   return { phase, msg, run, setPhase, setMsg };
 }
 
-const SEALED_TITLE = '写面封存：真实写入属用户红线动作，由用户本人操作（测试经合成后端启用）';
+const SEALED_TITLE = '登录后可用（真实写入由你的账号执行）';
 
-function ApplaudButton({ pid, count, isLiked, synthetic }: {
-  pid: string; count: number; isLiked: boolean; synthetic: boolean;
+function ApplaudButton({ pid, count, isLiked }: {
+  pid: string; count: number; isLiked: boolean;
 }) {
+  const { session } = useSession();
+  const authed = session !== 'loading' && session.auth !== null;
   const [liked, setLiked] = useState(isLiked);
   const [n, setN] = useState(count);
   const { phase, msg, run } = useMutationRun();
@@ -145,7 +150,7 @@ function ApplaudButton({ pid, count, isLiked, synthetic }: {
     if (liked || phase === 'Submitting' || phase === 'Confirmed' || phase === 'OutcomeUnknown') return;
     setLiked(true); // 乐观
     setN((v) => v + 1);
-    const st = await run('synthetic.applaudAdd', { id: pid }, () => {
+    const st = await run('contentAddApplaud', { content_id: pid }, () => {
       setLiked(false); // Rejected 回滚
       setN((v) => v - 1);
     });
@@ -153,9 +158,9 @@ function ApplaudButton({ pid, count, isLiked, synthetic }: {
   }
   return (
     <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-      <button className="btn" data-test={`applaud-${pid}`} disabled={!synthetic || done || phase === 'Submitting'}
+      <button className="btn" data-test={`applaud-${pid}`} disabled={!authed || done || phase === 'Submitting'}
         aria-label={liked || phase === 'Confirmed' ? `已点赞（${n}）` : `点赞（${n}）`}
-        title={synthetic ? undefined : SEALED_TITLE}
+        title={authed ? undefined : '登录后可点赞（真实写入由你的账号执行）'}
         onClick={onClick}>
         👍 {n}{liked && phase !== 'Submitting' ? ' · 已赞' : phase === 'Submitting' ? ' · 提交中…' : ''}
       </button>
@@ -173,34 +178,32 @@ function ApplaudButton({ pid, count, isLiked, synthetic }: {
   );
 }
 
-function FollowButton({ userId, name, synthetic }: {
-  userId: string; name: string; synthetic: boolean;
+function FollowButton({ userId, name }: {
+  userId: string; name: string;
 }) {
-  const { phase, msg, run } = useMutationRun();
-  const [followed, setFollowed] = useState(false);
-  const done = followed || phase === 'Confirmed' || phase === 'OutcomeUnknown';
-  async function onClick() {
-    if (done || phase === 'Submitting') return;
-    setFollowed(true); // 乐观
-    const st = await run('synthetic.userFollowAdd', { id: userId }, () => setFollowed(false));
-    if (st === 'Rejected') return;
-  }
+  // 批D：关注动作端点未在官 APK 勘出——保持封存（诚实标注），W7 勘依赖后接入
+  void userId; void name;
   return (
     <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-      <button className="btn" data-test="follow-op" disabled={!synthetic || done || phase === 'Submitting'}
-        title={synthetic ? undefined : SEALED_TITLE}
-        onClick={onClick}>
-        {followed && phase !== 'Submitting' ? `已关注 ${name}` : phase === 'Submitting' ? '提交中…' : `关注 ${name}`}
+      <button className="btn" data-test="follow-op" disabled
+        title="关注动作端点待勘定，暂不可用（W7）">
+        关注 {name}
       </button>
-      {phase === 'OutcomeUnknown' && (
-        <span style={{ fontSize: 11.5, color: 'var(--accent)' }} data-test="follow-unknown">
-          {msg || '结果未知——请勿重复提交'}
-        </span>
-      )}
-      {phase === 'Rejected' && (
-        <span style={{ fontSize: 11.5, color: 'var(--text3)' }} data-test="follow-rejected">{msg}</span>
-      )}
     </span>
+  );
+}
+
+function BackTop() {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const on = () => setShow(window.scrollY > 800);
+    window.addEventListener('scroll', on, { passive: true });
+    return () => window.removeEventListener('scroll', on);
+  }, []);
+  if (!show) return null;
+  return (
+    <button className="btn backtop" data-test="back-top" aria-label="返回顶部"
+      onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>↑ 顶部</button>
   );
 }
 
@@ -225,7 +228,7 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
   const [anchorSearch, setAnchorSearch] = useState<{ pid: string; pagesTried: number } | null>(
     pid ? { pid, pagesTried: 1 } : null);
   const [anchorNotFound, setAnchorNotFound] = useState(false);
-  const [synthetic, setSynthetic] = useState(false); // C2：合成互动缝（产品构建恒关）
+  const draftOwner = useDraftOwner();
   useEffect(() => {
     if (!pid) return;
     setAnchorSearch({ pid, pagesTried: 1 });
@@ -282,14 +285,12 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
 
   return (
     <section>
-      <p style={{ margin: '0 0 10px', fontSize: 13 }}>
-        <a href={`#/board/${String(main?.fid ?? '')}`} style={{ color: 'var(--accent)' }}>
-          ‹ {String(main?.forum_name ?? '板块')}
-        </a>
-      </p>
-      <h1 style={{ fontSize: 22, margin: '0 0 10px' }} data-test="thread-title">
-        {main?.title ?? '…'}
-      </h1>
+      <div className="page-header">
+        <p className="crumb">
+          <a href={`#/board/${String(main?.fid ?? '')}`}>‹ {String(main?.forum_name ?? '板块')}</a>
+        </p>
+        <h1 className="page-title" data-test="thread-title">{main?.title ?? '…'}</h1>
+      </div>
       <div className="chiprow" data-test="thread-tools" style={{ marginBottom: 12 }}>
         <a className="btn" data-test="reply-entry" href={`#/editor?tid=${tid}`}>回复</a>
         <button className="btn" data-test="copy-link" aria-label="复制帖子链接" onClick={copyLink}>
@@ -309,7 +310,7 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
             <span>
               <strong style={{ color: 'var(--text)' }}>{opName}</strong> · 楼主 · {main.des || ''}
             </span>
-            {opUserId && <FollowButton userId={opUserId} name={opName} synthetic={synthetic} />}
+            {opUserId && <FollowButton userId={opUserId} name={opName} />}
           </div>
           <ContentView html={String(main.content ?? '')}
             onImg={(srcs, index, trigger) => setLightbox({ srcs, index, trigger })} />
@@ -339,15 +340,35 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
               {String(f.is_publisher) === 'true' || f.is_publisher === 1 ? (
                 <span className="pin" style={{ marginLeft: 6 }}>楼主</span>) : null}
             </span>
-            <span>{f.time} · {f.floor}#</span>
+            <span>{formatTime(f.time)} · {f.floor}#</span>
           </div>
           {f.to_comment ? <QuoteBlock q={f.to_comment} onJump={jumpToPid} /> : null}
           <ContentView html={String(f.content ?? '')}
             onImg={(srcs, index, trigger) => setLightbox({ srcs, index, trigger })} />
+          <div className="floor-head">
+            <Avatar src={f.user_head} name={f.user_name} size={28} />
+            <span className="floor-user">{f.user_name}</span>
+          </div>
+          <div className="chiprow floor-actions" style={{ marginTop: 8, marginBottom: 0 }}>
+            <button className="btn" data-test={`quote-${String(f.id ?? '')}`}
+              onClick={() => {
+                try {
+                  localStorage.setItem(`sdg2.quote.${draftOwner}.${tid}`,
+                    JSON.stringify({ pid: String(f.id ?? ''), name: String(f.user_name ?? ''),
+                      text: String(f.content ?? '').replace(/<[^>]+>/g, '').slice(0, 80) }));
+                } catch { /* 存储异常时引用降级为空 */ }
+                location.hash = `#/editor?tid=${tid}`;
+              }}>引用回复</button>
+            <button className="btn" data-test={`floor-link-${String(f.id ?? '')}`}
+              onClick={() => {
+                const url = `${location.origin}${location.pathname}#/thread/${tid}/${String(f.id ?? '')}`;
+                navigator.clipboard.writeText(url).then(() => setCopied('楼层链接已复制'), () => setCopied('复制失败'));
+                setTimeout(() => setCopied(''), 2000);
+              }}>复制楼层链接</button>
+          </div>
           <div className="card-meta" style={{ marginTop: 8 }}>
             <ApplaudButton pid={String(f.id ?? f.floor ?? '')} count={Number(f.applaud_count) || 0}
-              isLiked={f.is_applaud === true || f.is_applaud === 1 || f.is_applaud === '1'}
-              synthetic={synthetic} />
+              isLiked={f.is_applaud === true || f.is_applaud === 1 || f.is_applaud === '1'} />
           </div>
         </div>
       ))}
@@ -356,7 +377,8 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
         <span style={{ color: 'var(--text3)', fontSize: 12 }}>第 {page} / {totalPage} 页</span>
         <button className="btn" disabled={page >= totalPage} onClick={() => setPage(page + 1)}>下一页</button>
       </div>
-      <ReplyDraft tid={tid} />
+      <BackTop />
+      <ReplyDraft tid={tid} owner={draftOwner} />
       {lightbox && (
         <Lightbox srcs={lightbox.srcs} index={lightbox.index}
           onClose={() => {
@@ -374,15 +396,6 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
             }, 0);
           }} />
       )}
-      {/* 测试缝：合成互动启用（驱动经 __floors.enableSyntheticMutations()） */}
-      <button style={{ display: 'none' }} data-test="floors-enable-synthetic"
-        onClick={() => setSynthetic(true)} />
-      {(() => {
-        (window as { __floors?: unknown }).__floors = {
-          enableSyntheticMutations: () => { setSynthetic(true); },
-        };
-        return null;
-      })()}
     </section>
   );
 }
@@ -390,8 +403,7 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
 
 // G4 回复草稿：owner+tid 键隔离（E70-04）；owner 实时派生（W1/E28-02——
 // 身份切换即换键，后输入写新账号键，旧账号键保留原文）。
-function ReplyDraft({ tid }: { tid: string }) {
-  const owner = useDraftOwner();
+function ReplyDraft({ tid, owner }: { tid: string; owner: string | null }) {
   const [text, setText] = useState('');
   const [saved, setSaved] = useState('');
   const [restored, setRestored] = useState(false);

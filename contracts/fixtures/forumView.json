@@ -11,7 +11,11 @@
       "des": "摘要占位",
       "user_id": "1",
       "user_name": "u1",
-      "pics": "[]",
+      "pics": [
+        "https://picapp.sdgun.net/pic/fixture/thumb-a.jpg",
+        "https://picapp.sdgun.net/pic/fixture/thumb-b.jpg",
+        "https://picapp.sdgun.net/pic/fixture/thumb-c.jpg"
+      ],
       "pics_count": "0",
       "reply_count": "3",
       "click": "1.2万阅读",
