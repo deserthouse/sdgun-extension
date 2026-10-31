@@ -259,9 +259,21 @@ function MyBoards({ userId }: { userId: string }) {
 export function FocusPage() {
   const [channel, setChannel] = useState(7);
   const [page, setPage] = useState(1);
+  // E31-05 修复：累积语义（追加去重），频道切换原子重置游标与列表——
+  // 上一版「加载更多」实为替换页 + 换频道继承页码（p2 起步显示假空态）
+  const [items, setItems] = useState<any[]>([]);
   const info = useEndpoint('infoListByCatId', { cat_id: channel, step: 20, p: page });
-  const itemsAll = row(info.data);
-  const canLoadMore = info.state === 'Data' && itemsAll.length >= 20; // 满页才可能还有下一页
+  useEffect(() => {
+    const rows = row(info.data);
+    if (info.state !== 'Data' && info.state !== 'Empty' && info.state !== 'Stale') return;
+    setItems((prev) => {
+      if (page === 1) return rows;
+      const seen = new Set(prev.map((r: any) => String(r.id)));
+      return [...prev, ...rows.filter((r: any) => !seen.has(String(r.id)))];
+    });
+  }, [info.data, info.state, page]);
+  const canLoadMore = (info.state === 'Data' || info.state === 'Stale')
+    && row(info.data).length >= 20; // 满页才可能还有下一页
   const tree = useEndpoint('circleTree');
   const { session } = useSession();
   const auth = session === 'loading' ? null : session.auth;
@@ -274,13 +286,15 @@ export function FocusPage() {
           <button key={c.id} data-test={`channel-${c.id}`} aria-pressed={channel === c.id}
             className={'chip' + (channel === c.id ? ' on' : '')}
             style={channel === c.id ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}}
-            onClick={() => setChannel(c.id)}>{c.label}</button>
+            onClick={() => { setChannel(c.id); setPage(1); setItems([]); }}>{c.label}</button>
         ))}
       </div>
       <div className="section-title">资讯 <StateBadge state={info.state} /></div>
-      <StateBlock state={info.state === 'Data' ? 'Data' : info.state} fail={info.fail}
-        onRetry={() => info.refetch()} />
-      {info.state !== 'InitialLoading' && itemsAll.map((it: any) => (
+      {(page === 1 || info.state === 'RetryableError') && (
+        <StateBlock state={info.state === 'Data' ? 'Data' : info.state} fail={info.fail}
+          onRetry={() => info.refetch()} />
+      )}
+      {items.map((it: any) => (
         <a key={String(it.id)} className="card info-card" href={it.link ?? '#'}
           target="_blank" rel="noreferrer">
           <div className="card-title">{it.title}</div>

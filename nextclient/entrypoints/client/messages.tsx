@@ -18,7 +18,7 @@ function MsgHistory({ peer, myId }: { peer: any; myId: string }) {
   return (
     <div data-test="msg-history" style={{ marginTop: 12 }}>
       <StateBlock state={q.state} fail={q.fail} onRetry={() => q.refetch()} skeletonRows={2} />
-      {q.state !== 'InitialLoading' && rows.length === 0 && (
+      {q.state === 'Empty' && (
         <div className="state-card" data-test="msg-history-empty">无更多历史消息</div>
       )}
       {rows.filter((m: any) => String(m.content ?? '').trim()).map((m: any, i: number) => (

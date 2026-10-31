@@ -79,7 +79,7 @@ export default defineConfig({
     name: 'SDGun',
     version: versionNumeric,
     ...(versionPre ? { version_name: pkg.version } : {}),
-    permissions: ['storage', 'declarativeNetRequest'],
+    permissions: ['storage', 'declarativeNetRequest', 'scripting'], // scripting=旧线 popup「诊断当前页」按需注入（E31-08 合并回归修复）
     host_permissions: hostPermissions,
     // B2：popup=旧线（UA 开关/主题/状态面板/诊断），内含"打开新版客户端"链接
     action: {

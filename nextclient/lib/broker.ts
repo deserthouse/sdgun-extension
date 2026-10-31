@@ -5,7 +5,10 @@
 import { ENDPOINTS } from '../../contracts/api/endpoints';
 
 export type FailKind =
-  | 'RetryableError' | 'AuthRequired' | 'PermissionDenied' | 'Unsupported' | 'NetworkError';
+  | 'RetryableError' | 'AuthRequired' | 'PermissionDenied' | 'Unsupported' | 'NetworkError'
+  // E31-03：请求已送达（HTTP 2xx）但响应不可辨——对写链=结果未知（服务器可能已执行），
+  // 对读链按可重试错误呈现（deriveState 同映射）
+  | 'ResponseUnverified';
 
 export interface Fail {
   kind: FailKind;
@@ -121,7 +124,7 @@ export async function callEndpoint<T = unknown>(id: string, opts: CallOpts = {})
       }
       const parsed = def.response.safeParse(body);
       if (!parsed.success) {
-        throw { kind: 'RetryableError', msg: '数据格式不符合预期' } as Fail;
+        throw { kind: 'ResponseUnverified', msg: '响应格式不可识别' } as Fail;
       }
       return parsed.data as T;
     } catch (e) {
@@ -154,10 +157,11 @@ export interface QueryShape<T> {
 
 export function deriveState<T>(q: QueryShape<T>): NineState {
   if (q.error !== null && q.error !== undefined) {
-    return isFail(q.error) && (q.error.kind === 'AuthRequired'
-      || q.error.kind === 'PermissionDenied' || q.error.kind === 'Unsupported')
-      ? q.error.kind
-      : 'RetryableError';
+    if (isFail(q.error) && (q.error.kind === 'AuthRequired'
+      || q.error.kind === 'PermissionDenied' || q.error.kind === 'Unsupported')) {
+      return q.error.kind;
+    }
+    return 'RetryableError'; // ResponseUnverified/NetworkError 读链同呈现
   }
   if (q.isPending) return 'InitialLoading';
   if (q.isEmpty) return 'Empty';

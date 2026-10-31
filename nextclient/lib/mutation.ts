@@ -43,8 +43,10 @@ export async function runMutation(spec: SubmitSpec): Promise<MutationResult> {
     return { state: 'Confirmed', serverData: data };
   } catch (e) {
     const fail = e as Fail;
-    if (fail?.kind === 'NetworkError') {
-      return { state: 'OutcomeUnknown', msg: '网络无响应，结果未知——请勿重复提交' };
+    // E31-03：已送达但响应不可辨=服务器可能已执行——绝不断言未发生（不自动重发）
+    if (fail?.kind === 'NetworkError' || fail?.kind === 'ResponseUnverified') {
+      return { state: 'OutcomeUnknown', msg: (fail?.msg ? fail.msg + '——' : '')
+        + '结果未知，请勿重复提交' };
     }
     return { state: 'Rejected', msg: fail?.msg ?? String(e).slice(0, 120) };
   }

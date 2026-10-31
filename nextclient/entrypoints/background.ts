@@ -140,10 +140,13 @@ export default defineBackground(() => {
       return { ok: true };
     }
     if (msg.type === 'sdg2:openClient') {
-      // 同标签导航（sender.tab.id = 发消息的 content script 所在标签）
-      const url = browser.runtime.getURL('/client.html') + (msg as { hash?: string }).hash;
+      // E31-01 修复：集中规范化——hash 去重前导 # 再补一个，白名单路由前缀，
+      // 空/非法路由回默认 #/focus（此前裸拼丢 # → ERR_FILE_NOT_FOUND 实测）
+      const raw = String((msg as { hash?: string }).hash ?? '').replace(/^[#/]+/, '');
+      const okRoute = /^(focus|community|messages|my|board\/\d+(?:\/\d+)?|thread\/\d+(?:\/\d+)?|editor(?:\?tid=\d+)?)$/.test(raw);
+      const url = browser.runtime.getURL('/client.html') + '#/' + (okRoute ? raw : 'focus');
       await browser.tabs.create({ url });
-      return { ok: true };
+      return { ok: true, url };
     }
     if (msg.type === 'epoch:probe') {
       const st = await browser.storage.session.get(['epoch.current', 'epoch.setAt']);

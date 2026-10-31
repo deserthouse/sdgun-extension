@@ -6,12 +6,13 @@ import { sanitizeContent } from '../../lib/sanitize';
 import { draftKey, loadReplyDraftText, saveReplyDraftText, useDraftOwner } from '../../lib/draft';
 import { runMutation, type MutationState } from '../../lib/mutation';
 import { useSession } from '../../lib/session';
+import { useRef } from 'react';
 import { StateBlock } from './StateBlock';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 type SubmitState =
-  | { phase: 'idle' }
+  | { phase: 'idle'; state?: undefined }
   | { phase: 'busy'; state: MutationState }
   | { phase: 'done'; state: MutationState; msg?: string };
 
@@ -24,11 +25,15 @@ export function EditorPage({ tid }: { tid?: string }) {
   const [preview, setPreview] = useState(false);
   const [files, setFiles] = useState<string[]>([]);
   const [submit, setSubmit] = useState<SubmitState>({ phase: 'idle' });
+  const [flash, setFlash] = useState(false); // E31-03：成功瞬态提示（与 idle 收束解耦）
   const { session } = useSession();
   const authed = session !== 'loading' && session.auth !== null;
 
   // W1/E28-02：owner 实时派生（身份切换即换键空间）
   const owner = useDraftOwner() ?? '';
+  // E31-02：归属门——mutation 发起时冻结 owner+epoch，结果落地前核对仍是同一身份
+  const ownRef = useRef<{ owner: string; epoch: string | null }>({ owner: '', epoch: null });
+  ownRef.current = { owner, epoch: session === 'loading' ? null : session.epoch };
   const replyMode = Boolean(tid);
   // 批D：回复需 circle_id（=fid），从 threadView 补全
   const tv = useEndpoint('threadView', replyMode && tid ? { tid } : { tid: 0 });
@@ -88,7 +93,10 @@ export function EditorPage({ tid }: { tid?: string }) {
   async function doSubmit() {
     if (!canSubmit || submit.phase === 'busy') return;
     setSubmit({ phase: 'busy', state: 'Validating' });
-    // 批D：Confirmed=已发布 → 清草稿；OutcomeUnknown=结果未知 → 草稿保留。
+    // E31-02：冻结发起时归属与已提交快照——迟到结果不得污染新身份 UI/草稿
+    const mine = { ...ownRef.current };
+    const key0 = draftK;
+    const snap = { title, board, content };
     const r = await runMutation({
       endpointId: replyMode ? 'replyAdd' : 'threadAdd',
       validate: () => {
@@ -106,10 +114,34 @@ export function EditorPage({ tid }: { tid?: string }) {
         : { title, content, fid: board, circle_id: board },
       timeoutMs: 15000,
     });
-    if (replyMode && r.state === 'Confirmed' && draftK) {
-      localStorage.removeItem(draftK);
-      setContent('');
+    // 归属守卫：身份已换（跨标签登出/换号）→ 整个结果静默丢弃（不 setState/不动草稿）
+    if (ownRef.current.owner !== mine.owner || ownRef.current.epoch !== mine.epoch) {
+      return;
     }
+    // E31-03：成功终态收束——两种模式统一；仅清「已提交的那份」，
+    // 提交期间的后续输入保留（不误清新内容）
+    if (r.state === 'Confirmed') {
+      if (key0) {
+        try {
+          const raw = localStorage.getItem(key0);
+          const same = replyMode
+            ? (raw !== null && (JSON.parse(raw).content ?? '') === snap.content)
+            : (raw !== null && JSON.parse(raw).content === snap.content
+               && JSON.parse(raw).title === snap.title);
+          if (same) localStorage.removeItem(key0);
+        } catch { /* 损坏草稿不阻塞收束 */ }
+      }
+      setContent((prev) => (prev === snap.content ? '' : prev));
+      if (!replyMode) {
+        setTitle((prev) => (prev === snap.title ? '' : prev));
+        setBoard((prev) => (prev === snap.board ? '' : prev));
+      }
+      setSubmit({ phase: 'idle' }); // 结束态=可开始新内容（防旧「已发布」+满表单并存）
+      setFlash(true);
+      setTimeout(() => setFlash(false), 3000);
+      return;
+    }
+    // OutcomeUnknown：保稿+锁提交（明确恢复动作），Rejected/其他：可改后重试
     setSubmit({ phase: 'done', state: r.state, msg: r.msg });
   }
 
@@ -161,16 +193,25 @@ export function EditorPage({ tid }: { tid?: string }) {
             onClick={() => setFiles([...files, '占位附件'])}>添加附件</button>
         </div>
         <div className="chiprow" style={{ alignItems: 'center', margin: '16px 0 0' }}>
-          <button className="btn btn-primary" data-test="ed-submit" disabled={!canSubmit
-              || submit.phase === 'busy'}
+          <button className="btn btn-primary" data-test="ed-submit"
+            disabled={!canSubmit || submit.phase === 'busy' || submit.state === 'OutcomeUnknown'}
             title={authed ? undefined : '登录后可发布'}
             onClick={doSubmit}>
             {submit.phase === 'busy' ? stateText[submit.state] : (replyMode ? '发布回复' : '发布')}
           </button>
-          <span data-test="ed-state" style={{ fontSize: 13, color: submit.phase === 'done'
-              && submit.state === 'Confirmed' ? 'var(--accent)' : 'var(--text3)' }}>
-            {submit.phase === 'done' ? stateText[submit.state] + (submit.msg ? `：${submit.msg}` : '') : ''}
-          </span>
+          {submit.phase === 'done' && submit.state === 'OutcomeUnknown' && (
+            <button className="btn" data-test="ed-unknown-reset"
+              title="确认帖子状态后开始新内容（原草稿已保留在本机）"
+              onClick={() => setSubmit({ phase: 'idle' })}>我已核对，继续</button>
+          )}
+          {flash && (
+            <span data-test="ed-ok-flash" style={{ fontSize: 13, color: 'var(--accent)' }}>已发布 ✓</span>
+          )}
+          {submit.phase === 'done' && submit.state !== 'Confirmed' && (
+            <span data-test="ed-state" style={{ fontSize: 13, color: 'var(--text3)' }}>
+              {stateText[submit.state] + (submit.msg ? `：${submit.msg}` : '')}
+            </span>
+          )}
         </div>
         <p style={{ fontSize: 12, color: 'var(--text3)', margin: '10px 0 0' }}>
           登录后点「发布」即以你的账号真实发表；草稿自动保存在本机。
