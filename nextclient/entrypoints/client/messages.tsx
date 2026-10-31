@@ -12,16 +12,26 @@ import { formatTime } from '../../lib/format';
 // C4-4 会话历史（userMessageList，静态取证 LetterChatActivity：参数 uid+page）。
 // peer uid 键名以真实分组行形态为准前取三兜底；read-may-mutate 披露在面板内。
 function MsgHistory({ peer, myId }: { peer: any; myId: string }) {
-  const uid = String(peer.uid ?? peer.user_id ?? peer.id ?? '');
-  const q = useEndpoint('userMessageList', uid ? { uid, p: 1 } : { p: 1 });
+  // R1/E28-05：peerUid 必须来自会话行的用户 id 字段——缺 uid 不发请求
+  //（不得把会话 id 当用户 id），显式受限态
+  const uid = String(peer.uid ?? peer.user_id ?? '');
+  const hasTarget = uid !== '';
+  const q = useEndpoint('userMessageList', { uid, p: 1 }, { enabled: hasTarget });
   const rows = (q.data as any)?.list ?? [];
   return (
     <div data-test="msg-history" style={{ marginTop: 12 }}>
-      <StateBlock state={q.state} fail={q.fail} onRetry={() => q.refetch()} skeletonRows={2} />
-      {q.state === 'Empty' && (
+      {!hasTarget && (
+        <div className="state-card" data-test="msg-history-unsupported">
+          该会话缺少用户标识，暂不支持查看历史（已阻止无目标请求）。
+        </div>
+      )}
+      {hasTarget && (
+        <StateBlock state={q.state} fail={q.fail} onRetry={() => q.refetch()} skeletonRows={2} />
+      )}
+      {hasTarget && q.state === 'Empty' && (
         <div className="state-card" data-test="msg-history-empty">无更多历史消息</div>
       )}
-      {rows.filter((m: any) => String(m.content ?? '').trim()).map((m: any, i: number) => (
+      {hasTarget && rows.filter((m: any) => String(m.content ?? '').trim()).map((m: any, i: number) => (
         <div key={String(m.mid ?? i)} data-test="msg-row"
           className={'msg-bubble-row' + (String(m.uid) === myId ? ' mine' : '')}>
           <div className="msg-bubble">

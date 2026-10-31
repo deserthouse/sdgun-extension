@@ -39,6 +39,8 @@ export function EditorPage({ tid }: { tid?: string }) {
   const tv = useEndpoint('threadView', replyMode && tid ? { tid } : { tid: 0 });
   const fid = String((tv.data as any)?.data?.fid ?? '');
   const draftK = replyMode ? draftKey(owner, tid!) : draftKey(owner, 'editor');
+  // R1/E31-07 ReplyTarget：被回复楼层 pid（引用暂存时记录），提交作 reply_id
+  const [quotePid, setQuotePid] = useState<string | null>(null);
   // E24-04 修复：key=null（身份未 ready）→ 不加载也不允许编辑；
   // key 变化 → 无条件恢复存值或清空（不做 dLoaded 单次封死——异步 auth 变化会换 key）
   const identityReady = draftK !== null;
@@ -55,6 +57,7 @@ export function EditorPage({ tid }: { tid?: string }) {
           const q = JSON.parse(raw) as { pid?: string; name?: string; text?: string };
           c = `回复 ${q.name ?? ''}(${q.pid ?? ''})：${q.text ?? ''}
 `;
+          if (q.pid) setQuotePid(String(q.pid)); // R1 ReplyTarget：精确楼层引用
           localStorage.removeItem(qk);
         }
       } catch { /* 引用暂存损坏则忽略 */ }
@@ -86,9 +89,17 @@ export function EditorPage({ tid }: { tid?: string }) {
 
   // 批D 生产适配器：登录后提交走真实端点（真实写入=账号本人动作）；
   // agent/离线验证经 host override 指向合成后端（驱动口径）。
+  // R1/E31-07：发帖模式 circle_id 必须经 threadAddColumnInfoV2 从服务端换取
+  //（fid≠circle_id——官 APK ThreadPostActivity 从该响应读 circle_id 回填）
+  // enabled 双门：仅发帖模式且已选板时点火（否则占位参数也发请求——r1 B1 反例）
+  const colInfo = useEndpoint('threadAddColumnInfo',
+    !replyMode && board ? { fid: board, sortid: '' } : undefined,
+    { enabled: !replyMode && board !== '' });
+  const circleId = String((colInfo.data as any)?.data?.circle_id ?? '');
   const canSubmit = Boolean(authed) &&
     (replyMode ? Boolean(content.trim()) && Boolean(fid)
-               : Boolean(title.trim()) && Boolean(content.trim()) && Boolean(board));
+               : Boolean(title.trim()) && Boolean(content.trim()) && Boolean(board)
+                 && Boolean(circleId));
 
   async function doSubmit() {
     if (!canSubmit || submit.phase === 'busy') return;
@@ -108,10 +119,11 @@ export function EditorPage({ tid }: { tid?: string }) {
         }
         if (!title.trim()) throw new Error('标题不能为空');
         if (!content.trim()) throw new Error('正文不能为空');
+        if (!circleId) throw new Error('该板块的发布参数未就绪，请稍后重试');
       },
       params: replyMode
-        ? { tid: tid!, reply_id: '', circle_id: fid, content }
-        : { title, content, fid: board, circle_id: board },
+        ? { tid: tid!, reply_id: quotePid ?? '', circle_id: fid, content }
+        : { title, content, fid: board, circle_id: circleId },
       timeoutMs: 15000,
     });
     // 归属守卫：身份已换（跨标签登出/换号）→ 整个结果静默丢弃（不 setState/不动草稿）

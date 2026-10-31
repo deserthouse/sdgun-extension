@@ -119,6 +119,38 @@ export const NotifyListResp = z.object({
   }).passthrough()),
 }).passthrough();
 
+// R1/E31-07 BoardRef：fid（论坛板块 id，URL/树体系）与 circle_id（服务端在
+// threadAddColumnInfoV2 响应中下发的圈子 id）是不同字段——官 APK
+// ThreadPostActivity 从该响应 SafeJsonUtil 读 circle_id 后回填 threadAdd。
+// 编辑器发帖必须走 column-info 换取 circle_id，不得直接以 fid 冒充。
+export interface BoardRef {
+  fid: string;
+  circleId: string; // 服务端下发；column-info 未返回时为 ''（受限模式）
+}
+
+// R1 ReplyTarget：回复目标（tid 必备；replyId=被回复楼层 pid，官方
+// FroumFriendsDataView 实证 param reply_id=被回复评论 id；quote 场景传入）
+export interface ReplyTarget {
+  tid: string;
+  replyId?: string;
+  circleId: string;
+}
+
+// threadAddColumnInfoV2 响应（静态取证：ThreadPostActivity onResult 读
+// data.circle_id/title/fid/sortid/classified_id/type_id/circle_name +
+// user_publish_privacy——字段全 optional passthrough，服务端形态待真数据核）
+export const ThreadAddColumnInfoResp = z.object({
+  success: z.boolean(),
+  data: z.object({
+    circle_id: z.string().optional(),
+    fid: z.string().optional(),
+    sortid: z.string().optional(),
+    classified_id: z.unknown().optional(),
+    type_id: z.unknown().optional(),
+    circle_name: z.string().optional(),
+  }).passthrough().optional(),
+}).passthrough();
+
 // 写面通用响应（批D）：写端点响应形态未实测（真实写入=用户 MANUAL）——
 // 只断言 success 布尔，其余透传；broker 在 success:false 时抛业务失败。
 export const WriteResp = z.object({

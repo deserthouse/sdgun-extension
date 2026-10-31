@@ -141,6 +141,18 @@ export const ENDPOINTS: Record<string, EndpointDef> = {
     response: S.WriteResp,
     notes: '楼层点赞（批D 静态取证：官 APK FroumDataView.addApplaud——content_id=楼层 pid）。',
   },
+  threadAddColumnInfo: {
+    endpointId: 'threadAddColumnInfo',
+    method: 'GET',
+    paramLocation: 'query' as const,
+    host: 'mag1.sdgun.net',
+    path: '/mag/circle/v1/forum/threadAddColumnInfoV2',
+    sideEffect: 'read-only',
+    auth: 'token-required', // 官方流程为登录态撰帖页调用；游客可用性未验，保守登记
+    pagination: 'none',
+    response: S.ThreadAddColumnInfoResp,
+    notes: '撰帖元数据（R1/E31-07 静态取证：ThreadPostActivity toNet——GET fid+sortid；响应 data 含服务端下发的 circle_id/fid/sortid/classified_id/type_id/circle_name）。threadAdd 的 circle_id 必须取自此响应，不得以 fid 冒充。',
+  },
   userCircleList: {
     endpointId: 'userCircleList',
     method: 'GET',
