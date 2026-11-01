@@ -9,15 +9,25 @@ const ALLOWED_IMG = /^https?:\/\//i;
 // img src 域白名单钩子（模块级注册一次；sanitize 时自动生效）
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 DOMPurify.addHook('afterSanitizeAttributes', (node: any) => {
-  if (node?.tagName !== 'IMG') return;
-  const v = node.getAttribute('src') || '';
-  if (!ALLOWED_IMG.test(v) && !v.startsWith('data:image/')) {
-    node.removeAttribute('src');
+  if (node?.tagName === 'IMG') {
+    const v = node.getAttribute('src') || '';
+    if (!ALLOWED_IMG.test(v) && !v.startsWith('data:image/')) {
+      node.removeAttribute('src');
+    }
+    // W3/批B：CLS 缓解——懒加载+异步解码（无服务端尺寸，无法彻底消除跳动）
+    if (node.getAttribute('src')) {
+      node.setAttribute('loading', 'lazy');
+      node.setAttribute('decoding', 'async');
+    }
+    return;
   }
-  // W3/批B：CLS 缓解——懒加载+异步解码（无服务端尺寸，无法彻底消除跳动）
-  if (node.getAttribute('src')) {
-    node.setAttribute('loading', 'lazy');
-    node.setAttribute('decoding', 'async');
+  // F1-4 视频/音频消费：媒体元素 src 同协议级白名单（禁 data:/javascript: 等）；
+  // 不放行 autoplay（站方内容不得抢占用户媒体控制权）
+  if (node?.tagName === 'VIDEO' || node?.tagName === 'AUDIO' || node?.tagName === 'SOURCE') {
+    const v = node.getAttribute('src') || '';
+    if (v && !ALLOWED_IMG.test(v)) {
+      node.removeAttribute('src');
+    }
   }
 });
 
@@ -49,9 +59,12 @@ export function sanitizeContent(html: string): string {
     ALLOWED_TAGS: ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 's', 'blockquote',
       'ul', 'ol', 'li', 'img', 'a', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
       'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'pre', 'code', 'span', 'div', 'font',
-      'strike', 'hr', 'sub', 'sup'],
+      'strike', 'hr', 'sub', 'sup',
+      // F1-4 视频/音频消费（src 协议守卫见上方钩子；autoplay 不入白名单属性）
+      'video', 'audio', 'source'],
     ALLOWED_ATTR: ['src', 'href', 'alt', 'class', 'style', 'colspan', 'rowspan',
-      'color', 'size', 'referrerpolicy', 'data-sdg-idx', 'data-sdg-orig', 'data-sdg-thumb'],
+      'color', 'size', 'referrerpolicy', 'data-sdg-idx', 'data-sdg-orig', 'data-sdg-thumb',
+      'controls', 'poster', 'preload', 'type', 'loop'],
     ALLOW_DATA_ATTR: false,
   });
 }

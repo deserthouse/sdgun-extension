@@ -108,7 +108,7 @@ html, body { margin: 0; }
   border-radius: 6px; padding: 1px 6px; }
 
 /* ---- 社区网格：内容最小宽自适应（窄屏自然单列） ---- */
-.grid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--sp-2); }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: var(--sp-2); } /* min(,100%)：320 档内容宽 288<300 曾溢出 12px（c5 扫描捕获） */
 .board-card { display: flex; gap: var(--sp-3); align-items: center; }
 .board-icon { width: 40px; height: 40px; border-radius: var(--r-sm); object-fit: cover;
   background: var(--surface2); flex: none; }
@@ -230,3 +230,24 @@ html, body { margin: 0; }
   .shell { grid-template-columns: var(--nav-w) 1fr; }
   .main { max-width: var(--content-w); }
 }
+
+/* ---- F1-4 视频/音频消费（宽高约束随容器；autoplay 不入白名单） ---- */
+.content-html video, .content-html audio { max-width: 100%; margin: var(--sp-2) 0; }
+.content-html video { background: #000; border-radius: var(--r-sm); }
+.content-html audio { width: 100%; }
+
+/* ---- B-1（E31-06）横幅独立层 + 侧导航可用视口高度 ---- */
+/* 横幅 fixed 顶栏（多横幅纵向堆叠）；--sdg-banner-h 由 App 实测写入根元素。
+   侧导航 top/height 同步该变量——「设置」入口在横幅展开时也首屏可达。 */
+.banner-stack { position: fixed; top: 0; left: 0; right: 0; z-index: 1200; }
+.shell { margin-top: var(--sdg-banner-h, 0px);
+  min-height: calc(100vh - var(--sdg-banner-h, 0px)); }
+/* top/height 联动仅桌面 sticky 模式——<900px 是 fixed 底部 tabbar，
+   top/height 必须保持 auto，否则侧栏整列盖住主内容（375 相位读图实锤的 B-1 回归） */
+@media (min-width: 900px) {
+  .navcol { top: var(--sdg-banner-h, 0px);
+    height: calc(100vh - var(--sdg-banner-h, 0px)); }
+}
+/* B-3 伴生加固：简介/摘要常含长 URL（不可断拉丁串撑破 grid 轨道——探针 80 字
+   无空格词 min-content=582px 实锤），与 .content-html 同款断词口径 */
+.card-sub { overflow-wrap: anywhere; }

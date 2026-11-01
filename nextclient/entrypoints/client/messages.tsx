@@ -8,6 +8,7 @@ import { runMutation, type MutationState } from '../../lib/mutation';
 import { useState as _us } from 'react';
 import { Avatar } from './Avatar';
 import { formatTime } from '../../lib/format';
+import { internalRouteFromUrl } from '../../lib/linkmap';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -237,13 +238,24 @@ function NotifyHistory() {
         通知历史 <StateBadge state={nl.state} />
       </h2>
       <StateBlock state={nl.state} fail={nl.fail} onRetry={() => nl.refetch()} skeletonRows={3} />
-      {nl.state !== 'InitialLoading' && rows.map((n, i) => (
-        <div key={String(n.id ?? n.notifyId ?? i)} className="card" data-test="notify-row">
-          <div className="card-title">{String(n.title ?? '(通知)')}</div>
-          {n.content ? <div className="card-sub">{String(n.content).slice(0, 80)}</div> : null}
-          <div className="card-meta">{String(n.time ?? '')}</div>
-        </div>
-      ))}
+      {nl.state !== 'InitialLoading' && rows.map((n, i) => {
+        // F3-2/F3-3 目标导航：link 站内可映射（viewthread tid 等）→ 客户端路由；
+        // 不可映射的 http link → 外开；无 link → 不可点（不伪造目标）。
+        const link = typeof n.link === 'string' && n.link ? n.link : null;
+        const route = link ? internalRouteFromUrl(link) : null;
+        const href = route ?? link;
+        const inner = (
+          <>
+            <div className="card-title">{String(n.title ?? '(通知)')}</div>
+            {n.content ? <div className="card-sub">{String(n.content).slice(0, 80)}</div> : null}
+            <div className="card-meta">{String(n.time ?? '')}</div>
+          </>
+        );
+        return href
+          ? <a key={String(n.id ?? n.notifyId ?? i)} className="card" data-test="notify-row"
+              href={href} {...(route ? {} : { target: '_blank', rel: 'noreferrer' })}>{inner}</a>
+          : <div key={String(n.id ?? n.notifyId ?? i)} className="card" data-test="notify-row">{inner}</div>;
+      })}
       <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 6 }}>
         读取通知列表可能触发站方已读上报（消息族端点副作用如实披露）。
       </p>

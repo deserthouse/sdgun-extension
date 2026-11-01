@@ -2,6 +2,7 @@
 // 契约：读取 staleTime 5min（暖缓存回访零重复请求）、retry=false（E1-2 锁定）。
 // C3-4 ready 守卫：session 建立前（epoch/游客 UA 规则就绪前）查询不点火——
 // 首开竞速（首请求裸发被 WAF 偶发拦）的根治，E24 审计缺口关闭。
+import { useEffect } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { callEndpoint, deriveState, isFail, type Fail, type NineState } from './broker';
 import { useSession } from './session';
@@ -38,5 +39,13 @@ export function useEndpoint<T>(id: string, params?: Record<string, string | numb
     error: q.error,
   });
   const fail: Fail | null = isFail(q.error) ? q.error : null;
+  // F3-1 1001 重登引导：登录态查询被服务端以 code 1001 拒绝（token 失效）→
+  // 全局事件（App 挂重登横幅）。游客态的 AuthRequired=「需登录」不属过期，不触发。
+  // 不自动清 session（诚实：token 可能仍被部分端点接受，是否重登由用户决定）。
+  useEffect(() => {
+    if (fail?.kind === 'AuthRequired' && session !== 'loading' && session.auth !== null) {
+      try { window.dispatchEvent(new CustomEvent('sdg2:auth-expired')); } catch { /* 非页面环境 */ }
+    }
+  }, [fail?.kind, fail?.code, session]);
   return { ...q, state, fail };
 }

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { browser } from 'wxt/browser';
 import { useQueryClient } from '@tanstack/react-query';
 import { applyTheme, setThemeMode, themeMode, watchSystemTheme, type ThemeMode } from '../../lib/theme';
 import { epochProbe, type EpochProbe } from '../../lib/epoch';
@@ -24,11 +25,12 @@ function currentRoute(): { name: string; param?: string; param2?: string } {
   if (board) return { name: 'board', param: board[1] };
   const thread = h.match(/^thread\/(\d+)(?:\/(\d+))?/);
   if (thread) return { name: 'thread', param: thread[1], param2: thread[2] };
-  const user = h.match(/^user\/(\d+)/);
-  if (user) return { name: 'user', param: user[1] };
+  const user = h.match(/^user\/(\d+)(?:\/(fans|follows))?/); // F2-1：粉丝/关注列表子路由
+  if (user) return { name: 'user', param: user[1], param2: user[2] };
   const editor = h.match(/^editor(?:\?tid=(\d+))?/); // C1-5：#/editor?tid=N=回复模式
   if (editor) return { name: 'editor', param: editor[1] };
   if (h === 'settings') return { name: 'settings' };
+  if (h === 'about') return { name: 'about' }; // B-2：关于页
   if (TABS.some((t) => t.id === h)) return { name: h };
   return { name: 'focus' };
 }
@@ -49,6 +51,9 @@ export default function App() {
   const [bannerOpen, setBannerOpen] = useState(() => {
     try { return localStorage.getItem('sdg2.banner.dismissed') !== '1'; } catch { return true; }
   });
+  // F3-1 1001 重登引导：登录态查询被 1001 拒（token 失效）→ 全局横幅。
+  // 不自动清 session；用户点「前往登录」或手动关闭消除。
+  const [authExpired, setAuthExpired] = useState(false);
   const qc = useQueryClient();
 
   useEffect(() => { takeoverEnabled().then(setTakeover).catch(() => setTakeover(false)); }, []);
@@ -56,9 +61,18 @@ export default function App() {
   useEffect(() => {
     applyTheme();
     watchSystemTheme();
-    const onHash = () => setRoute(currentRoute());
+    const onHash = () => {
+      setRoute(currentRoute());
+      // 到登录页即消横幅（登录动作本身会走 SessionProvider 刷新）
+      if (currentRoute().name === 'my') setAuthExpired(false);
+    };
+    const onExpired = () => setAuthExpired(true);
     window.addEventListener('hashchange', onHash);
-    return () => window.removeEventListener('hashchange', onHash);
+    window.addEventListener('sdg2:auth-expired', onExpired);
+    return () => {
+      window.removeEventListener('hashchange', onHash);
+      window.removeEventListener('sdg2:auth-expired', onExpired);
+    };
   }, []);
 
   useEffect(() => {
@@ -93,23 +107,61 @@ export default function App() {
     setCacheMsg(`已清除查询缓存${n > 0 ? `与 ${n} 项残留键` : ''}（草稿与主题保留）`);
   }
 
+  // B-1（E31-06）横幅独立层：fixed 顶栏 + 实测高度变量——侧导航用同一变量
+  // 收缩自身高度（100vh - banner），「设置」入口不再依赖滚动露出。
+  const bannerRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = bannerRef.current;
+    if (!el) return;
+    const apply = () => {
+      try {
+        document.documentElement.style.setProperty('--sdg-banner-h', `${el.offsetHeight}px`);
+      } catch { /* 非页面环境 */ }
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      try { document.documentElement.style.setProperty('--sdg-banner-h', '0px'); } catch { /* 同上 */ }
+    };
+  }, [takeover, bannerOpen, authExpired]);
+
   return (
     <>
-      {takeover === false && bannerOpen && (  // E1-3 提示；W2 视觉审查：可关闭+去布局耦合文案
-        <div data-test="takeover-banner" style={{
-          background: 'var(--surface2)', color: 'var(--text2)', fontSize: 12.5,
-          padding: '7px 16px', borderBottom: '1px solid var(--border)',
-          display: 'flex', alignItems: 'center', gap: 12,
-        }}>
-          <span style={{ flex: 1 }}>
-            站点接管未启用：论坛页仍由经典重绘渲染，本客户端页面始终可用；可在设置中开启。
-          </span>
-          <button className="btn" data-test="banner-dismiss" style={{ padding: '2px 10px' }}
-            onClick={() => { try { localStorage.setItem('sdg2.banner.dismissed', '1'); } catch {} setBannerOpen(false); }}>
-            知道了
-          </button>
-        </div>
-      )}
+      <div ref={bannerRef} data-test="banner-stack" className="banner-stack">
+        {takeover === false && bannerOpen && (  // E1-3 提示；W2 视觉审查：可关闭+去布局耦合文案
+          <div data-test="takeover-banner" style={{
+            background: 'var(--surface2)', color: 'var(--text2)', fontSize: 12.5,
+            padding: '7px 16px', borderBottom: '1px solid var(--border)',
+            display: 'flex', alignItems: 'center', gap: 12,
+          }}>
+            <span style={{ flex: 1 }}>
+              站点接管未启用：论坛页仍由经典重绘渲染，本客户端页面始终可用；可在设置中开启。
+            </span>
+            <button className="btn" data-test="banner-dismiss" style={{ padding: '2px 10px' }}
+              onClick={() => { try { localStorage.setItem('sdg2.banner.dismissed', '1'); } catch {} setBannerOpen(false); }}>
+              知道了
+            </button>
+          </div>
+        )}
+        {authExpired && (
+          <div data-test="relogin-banner" style={{
+            background: 'var(--accent-soft)', color: 'var(--text)', fontSize: 12.5,
+            padding: '7px 16px', borderBottom: '1px solid var(--border)',
+            display: 'flex', alignItems: 'center', gap: 12,
+          }}>
+            <span style={{ flex: 1 }}>
+              登录已过期：服务端拒绝了会话凭证（code 1001），重新登录后继续使用账号功能。
+            </span>
+            <a className="btn btn-primary" data-test="relogin-go" href="#/my" style={{ padding: '2px 10px' }}>
+              前往登录
+            </a>
+            <button className="btn" data-test="relogin-dismiss" style={{ padding: '2px 10px' }}
+              onClick={() => setAuthExpired(false)}>关闭</button>
+          </div>
+        )}
+      </div>
       <div className="shell">
       <nav className="navcol" aria-label="主导航">
         <div className="navbrand">SDGun<span className="navbrand-sub">客户端</span></div>
@@ -147,9 +199,12 @@ export default function App() {
           : route.name === 'thread'
           ? <ThreadPage key={route.param} tid={route.param!} pid={route.param2} />
           : route.name === 'user'
-          ? <UserProfilePage key={route.param} uid={route.param!} />
+          ? <UserProfilePage key={route.param} uid={route.param!}
+              tab={route.param2 as 'fans' | 'follows' | undefined} />
           : route.name === 'editor'
           ? <EditorPage key={route.param ?? 'compose'} tid={route.param} />
+          : route.name === 'about'
+          ? <AboutPage probe={probe} />
           : route.name === 'settings'
           ? (
             <div data-test="settings-page">
@@ -185,6 +240,10 @@ export default function App() {
                 站点接管开启后，论坛页面将改由本客户端渲染；可随时关闭回到经典模式。
               </p>
               <div className="section-title" style={{ color: 'var(--text3)' }}>关于</div>
+              <div className="setrow" style={{ alignItems: 'center' }}>
+                <span className="setrow-label">版本、数据源与声明</span>
+                <a className="btn" data-test="about-entry" href="#/about">查看</a>
+              </div>
               <details className="page-sub">
                 <summary style={{ cursor: 'pointer' }}>诊断信息</summary>
                 <div style={{ marginTop: 8 }}>
@@ -208,5 +267,54 @@ export default function App() {
       </main>
       </div>
     </>
+  );
+}
+
+// B-2 关于页（E31-06）：版本（manifest 事实源）、数据源与存储披露、声明入口。
+// 文案口径=README「唯一官方分发渠道」+AI 披露既有表述，不新增承诺。
+function AboutPage({ probe }: { probe: EpochProbe | null }) {
+  let ver = '';
+  let verName = '';
+  try {
+    const m = browser.runtime.getManifest();
+    ver = String(m.version ?? '');
+    verName = String((m as { version_name?: string }).version_name ?? '');
+  } catch { /* 非 extension 环境 */ }
+  return (
+    <div data-test="about-page">
+      <div className="page-header">
+        <p className="crumb"><a href="#/settings">‹ 设置</a></p>
+        <h1 className="page-title" data-test="page-title">关于</h1>
+      </div>
+      <div className="card">
+        <div className="card-title">SDGun 客户端（浏览器版）</div>
+        <div className="card-meta" data-test="about-version">
+          版本 {verName || ver || '未知'}{verName && ver !== verName ? `（manifest ${ver}）` : ''}
+          {' '}· 预发布通道（alpha）
+        </div>
+        <p className="page-sub" style={{ lineHeight: 1.7 }}>
+          本扩展是 SDGun 论坛（bbs.sdgun.com.cn）的第三方非官方客户端：阅读走触屏版网页，
+          资讯/帖子数据走官方 App 同源接口（app.sdgun.com.cn / mag1.sdgun.net / picapp.sdgun.net）。
+          GitHub 仓库是本扩展的唯一官方分发渠道；其他任何来源出现的同名扩展均非官方版本。
+        </p>
+        <p className="page-sub" style={{ lineHeight: 1.7 }}>
+          数据行为：偏好与缓存只保存在本浏览器（storage.local/sync/session），无开发者遥测；
+          登录凭证只存会话级存储，浏览器关闭即登出。诊断信息仅本机可见（epoch：{probe ? (probe.epoch ?? '无') : '…'}）。
+        </p>
+        <p className="page-sub" style={{ lineHeight: 1.7 }}>
+          声明：本项目与 SDGun 论坛无隶属关系；使用本扩展产生的一切操作（含登录后的发帖、
+          点赞、关注等真实写入）由使用者本人账号与责任承担。代码全部由 AI 编写（人类提出需求与验收），
+          源码在 GitHub 公开可审计。
+        </p>
+        <div className="chiprow" style={{ marginTop: 10 }}>
+          <a className="chip" data-test="about-repo" target="_blank" rel="noreferrer"
+            href="https://github.com/deserthouse/sdgun-extension">GitHub 仓库 ↗</a>
+          <a className="chip" data-test="about-releases" target="_blank" rel="noreferrer"
+            href="https://github.com/deserthouse/sdgun-extension/releases">版本发布 ↗</a>
+          <a className="chip" data-test="about-privacy" target="_blank" rel="noreferrer"
+            href="https://github.com/deserthouse/sdgun-extension#readme">说明文档 ↗</a>
+        </div>
+      </div>
+    </div>
   );
 }

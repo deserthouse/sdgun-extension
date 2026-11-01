@@ -7,6 +7,7 @@ import { epochStart, epochStop, epochProbe } from '../../lib/epoch';
 import { login, fetchAccountInfo, verifyPicSecurityCode, captchaImageUrl, type AuthInfo } from '../../lib/auth';
 import { useSession } from '../../lib/session';
 import { formatTime, formatCount } from '../../lib/format';
+import { internalRouteFromUrl } from '../../lib/linkmap';
 import { Avatar } from './Avatar';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -161,6 +162,7 @@ export function MyPage() {
   return (
     <div data-test="account">
       <AccountCard auth={auth as AuthInfo} info={info} onLogout={doLogout} />
+      <UserThreadList uid={auth.userId} isSelf={true} />
       <Collections />
       <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 12 }}>
         消息与通知已移至左栏「消息」页。
@@ -198,7 +200,9 @@ function Collections() {
         <div className="state-card" data-test="collections-empty">暂无收藏</div>
       )}
       {rows.map((c: any, i: number) => {
+        // F3-3 深链统一：站方 link 可映射（tid/fid/uid）→ 客户端路由；其余外开
         const link = typeof c.link === 'string' && c.link.startsWith('http') ? c.link : null;
+        const route = link ? internalRouteFromUrl(link) : null;
         const inner = (
           <>
             <div className="card-title">{String(c.title ?? '(收藏项)')}</div>
@@ -209,7 +213,7 @@ function Collections() {
         );
         return link
           ? <a key={String(c.id ?? i)} className="card" data-test="collect-row"
-              href={link} target="_blank" rel="noreferrer">{inner}</a>
+              href={route ?? link} {...(route ? {} : { target: '_blank', rel: 'noreferrer' })}>{inner}</a>
           : <div key={String(c.id ?? i)} className="card" data-test="collect-row">{inner}</div>;
       })}
       {canMore && (
@@ -241,10 +245,105 @@ function AccountCard({ auth, info, onLogout }: { auth: AuthInfo; info: Record<st
   );
 }
 
-// R3-3 他人主页：userHome 资料+统计区块（帖子列表待 R4 端点勘定）
-export function UserProfilePage({ uid }: { uid: string }) {
+// F2-1 粉丝/关注列表（userFansList/userFollowList v3；self 分流 myFansList/MyFollowsList v1）。
+// 行=FansFollowsDataView 消费字段（2026-11-02 静态取证）；行点击→ #/user/{userId}。
+function UserFansList({ uid, tab, isSelf }: { uid: string; tab: 'fans' | 'follows'; isSelf: boolean }) {
+  const id = isSelf ? (tab === 'fans' ? 'myFansList' : 'myFollowsList')
+    : (tab === 'fans' ? 'userFansList' : 'userFollowList');
+  // F2-1 他人链路参数（FansActivity 实证）：user_id+step；self 链路无 uid 参数
+  const q = useEndpoint(id, isSelf ? { p: 1, step: 20 } : { user_id: uid, p: 1, step: 20 });
+  const rows = row(q.data);
+  return (
+    <div data-test={`user-${tab}`} style={{ marginTop: 14 }}>
+      <h2 style={{ fontSize: 15, color: 'var(--text2)', margin: '0 0 8px' }}>
+        {tab === 'fans' ? '粉丝' : '关注'} <StateBadge state={q.state} />
+        <a className="chip" style={{ marginLeft: 10 }} href={`#/user/${uid}`}>‹ 返回主页</a>
+      </h2>
+      <StateBlock state={q.state} fail={q.fail} onRetry={() => q.refetch()} skeletonRows={2} />
+      {q.state === 'Empty' && (
+        <div className="state-card" data-test={`user-${tab}-empty`}>
+          {tab === 'fans' ? '暂无粉丝' : '暂无关注'}
+        </div>
+      )}
+      {rows.map((u: any, i: number) => {
+        const ruid = String(u.userId ?? u.uid ?? '');
+        const inner = (
+          <>
+            <Avatar src={u.head} name={u.name ?? ruid} size={36} />
+            <div style={{ flex: 1 }}>
+              <div className="card-title">{String(u.name ?? (ruid || '(用户)'))}</div>
+              <div className="card-meta">
+                {Number(u.status) === 2 ? '互相关注' : ''}
+                {u.certDes ? ` · ${String(u.certDes)}` : ''}
+                {u.distanceInfo ? ` · ${String(u.distanceInfo)}` : ''}
+              </div>
+            </div>
+          </>
+        );
+        return ruid
+          ? <a key={`${ruid}-${i}`} className="card" data-test="fan-row" href={`#/user/${ruid}`}>{inner}</a>
+          : <div key={i} className="card" data-test="fan-row">{inner}</div>;
+      })}
+      <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 6 }}>
+        列表形态来自官方静态取证，响应信封待真数据核（使用自然覆盖）。
+      </p>
+    </div>
+  );
+}
+
+// F2-2 用户帖子列表：self=userContentList（官方「论坛帖子」）；
+// 他人=userForumOrShowPage（user_id+config_id=3，官方 tab 链路等价推断——记录在端点 notes）。
+function UserThreadList({ uid, isSelf }: { uid: string; isSelf: boolean }) {
+  const q = useEndpoint(isSelf ? 'userContentList' : 'userForumOrShowPage',
+    isSelf ? { p: 1, step: 20 } : { user_id: uid, config_id: 3, p: 1, step: 20 });
+  const rows = row(q.data);
+  return (
+    <div data-test="user-threads" style={{ marginTop: 14 }}>
+      <h2 style={{ fontSize: 15, color: 'var(--text2)', margin: '0 0 8px' }}>
+        {isSelf ? '我的帖子' : 'TA 的帖子'} <StateBadge state={q.state} />
+      </h2>
+      <StateBlock state={q.state} fail={q.fail} onRetry={() => q.refetch()} skeletonRows={2} />
+      {q.state === 'Empty' && (
+        <div className="state-card" data-test="user-threads-empty">暂无帖子</div>
+      )}
+      {rows.map((t: any, i: number) => {
+        const tid = String(t.tid ?? '');
+        const inner = (
+          <>
+            <div style={{ flex: 1 }}>
+              <div className="card-title">{String(t.title ?? `(帖子 ${t.id ?? ''})`)}</div>
+              <div className="card-meta">
+                {t.forumName ? `${String(t.forumName)} · ` : ''}
+                {t.createTimeStr ? `${String(t.createTimeStr)} · ` : ''}
+                评 {formatCount(t.commentCount)}{t.click ? ` · 看 ${formatCount(t.click)}` : ''}
+              </div>
+            </div>
+          </>
+        );
+        return tid
+          ? <a key={tid} className="card" data-test="user-thread-row" href={`#/thread/${tid}`}>{inner}</a>
+          : <div key={i} className="card" data-test="user-thread-row">{inner}</div>;
+      })}
+    </div>
+  );
+}
+
+// R3-3 他人主页：userHome 资料+统计；F2 粉丝/关注/帖子列表接入。
+export function UserProfilePage({ uid, tab }: { uid: string; tab?: 'fans' | 'follows' }) {
+  const { session } = useSession();
+  const myId = session === 'loading' ? '' : String(session.auth?.userId ?? '');
+  const isSelf = uid === myId && myId !== '';
   const up = useEndpoint('userHome', { uid });
   const d = (up.data as any)?.data ?? {};
+  // F2-2 诚实受限门：他人帖子列表由官方 tab_config 驱动（config_id=3=论坛帖子 tab）——
+  // 服务端未下发该 tab 的用户不渲染帖子区块、不发请求（不伪造入口）。
+  const hasForumTab = useMemo(() => {
+    try {
+      const tc = d.tab_config;
+      const arr = typeof tc === 'string' ? JSON.parse(tc) : tc;
+      return Array.isArray(arr) && arr.some((e: any) => String(e?.config_id) === '3');
+    } catch { return false; }
+  }, [up.data]);
   return (
     <section>
       <p className="crumb"><a href="#/community">‹ 社区</a></p>
@@ -257,15 +356,23 @@ export function UserProfilePage({ uid }: { uid: string }) {
             {d.group_name ? `${d.group_name}${d.group_level ? ` · Lv.${d.group_level}` : ''}` : ''}
           </div>
           <div className="card-meta">
-            帖 {Number(d.thread_count) || 0} · 回 {Number(d.post_count) || 0} ·
-            粉 {Number(d.fans_num) || 0} · 关注 {Number(d.follow_num) || 0}
+            帖 {Number(d.thread_count) || 0} · 回 {Number(d.post_count) || 0} ·{' '}
+            <a data-test="fans-link" href={`#/user/${uid}/fans`}>粉 {Number(d.fans_num) || 0}</a> ·{' '}
+            <a data-test="follows-link" href={`#/user/${uid}/follows`}>关注 {Number(d.follow_num) || 0}</a>
           </div>
         </div>
       </div>
       <StateBlock state={up.state} fail={up.fail} onRetry={() => up.refetch()} skeletonRows={2} />
-      <p className="page-sub" style={{ marginTop: 12 }}>
-        帖子列表与关注/粉丝区块待后续版本（端点勘定中）。
-      </p>
+      {tab
+        ? <UserFansList uid={uid} tab={tab} isSelf={isSelf} />
+        : (
+          <>
+            {(isSelf || hasForumTab) && <UserThreadList uid={uid} isSelf={isSelf} />}
+            <p className="page-sub" style={{ marginTop: 12 }}>
+              更多区块（动态/相册等官方用户页能力）随端点勘定逐步接入。
+            </p>
+          </>
+        )}
     </section>
   );
 }
@@ -452,6 +559,18 @@ export function BoardPage({ fid }: { fid: string }) {
   const todayNum = Number(dData.today_num) || 0;
   const totalNum = String(dData.total_num ?? '');
   const typeChips = Array.isArray(dData.threadtypes) ? dData.threadtypes : [];
+  // F2-3 角色可见性：forumDetail.moderators 版主徽章（渲染防御：数组取 name/user_name，
+  // 字符串按分隔符拆；不识别形态不渲染——不做权限推断）
+  const mods = useMemo(() => {
+    const m = dData.moderators;
+    if (Array.isArray(m)) {
+      return m.map((x: any) => String(x?.name ?? x?.user_name ?? '')).filter(Boolean);
+    }
+    if (typeof m === 'string' && m.trim()) {
+      return m.split(/[,，、;；\s]+/).filter(Boolean);
+    }
+    return [];
+  }, [detail.data]);
   const [activeType, setActiveType] = useState('');
   // C1-4 板块名映射：circleTree（5min 暖缓存，与社区页/编辑器共享）派生 fid→name
   const tree = useEndpoint('circleTree');
@@ -510,6 +629,11 @@ export function BoardPage({ fid }: { fid: string }) {
               <div className="card-title">{boardName || `版块 ${fid}`}</div>
               {(todayNum || totalNum) && (
                 <div className="card-meta">今日 {todayNum} · 共 {totalNum} 帖</div>
+              )}
+              {mods.length > 0 && (
+                <div className="card-meta" data-test="board-mods">
+                  版主：{mods.slice(0, 5).join(' · ')}{mods.length > 5 ? ' 等' : ''}
+                </div>
               )}
             </div>
             <a className="btn btn-primary board-head-compose" data-test="compose-entry"

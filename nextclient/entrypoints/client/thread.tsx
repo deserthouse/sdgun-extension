@@ -16,10 +16,42 @@ import { useSession } from '../../lib/session';
 
 // E70-06 重构：Radix Dialog 承担焦点陷阱/Esc/回焦/可访问名；图片点击切换
 // 原始尺寸与适配模式；←/→ 翻组内图片。
+// F1-2/F1-3：放大态=拖拽平移+滚轮纵向平移（长图）+双击复位；下载原图=fetch blob
+// （host_permissions 域内直取）→ a[download]，失败降级新标签打开。
 function Lightbox({ srcs, index, onClose }: { srcs: string[]; index: number; onClose: () => void }) {
   const [i, setI] = useState(index);
   const [zoom, setZoom] = useState(false);
-  useEffect(() => { setZoom(false); }, [i]);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const drag = useRef<{ sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
+  const lastMoved = useRef(false);
+  useEffect(() => { setZoom(false); setPan({ x: 0, y: 0 }); }, [i]);
+
+  function download() {
+    const src = srcs[i];
+    let name = `sdgun-image-${i + 1}.jpg`;
+    try {
+      const seg = new URL(src).pathname.split('/').filter(Boolean).pop();
+      if (seg) name = seg;
+    } catch { /* 保默认名 */ }
+    fetch(src).then((r) => {
+      if (!r.ok) throw new Error(String(r.status));
+      return r.blob();
+    }).then((blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      toast('已开始下载', 'ok');
+    }).catch(() => {
+      toast('下载失败——已尝试新标签打开', 'err');
+      try { window.open(src, '_blank'); } catch { /* 弹窗被拦时仅提示 */ }
+    });
+  }
+
   return (
     <Dialog.Root open onOpenChange={(o) => { if (!o) onClose(); }}>
       <Dialog.Portal>
@@ -36,10 +68,33 @@ function Lightbox({ srcs, index, onClose }: { srcs: string[]; index: number; onC
             图片 {i + 1} / {srcs.length}
           </Dialog.Title>
           <img src={srcs[i]} alt={`图片 ${i + 1} / ${srcs.length}`} referrerPolicy="no-referrer"
-            onClick={() => setZoom((z) => !z)}
+            data-test="lightbox-img" draggable={false}
+            onClick={() => {
+              if (!lastMoved.current) { setZoom((z) => !z); setPan({ x: 0, y: 0 }); }
+            }}
+            onDoubleClick={() => { setZoom(false); setPan({ x: 0, y: 0 }); }}
+            onWheel={(e) => { if (zoom) setPan((p) => ({ x: p.x, y: p.y - e.deltaY })); }}
+            onPointerDown={(e) => {
+              if (!zoom) return;
+              lastMoved.current = false;
+              try { (e.target as HTMLElement).setPointerCapture?.(e.pointerId); } catch { /* 已释放时忽略 */ }
+              drag.current = { sx: e.clientX, sy: e.clientY, ox: pan.x, oy: pan.y, moved: false };
+            }}
+            onPointerMove={(e) => {
+              const d = drag.current;
+              if (!d) return;
+              const dx = e.clientX - d.sx;
+              const dy = e.clientY - d.sy;
+              if (Math.abs(dx) > 4 || Math.abs(dy) > 4) d.moved = true;
+              setPan({ x: d.ox + dx, y: d.oy + dy });
+            }}
+            onPointerUp={() => {
+              lastMoved.current = drag.current?.moved ?? false;
+              drag.current = null;
+            }}
             style={zoom
-              ? { maxWidth: 'none', maxHeight: 'none', cursor: 'zoom-out',
-                  transform: 'translate(0,0)' }
+              ? { maxWidth: 'none', maxHeight: 'none', cursor: 'grab', touchAction: 'none',
+                  transform: `translate(${pan.x}px, ${pan.y}px)` }
               : { maxWidth: '94vw', maxHeight: '88vh', objectFit: 'contain', cursor: 'zoom-in' }} />
           <div style={{ color: '#fff', fontSize: 13, marginTop: 10 }}>
             {i + 1} / {srcs.length}
@@ -47,10 +102,12 @@ function Lightbox({ srcs, index, onClose }: { srcs: string[]; index: number; onC
               onClick={() => setI((v) => Math.max(v - 1, 0))}>←</button>
             <button className="btn" data-test="lightbox-next" style={{ marginLeft: 6 }}
               onClick={() => setI((v) => Math.min(v + 1, srcs.length - 1))}>→</button>
+            <button className="btn" data-test="lightbox-download" style={{ marginLeft: 6 }}
+              onClick={download}>下载原图</button>
             <button className="btn" data-test="lightbox-close" style={{ marginLeft: 6 }}
               onClick={onClose}>关闭 (Esc)</button>
             <span style={{ marginLeft: 8, fontSize: 11, opacity: 0.8 }}>
-              点击图片切换 100%/适配
+              点击切换 100%/适配；放大后拖拽或滚轮平移，双击复位
             </span>
           </div>
         </Dialog.Content>
@@ -225,6 +282,24 @@ function FollowButton({ userId, name }: {
   );
 }
 
+// B-3（E31-06）主楼简介折叠：>60 字默认收起（作者行层级=头像/名字/徽章/时间独立行，
+// 简介不抢正文）；展开/收起显式按钮。
+function AuthorBio({ des }: { des: string }) {
+  const [open, setOpen] = useState(false);
+  const long = des.length > 60;
+  if (!long) {
+    return <div className="card-sub" data-test="author-bio">{des}</div>;
+  }
+  return (
+    <div className="card-sub" data-test="author-bio" style={{ marginTop: 4 }}>
+      {open ? des : `${des.slice(0, 60)}…`}
+      <button className="btn" data-test="bio-toggle" aria-expanded={open}
+        style={{ marginLeft: 8, padding: '1px 8px', fontSize: 12 }}
+        onClick={() => setOpen(!open)}>{open ? '收起' : '展开'}</button>
+    </div>
+  );
+}
+
 function BackTop() {
   const [show, setShow] = useState(false);
   useEffect(() => {
@@ -242,13 +317,15 @@ function BackTop() {
 export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
   const [page, setPage] = useState(1);
   const [onlyOp, setOnlyOp] = useState(false);
+  // F1-1 楼层顺倒序：commentList order 参数（C01a 契约：2=正序/1=倒序，恒显式发送）
+  const [order, setOrder] = useState<'1' | '2'>('2');
   const [lightbox, setLightbox] = useState<{
     srcs: string[]; index: number; trigger: HTMLElement | null;
   } | null>(null);
   const op = useEndpoint('threadView', { tid });
   const cl = useEndpoint('commentList', onlyOp
-    ? { tid, p: page, step: 20, authorid: String((op.data as any)?.data?.user_id ?? '') }
-    : { tid, p: page, step: 20 });
+    ? { tid, p: page, step: 20, order, authorid: String((op.data as any)?.data?.user_id ?? '') }
+    : { tid, p: page, step: 20, order });
   const main = (op.data as any)?.data;
   const floors = ((cl.data as any)?.list ?? []) as any[];
   // R2-5：阅读位置恢复（仅一次）+ 滚动保存
@@ -287,6 +364,9 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
   }, [pid]);
   useEffect(() => {
     if (!anchorSearch || anchorNotFound) return;
+    // C5 反例修复：数据未在场不得判越界——首渲染 totalPage 默认 1 会把任何跨页
+    // 深链 pid 秒判 not-found（挂载期搜索路径既有套件从未覆盖）
+    if (cl.isPending || cl.isFetching) return;
     const found = floors.some((f: any) => String(f.id) === anchorSearch.pid);
     if (found) {
       setTimeout(() => {
@@ -351,11 +431,21 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
         <div className="card" data-test="op-card">
           <div className="card-meta" style={{ marginBottom: 8, display: 'flex', gap: 10,
             alignItems: 'center', flexWrap: 'wrap' }}>
-            <span>
-              <strong style={{ color: 'var(--text)' }}>{opName}</strong> · 楼主 · {main.des || ''}
-            </span>
+            <Avatar src={main.user_head} name={opName} size={36} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div>
+                <strong style={{ color: 'var(--text)' }}>{opName}</strong>
+                <span className="pin" style={{ marginLeft: 6 }}>楼主</span>
+              </div>
+              {String(main.dateline ?? main.time ?? '') && (
+                <div className="card-meta" data-test="op-time">
+                  {formatTime(main.dateline ?? main.time)}
+                </div>
+              )}
+            </div>
             {opUserId && <FollowButton userId={opUserId} name={opName} />}
           </div>
+          {String(main.des ?? '') && <AuthorBio des={String(main.des)} />}
           <ContentView html={String(main.content ?? '')}
             onImg={(srcs, index, trigger) => setLightbox({ srcs, index, trigger })} />
         </div>
@@ -367,6 +457,14 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
             onChange={(e) => { setOnlyOp(e.target.checked); setPage(1); }} />
           只看楼主
         </label>
+        <button type="button" data-test="floor-order-asc" aria-pressed={order === '2'}
+          className={'chip' + (order === '2' ? ' on' : '')}
+          style={order === '2' ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}}
+          onClick={() => { if (order !== '2') { setOrder('2'); setPage(1); } }}>正序</button>
+        <button type="button" data-test="floor-order-desc" aria-pressed={order === '1'}
+          className={'chip' + (order === '1' ? ' on' : '')}
+          style={order === '1' ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}}
+          onClick={() => { if (order !== '1') { setOrder('1'); setPage(1); } }}>倒序</button>
         <span style={{ fontSize: 12, color: 'var(--text3)' }}>
           共 {String((cl.data as any)?.count ?? '?')} 条 <StateBadge state={cl.state} />
         </span>
@@ -379,10 +477,28 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
         <div key={String(f.id ?? f.floor)} className="card floor" data-test="floor"
           data-pid={String(f.id ?? '')}>
           <div className="card-meta" style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>
+            <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
               <strong style={{ color: 'var(--text)' }}>{f.user_name}</strong>
               {String(f.is_publisher) === 'true' || f.is_publisher === 1 ? (
                 <span className="pin" style={{ marginLeft: 6 }}>楼主</span>) : null}
+              {/* F1-5 勋章/认证/用户组图标+IP 属地（字段名=2026-10-15 实采
+                  supplemental_surface：medal_pic_url/cert_pic_url/group_ico_src/ip_address） */}
+              {String(f.medal_pic_url ?? '') && (
+                <img data-test="floor-medal" src={String(f.medal_pic_url)} alt="勋章" title="勋章"
+                  referrerPolicy="no-referrer"
+                  style={{ height: 14, verticalAlign: '-2px' }} />)}
+              {String(f.cert_pic_url ?? '') && (
+                <img data-test="floor-cert" src={String(f.cert_pic_url)} alt="认证" title="认证"
+                  referrerPolicy="no-referrer"
+                  style={{ height: 14, verticalAlign: '-2px' }} />)}
+              {String(f.group_ico_src ?? '') && (
+                <img data-test="floor-groupico" src={String(f.group_ico_src)} alt="用户组" title="用户组"
+                  referrerPolicy="no-referrer"
+                  style={{ height: 14, verticalAlign: '-2px' }} />)}
+              {String(f.ip_address ?? '') && (
+                <span data-test="floor-ip" style={{ fontSize: 11.5, color: 'var(--text3)', marginLeft: 4 }}>
+                  IP属地 {String(f.ip_address)}
+                </span>)}
             </span>
             <span>{formatTime(f.time)} · {f.floor}#</span>
           </div>

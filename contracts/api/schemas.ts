@@ -246,3 +246,41 @@ export const UserMessageListResp = z.object({
     dateline: z.unknown().optional(),
   }).passthrough()),
 }).passthrough();
+
+// F2-1 粉丝/关注列表（2026-11-02 静态取证：API.java Chat.fansList/MyFollowsList v1=self、
+// User.userFansList/userFollowList v3=他人[user_id+step]；FansActivity.param 实证）。
+// 行=FansFollowsDataView 消费字段：userId/name/head/status(2=互相关注)/certDes/
+// certPicUrl/headPendantUrl/distanceInfo。响应整体信封待真数据核（使用自然覆盖）。
+export const FansListResp = z.object({
+  success: z.boolean(),
+  list: z.array(z.object({
+    userId: z.unknown().optional(),
+    name: z.string().optional(),
+    head: z.string().optional(),
+    status: z.unknown().optional(),
+    certDes: z.string().optional(),
+    certPicUrl: z.string().optional(),
+    distanceInfo: z.string().optional(),
+  }).passthrough()),
+}).passthrough();
+
+// F2-2 用户帖子列表（2026-11-02 静态取证：userContentList v1[self 论坛帖子，
+// UserForumContentActivity]+userForumOrShowPage v2[用户页 tab_config config_id=3
+// 论坛帖子 tab；UserForumOrShowFragment param user_id+config_id，行 bean=FriendDynamicBean
+// 当 config_id==='3']）。行字段 tid/title/fid/forumName/commentCount/click/
+// createTimeStr/contentDesc。link 常量与 tab_config 下发 link 的等价性为推断（已记录），
+// 响应形态待真数据核。
+export const UserContentListResp = z.object({
+  success: z.boolean(),
+  list: z.array(z.object({
+    id: z.unknown().optional(),
+    tid: z.unknown().optional(),
+    title: z.string().optional(),
+    fid: z.unknown().optional(),
+    forumName: z.string().optional(),
+    commentCount: z.unknown().optional(),
+    click: z.unknown().optional(),
+    createTimeStr: z.string().optional(),
+    contentDesc: z.string().optional(),
+  }).passthrough()),
+}).passthrough();

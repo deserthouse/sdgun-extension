@@ -14,7 +14,7 @@ export const TOKENS = `
   :root[data-theme='dark'] {
     --bg: #131417; --surface: #1b1d21; --surface2: #26282e;
     --border: #2a2c32; --border2: #3a3c43;
-    --text: #e7e5e4; --text2: #a8a29e; --text3: #78716c;
+    --text: #e7e5e4; --text2: #a8a29e; --text3: #8d8880; /* B批：R2 曾宣称提亮至此值但未落码（A24 家族复发）——本轮补真实修复 */
     --accent: #ff6b7a;
     --accent-soft: rgba(255,107,122,.10);
     --ok: #4ade80; --warn: #fbbf24;
