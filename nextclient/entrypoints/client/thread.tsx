@@ -220,6 +220,25 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
     : { tid, p: page, step: 20 });
   const main = (op.data as any)?.data;
   const floors = ((cl.data as any)?.list ?? []) as any[];
+  // R2-5：阅读位置恢复（仅一次）+ 滚动保存
+  const scrollKey = `sdg2.scroll.${tid}`;
+  const scrollRestored = useRef(false);
+  useEffect(() => {
+    const save = () => {
+      try { sessionStorage.setItem(scrollKey, String(window.scrollY)); } catch {}
+    };
+    window.addEventListener('scroll', save, { passive: true });
+    return () => window.removeEventListener('scroll', save);
+  }, [scrollKey]);
+  useEffect(() => {
+    if (scrollRestored.current) return;
+    if (cl.state !== 'Data' && cl.state !== 'Stale') return;
+    const saved = sessionStorage.getItem(scrollKey);
+    if (saved && Number(saved) > 0) {
+      setTimeout(() => window.scrollTo({ top: Number(saved) }), 300);
+    }
+    scrollRestored.current = true;
+  }, [cl.state, scrollKey]);
   const totalPage = Number((cl.data as any)?.total_page ?? 1);
   const opUserId = String(main?.user_id ?? '');
   const opName = String(main?.user_name ?? '');

@@ -6,7 +6,8 @@
 import { callEndpoint, type Fail } from './broker';
 
 export type MutationState =
-  | 'Draft' | 'Validating' | 'Submitting' | 'Confirmed' | 'Rejected' | 'OutcomeUnknown';
+  | 'Draft' | 'Validating' | 'Submitting' | 'Confirmed' | 'Rejected' | 'OutcomeUnknown'
+  | 'CaptchaNeeded';
 
 export interface MutationResult {
   state: MutationState;
@@ -47,6 +48,10 @@ export async function runMutation(spec: SubmitSpec): Promise<MutationResult> {
     if (fail?.kind === 'NetworkError' || fail?.kind === 'ResponseUnverified') {
       return { state: 'OutcomeUnknown', msg: (fail?.msg ? fail.msg + '——' : '')
         + '结果未知，请勿重复提交' };
+    }
+    // R4-2：写链验证码——调用方转图形验证流程（不自动重发、不丢草稿）
+    if (fail?.kind === 'CaptchaRequired') {
+      return { state: 'CaptchaNeeded', msg: fail.msg };
     }
     return { state: 'Rejected', msg: fail?.msg ?? String(e).slice(0, 120) };
   }

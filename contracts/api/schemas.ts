@@ -151,6 +151,50 @@ export const ThreadAddColumnInfoResp = z.object({
   }).passthrough().optional(),
 }).passthrough();
 
+// R4-1 附件上传响应（官 APK uploadPicNew——形态待真数据核；宽松 passthrough）
+export const UploadResp = z.object({
+  success: z.boolean(),
+  url: z.string().optional(),
+  attachment_id: z.unknown().optional(),
+}).passthrough();
+
+// R3-3 他人主页（官 APK UserHomeActivity.loadHeadViewInfo：v5/user/userHome，
+// GET uid 或 name 二选一）。响应字段形态待真数据核——passthrough 宽松。
+export const UserProfileResp = z.object({
+  success: z.boolean(),
+  data: z.object({
+    id: z.unknown().optional(),
+    name: z.string().optional(),
+    head: z.string().optional(),
+    sign: z.string().optional(),
+    group_name: z.string().optional(),
+    group_level: z.unknown().optional(),
+    thread_count: z.unknown().optional(),
+    post_count: z.unknown().optional(),
+    fans_num: z.unknown().optional(),
+    follow_num: z.unknown().optional(),
+  }).passthrough().optional(),
+}).passthrough();
+
+// R2 forumDetail 板块元数据（api_survey 实采+静态取证：板块名/图标/今日帖/
+// 总帖/orders 枚举/moderators/children 子板块/threadtypes 筛选）。
+// 实际信封待真数据核（当前=合成夹具+api_survey 行描述）。
+export const ForumDetailResp = z.object({
+  success: z.boolean(),
+  data: z.object({
+    name: z.string().optional(),
+    icon: z.string().optional(),
+    today_num: z.unknown().optional(),
+    total_num: z.unknown().optional(),
+    threadtypes: z.array(z.object({
+      typeid: z.unknown().optional(),
+      name: z.string().optional(),
+    }).passthrough()).optional(),
+    moderators: z.unknown().optional(),
+    children: z.unknown().optional(),
+  }).passthrough().optional(),
+}).passthrough();
+
 // 写面通用响应（批D）：写端点响应形态未实测（真实写入=用户 MANUAL）——
 // 只断言 success 布尔，其余透传；broker 在 success:false 时抛业务失败。
 export const WriteResp = z.object({

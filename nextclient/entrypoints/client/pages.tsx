@@ -172,15 +172,29 @@ export function MyPage() {
 // C4-3 收藏列表（userCollectList）：静态取证形态渲染——标题/分类/时间，
 // link 为站方原始链接（H5 新标签打开，不猜客户端路由映射）。
 function Collections() {
-  const q = useEndpoint('userCollectList', { p: 1 });
-  const rows = row(q.data);
+  // R3-1 分页化：累积+去重，20/页
+  const [page, setPage] = useState(1);
+  const [rows, setRows] = useState<any[]>([]);
+  const q = useEndpoint('userCollectList', { p: page });
+  useEffect(() => {
+    const fresh = row(q.data);
+    if (q.state !== 'Data' && q.state !== 'Stale') return;
+    setRows((prev) => {
+      if (page === 1) return fresh;
+      const seen = new Set(prev.map((r: any) => String(r.id ?? '')));
+      return [...prev, ...fresh.filter((r: any) => !seen.has(String(r.id ?? '')))];
+    });
+  }, [q.data, q.state, page]);
+  const canMore = (q.state === 'Data' || q.state === 'Stale') && row(q.data).length >= 20;
   return (
     <div data-test="collections" style={{ marginTop: 16 }}>
       <h2 style={{ fontSize: 15, color: 'var(--text2)', margin: '0 0 8px' }}>
         我的收藏 <StateBadge state={q.state} />
       </h2>
-      <StateBlock state={q.state} fail={q.fail} onRetry={() => q.refetch()} skeletonRows={2} />
-      {q.state === 'Empty' && (
+      {page === 1 && (
+        <StateBlock state={q.state} fail={q.fail} onRetry={() => q.refetch()} skeletonRows={2} />
+      )}
+      {q.state === 'Empty' && page === 1 && (
         <div className="state-card" data-test="collections-empty">暂无收藏</div>
       )}
       {rows.map((c: any, i: number) => {
@@ -198,6 +212,14 @@ function Collections() {
               href={link} target="_blank" rel="noreferrer">{inner}</a>
           : <div key={String(c.id ?? i)} className="card" data-test="collect-row">{inner}</div>;
       })}
+      {canMore && (
+        <div className="chiprow" style={{ justifyContent: 'center' }}>
+          <button className="btn" data-test="collect-more" disabled={q.isFetching}
+            onClick={() => setPage((v) => v + 1)}>
+            {q.isFetching ? '加载中…' : '加载更多'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -216,6 +238,35 @@ function AccountCard({ auth, info, onLogout }: { auth: AuthInfo; info: Record<st
       </div>
       <button className="btn" data-test="logout" onClick={onLogout}>退出登录</button>
     </div>
+  );
+}
+
+// R3-3 他人主页：userHome 资料+统计区块（帖子列表待 R4 端点勘定）
+export function UserProfilePage({ uid }: { uid: string }) {
+  const up = useEndpoint('userHome', { uid });
+  const d = (up.data as any)?.data ?? {};
+  return (
+    <section>
+      <p className="crumb"><a href="#/community">‹ 社区</a></p>
+      <div className="board-head" data-test="user-head">
+        <Avatar src={d.head} name={d.name ?? uid} size={56} />
+        <div>
+          <div className="card-title" data-test="user-name">{d.name ?? uid}</div>
+          {d.sign ? <div className="card-sub">{String(d.sign).slice(0, 60)}</div> : null}
+          <div className="card-meta">
+            {d.group_name ? `${d.group_name}${d.group_level ? ` · Lv.${d.group_level}` : ''}` : ''}
+          </div>
+          <div className="card-meta">
+            帖 {Number(d.thread_count) || 0} · 回 {Number(d.post_count) || 0} ·
+            粉 {Number(d.fans_num) || 0} · 关注 {Number(d.follow_num) || 0}
+          </div>
+        </div>
+      </div>
+      <StateBlock state={up.state} fail={up.fail} onRetry={() => up.refetch()} skeletonRows={2} />
+      <p className="page-sub" style={{ marginTop: 12 }}>
+        帖子列表与关注/粉丝区块待后续版本（端点勘定中）。
+      </p>
+    </section>
   );
 }
 
@@ -394,6 +445,14 @@ export function BoardPage({ fid }: { fid: string }) {
   const [order, setOrder] = useState<string>(restored.order);
   const STEP = 20;
   const q = useEndpoint('forumView', { fid, p: page, step: STEP, order }, { keepPrev: true });
+  // R2-1 板块头卡+分类筛选：forumDetail 提供板块名/图标/今日帖/threadtypes
+  const detail = useEndpoint('forumDetail', { fid });
+  const dData = (detail.data as any)?.data ?? {};
+  const boardIcon = String(dData.icon ?? '');
+  const todayNum = Number(dData.today_num) || 0;
+  const totalNum = String(dData.total_num ?? '');
+  const typeChips = Array.isArray(dData.threadtypes) ? dData.threadtypes : [];
+  const [activeType, setActiveType] = useState('');
   // C1-4 板块名映射：circleTree（5min 暖缓存，与社区页/编辑器共享）派生 fid→name
   const tree = useEndpoint('circleTree');
   const boardName = useMemo(() => {
@@ -433,10 +492,37 @@ export function BoardPage({ fid }: { fid: string }) {
           <a href="#/community">‹ 社区</a>
           <span className="dim" data-test="board-name"> · {boardName || `版块 ${fid}`}</span>
         </p>
-        <div className="page-actions">
-          <a className="btn btn-primary" data-test="compose-entry" href="#/editor">发帖</a>
-        </div>
+        {(boardName || boardIcon) && (
+          <div className="board-head" data-test="board-head">
+            {boardIcon && <img className="board-head-icon" src={boardIcon} alt=""
+              referrerPolicy="no-referrer" />}
+            <div>
+              <div className="card-title">{boardName || `版块 ${fid}`}</div>
+              {(todayNum || totalNum) && (
+                <div className="card-meta">今日 {todayNum} · 共 {totalNum} 帖</div>
+              )}
+            </div>
+            <a className="btn btn-primary board-head-compose" data-test="compose-entry"
+              href="#/editor">发帖</a>
+          </div>
+        )}
       </div>
+      {typeChips.length > 0 && (
+        <div className="chiprow" data-test="type-chips" role="group" aria-label="分类筛选">
+          <button className={'chip' + (activeType === '' ? ' on' : '')}
+            style={activeType === '' ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}}
+            onClick={() => { setActiveType(''); setPage(1); }}>全部</button>
+          {typeChips.map((t: any) => {
+            const tid = String(t.typeid ?? '');
+            return (
+              <button key={tid} data-test={`type-${tid}`} aria-pressed={activeType === tid}
+                className={'chip' + (activeType === tid ? ' on' : '')}
+                style={activeType === tid ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}}
+                onClick={() => { setActiveType(tid); setPage(1); }}>{t.name ?? tid}</button>
+            );
+          })}
+        </div>
+      )}
       <div className="section-title">排序</div>
       <div className="chiprow" data-test="order-chips" role="group" aria-label="板块排序">
         {ORDERS.map((o) => (
@@ -452,7 +538,9 @@ export function BoardPage({ fid }: { fid: string }) {
         ))}
       </div>
       <StateBlock state={q.state} fail={q.fail} onRetry={() => q.refetch()} />
-      {q.state !== 'InitialLoading' && rows.map((t: any) => {
+      {q.state !== 'InitialLoading' && rows
+        .filter((t: any) => !activeType || String(t.typeid ?? '') === activeType)
+        .map((t: any) => {
         const pics = Array.isArray(t.pics) ? t.pics.filter((u: unknown) =>
           typeof u === 'string' && u.startsWith('http')) : [];
         return (

@@ -152,6 +152,22 @@ html, body { margin: 0; }
   border-radius: 50%; background: #fff; transition: left .15s; }
 .toggle[aria-checked='true'] .toggle-knob { left: 23px; }
 
+/* ---- 板块头卡（R2-1） ---- */
+.board-head { display: flex; gap: var(--sp-3); align-items: center;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: var(--sp-3) var(--sp-4); margin-top: var(--sp-2); }
+.board-head-icon { width: 48px; height: 48px; border-radius: var(--r-sm); object-fit: cover;
+  background: var(--surface2); flex: none; }
+.board-head-compose { margin-left: auto; }
+.page-actions { display: flex; justify-content: flex-end; margin-top: var(--sp-2); }
+
+/* ---- 跳页输入 ---- */
+.pager-input { width: 52px; text-align: center; padding: 5px 4px !important;
+  font-size: var(--fs-xs) !important; border-radius: var(--r-sm) !important;
+  border: 1px solid var(--border2) !important; background: var(--surface) !important;
+  color: var(--text) !important; }
+.pager-input::-webkit-inner-spin-button { opacity: 1; }
+
 /* ---- 消息（W2 推广：头像列表+方向气泡） ---- */
 .msg-group { display: flex; gap: var(--sp-3); align-items: center; text-align: left;
   cursor: pointer; width: 100%; }
@@ -178,3 +194,22 @@ html, body { margin: 0; }
 .composer-input:disabled, .composer-area:disabled { background: var(--surface2); color: var(--text3); }
 .composer-toolbar { display: flex; justify-content: space-between; align-items: center;
   margin-bottom: var(--sp-2); }
+
+
+/* ---- R3-2 未读徽标 ---- */
+.navbadge { position: absolute; top: 4px; right: 8px; font-style: normal;
+  font-size: 10px; line-height: 14px; min-width: 14px; text-align: center;
+  background: var(--accent); color: #fff; border-radius: var(--r-full);
+  padding: 0 4px; font-weight: 700; }
+@media (max-width: 899px) { .navbadge { top: 0; right: calc(50% - 22px); } }
+
+/* ---- R6-5 返回顶部 ---- */
+.backtop { position: fixed; bottom: calc(var(--tabbar-h) + var(--sp-4)); right: var(--sp-4);
+  z-index: 50; border-radius: var(--r-full); padding: 8px 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+@media (min-width: 900px) { .backtop { bottom: var(--sp-8); } }
+
+
+/* ---- R4-3 编辑器工具栏：窄屏收缩（按钮换行） ---- */
+.composer-toolbar > div { flex-wrap: wrap; gap: 4px; }
+.composer-toolbar .btn { padding: 4px 8px; font-size: var(--fs-2xs); }

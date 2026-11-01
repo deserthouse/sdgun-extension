@@ -3,7 +3,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { applyTheme, setThemeMode, themeMode, watchSystemTheme, type ThemeMode } from '../../lib/theme';
 import { epochProbe, type EpochProbe } from '../../lib/epoch';
 import { setTakeoverEnabled, takeoverEnabled } from '../../lib/switch';
-import { BoardPage, CommunityPage, FocusPage, MyPage } from './pages';
+import { useEndpoint } from '../../lib/queries';
+import { useSession } from '../../lib/session';
+import { BoardPage, CommunityPage, FocusPage, MyPage, UserProfilePage } from './pages';
 import { MessagesPage } from './messages';
 import { IconFocus, IconCommunity, IconMail, IconUser, IconSearch, IconGear } from './icons';
 import { EditorPage } from './editor';
@@ -22,6 +24,8 @@ function currentRoute(): { name: string; param?: string; param2?: string } {
   if (board) return { name: 'board', param: board[1] };
   const thread = h.match(/^thread\/(\d+)(?:\/(\d+))?/);
   if (thread) return { name: 'thread', param: thread[1], param2: thread[2] };
+  const user = h.match(/^user\/(\d+)/);
+  if (user) return { name: 'user', param: user[1] };
   const editor = h.match(/^editor(?:\?tid=(\d+))?/); // C1-5：#/editor?tid=N=回复模式
   if (editor) return { name: 'editor', param: editor[1] };
   if (h === 'settings') return { name: 'settings' };
@@ -35,6 +39,13 @@ export default function App() {
   const [mode, setMode] = useState<ThemeMode>(themeMode);
   const [takeover, setTakeover] = useState<boolean | null>(null); // null=未读
   const [cacheMsg, setCacheMsg] = useState('');
+  // R3-2 未读徽标：登录态通知摘要（计数含私信+系统+好友申请）
+  const { session: navSession } = useSession();
+  const navAuthed = navSession !== 'loading' && navSession.auth !== null;
+  const notifyQ = useEndpoint('userNotifyIndex', {}, { enabled: navAuthed });
+  const nd = (notifyQ.data as any)?.data ?? {};
+  const msgUnread = (Number(nd.has_letter) || 0) + (Number(nd.system_notify_count) || 0)
+    + (Number(nd.friend_apply_count) || 0);
   const [bannerOpen, setBannerOpen] = useState(() => {
     try { return localStorage.getItem('sdg2.banner.dismissed') !== '1'; } catch { return true; }
   });
@@ -104,6 +115,7 @@ export default function App() {
         <div className="navbrand">SDGun <em>New</em></div>
         {TABS.map((t) => {
           const Icon = t.icon;
+          const unread = t.id === 'messages' ? msgUnread : 0;
           return (
             <a key={t.id} href={`#/${t.id}`} data-tab={t.id} title={t.label}
               className="navlink"
@@ -112,6 +124,8 @@ export default function App() {
                 ? 'page' : undefined}>
               <Icon />
               <span>{t.label}</span>
+              {unread > 0 && <i className="navbadge" data-test="nav-unread"
+                aria-label={`${unread} 条未读`}>{unread > 99 ? '99+' : unread}</i>}
             </a>
           );
         })}
@@ -132,6 +146,8 @@ export default function App() {
           ? <BoardPage key={route.param} fid={route.param!} />
           : route.name === 'thread'
           ? <ThreadPage key={route.param} tid={route.param!} pid={route.param2} />
+          : route.name === 'user'
+          ? <UserProfilePage key={route.param} uid={route.param!} />
           : route.name === 'editor'
           ? <EditorPage key={route.param ?? 'compose'} tid={route.param} />
           : route.name === 'settings'

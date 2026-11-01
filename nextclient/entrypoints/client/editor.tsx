@@ -5,6 +5,7 @@ import { useEndpoint } from '../../lib/queries';
 import { sanitizeContent } from '../../lib/sanitize';
 import { draftKey, loadReplyDraftText, saveReplyDraftText, useDraftOwner } from '../../lib/draft';
 import { runMutation, type MutationState } from '../../lib/mutation';
+import { verifyPicSecurityCode, captchaImageUrl } from '../../lib/auth';
 import { useSession } from '../../lib/session';
 import { useRef } from 'react';
 import { StateBlock } from './StateBlock';
@@ -41,6 +42,9 @@ export function EditorPage({ tid }: { tid?: string }) {
   const draftK = replyMode ? draftKey(owner, tid!) : draftKey(owner, 'editor');
   // R1/E31-07 ReplyTarget：被回复楼层 pid（引用暂存时记录），提交作 reply_id
   const [quotePid, setQuotePid] = useState<string | null>(null);
+  // R4-2 写链验证码：CaptchaNeeded → 图码卡 → verify 成功后重提交
+  const [capState, setCapState] = useState<{ active: boolean; code: string; err: string }>(
+    { active: false, code: '', err: '' });
   // E24-04 修复：key=null（身份未 ready）→ 不加载也不允许编辑；
   // key 变化 → 无条件恢复存值或清空（不做 dLoaded 单次封死——异步 auth 变化会换 key）
   const identityReady = draftK !== null;
@@ -58,7 +62,7 @@ export function EditorPage({ tid }: { tid?: string }) {
           c = `回复 ${q.name ?? ''}(${q.pid ?? ''})：${q.text ?? ''}
 `;
           if (q.pid) setQuotePid(String(q.pid)); // R1 ReplyTarget：精确楼层引用
-          localStorage.removeItem(qk);
+          // R4-4：引用暂存保留（刷新恢复），仅发布成功/清空时删除
         }
       } catch { /* 引用暂存损坏则忽略 */ }
       setContent(c);
@@ -148,18 +152,41 @@ export function EditorPage({ tid }: { tid?: string }) {
         setTitle((prev) => (prev === snap.title ? '' : prev));
         setBoard((prev) => (prev === snap.board ? '' : prev));
       }
+      try {
+        const qk0 = replyMode ? `sdg2.quote.${mine.owner}.${tid}` : null;
+        if (qk0) localStorage.removeItem(qk0); // R4-4：发布成功清引用暂存
+      } catch {}
       setSubmit({ phase: 'idle' }); // 结束态=可开始新内容（防旧「已发布」+满表单并存）
       setFlash(true);
       setTimeout(() => setFlash(false), 3000);
+      return;
+    }
+    // R4-2：写链 1009 → 展开验证码卡（草稿保留，验证后自动重提交）
+    if (r.state === 'CaptchaNeeded') {
+      setSubmit({ phase: 'idle' });
+      setCapState({ active: true, code: '', err: '' });
       return;
     }
     // OutcomeUnknown：保稿+锁提交（明确恢复动作），Rejected/其他：可改后重试
     setSubmit({ phase: 'done', state: r.state, msg: r.msg });
   }
 
+  // R4-2：验证码验证成功 → 自动重提交（归属守卫在 doSubmit 内）
+  async function doCaptchaVerify() {
+    if (!capState.code.trim()) return;
+    setCapState((v) => ({ ...v, err: '' }));
+    const v = await verifyPicSecurityCode(capState.code.trim());
+    if (!v.ok) {
+      setCapState((v0) => ({ ...v0, err: v.msg ?? '验证码不正确' }));
+      return;
+    }
+    setCapState({ active: false, code: '', err: '' });
+    await doSubmit();
+  }
+
   const stateText: Record<MutationState, string> = {
     Draft: '草稿', Validating: '校验中…', Submitting: '提交中…',
-    Confirmed: '已发布', Rejected: '已驳回',
+    Confirmed: '已发布', Rejected: '已驳回', CaptchaNeeded: '需要图形验证',
     OutcomeUnknown: '结果未知——请勿重复提交',
   };
 
@@ -188,8 +215,17 @@ export function EditorPage({ tid }: { tid?: string }) {
         <div className="composer-field">
           <div className="composer-toolbar">
             <label className="composer-label" style={{ marginBottom: 0 }} htmlFor="ed-content">正文</label>
-            <button className="btn" data-test="ed-preview"
-              onClick={() => setPreview(!preview)}>{preview ? '继续编辑' : '预览'}</button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button className="btn" data-test="ed-at" title="插入 @提及"
+                onClick={() => setContent((v) => v + '@')}>@</button>
+              {['😀', '👍', '🔥', '🎉', '😭', '😡'].map((em) => (
+                <button key={em} className="btn" data-test={`ed-emoji-${em.codePointAt(0)}`}
+                  title={`插入 ${em}`}
+                  onClick={() => setContent((v) => v + em)}>{em}</button>
+              ))}
+              <button className="btn" data-test="ed-preview"
+                onClick={() => setPreview(!preview)}>{preview ? '继续编辑' : '预览'}</button>
+            </div>
           </div>
           {preview
             ? <div className="content-html" data-test="ed-preview-view"
@@ -204,6 +240,25 @@ export function EditorPage({ tid }: { tid?: string }) {
           <button className="btn" disabled title="附件上传即将开放"
             onClick={() => setFiles([...files, '占位附件'])}>添加附件</button>
         </div>
+        {capState.active && (
+          <div className="card" data-test="ed-captcha" style={{ marginTop: 12 }}>
+            <div className="composer-label">图形验证（发布前置）</div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <img data-test="ed-cap-img" src={captchaImageUrl()} alt="图形验证码"
+                title="点击刷新"
+                onClick={(e) => { (e.target as HTMLImageElement).src = captchaImageUrl(); }}
+                style={{ height: 40, borderRadius: 6, border: '1px solid var(--border2)' }} />
+              <input className="composer-input" data-test="ed-cap-input" value={capState.code}
+                style={{ flex: 1 }} placeholder="输入图中字符" aria-label="图形验证码输入框"
+                onChange={(e) => setCapState((v) => ({ ...v, code: e.target.value }))} />
+              <button className="btn btn-primary" data-test="ed-cap-verify"
+                disabled={!capState.code.trim()} onClick={doCaptchaVerify}>验证并发布</button>
+            </div>
+            {capState.err && (
+              <div className="card-meta" style={{ color: 'var(--accent)' }}>{capState.err}</div>
+            )}
+          </div>
+        )}
         <div className="chiprow" style={{ alignItems: 'center', margin: '16px 0 0' }}>
           <button className="btn btn-primary" data-test="ed-submit"
             disabled={!canSubmit || submit.phase === 'busy' || submit.state === 'OutcomeUnknown'}

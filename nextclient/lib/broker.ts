@@ -8,7 +8,9 @@ export type FailKind =
   | 'RetryableError' | 'AuthRequired' | 'PermissionDenied' | 'Unsupported' | 'NetworkError'
   // E31-03：请求已送达（HTTP 2xx）但响应不可辨——对写链=结果未知（服务器可能已执行），
   // 对读链按可重试错误呈现（deriveState 同映射）
-  | 'ResponseUnverified';
+  | 'ResponseUnverified'
+  // R4-2：服务端要求图形验证码（官 APK RequestInterceptor 同款 1009 拦截）
+  | 'CaptchaRequired';
 
 export interface Fail {
   kind: FailKind;
@@ -112,6 +114,11 @@ export async function callEndpoint<T = unknown>(id: string, opts: CallOpts = {})
         if (code === 1003) {
           throw { kind: 'PermissionDenied', msg: '无权限', code: 1003 } as Fail;
         }
+        if (code === 1009) {
+          // R4-2：写链验证码（官 APK RequestInterceptor 同款拦截）——
+          // 调用方（mutation→编辑器）转验证码流程，不得归为普通驳回
+          throw { kind: 'CaptchaRequired', msg: '请完成图形验证', code: 1009 } as Fail;
+        }
       }
       // W1/E28-03：业务失败信封先于 schema 判定——失败不得被「schema mismatch」
       // 掩盖成解析错误，更不得流入「成功空列表」语义
@@ -160,6 +167,9 @@ export function deriveState<T>(q: QueryShape<T>): NineState {
     if (isFail(q.error) && (q.error.kind === 'AuthRequired'
       || q.error.kind === 'PermissionDenied' || q.error.kind === 'Unsupported')) {
       return q.error.kind;
+    }
+    if (isFail(q.error) && q.error.kind === 'CaptchaRequired') {
+      return 'AuthRequired'; // 读链兜底（正常不发生在读端点）
     }
     return 'RetryableError'; // ResponseUnverified/NetworkError 读链同呈现
   }

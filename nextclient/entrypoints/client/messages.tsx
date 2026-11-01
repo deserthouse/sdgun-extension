@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useEndpoint } from '../../lib/queries';
 import { StateBlock, StateBadge } from './StateBlock';
 import { useSession } from '../../lib/session';
+import { runMutation, type MutationState } from '../../lib/mutation';
+import { useState as _us } from 'react';
 import { Avatar } from './Avatar';
 import { formatTime } from '../../lib/format';
 
@@ -12,12 +14,29 @@ import { formatTime } from '../../lib/format';
 // C4-4 会话历史（userMessageList，静态取证 LetterChatActivity：参数 uid+page）。
 // peer uid 键名以真实分组行形态为准前取三兜底；read-may-mutate 披露在面板内。
 function MsgHistory({ peer, myId }: { peer: any; myId: string }) {
+  // R3-4 发送（合成全态：真实端点 userMessageSendMsg，agent 只走 override 夹具）
+  const [sendText, setSendText] = _us('');
+  const [sendPhase, setSendPhase] = useState<MutationState | 'idle'>('idle');
+  const [sendMsg, setSendMsg] = useState('');
   // R1/E28-05：peerUid 必须来自会话行的用户 id 字段——缺 uid 不发请求
   //（不得把会话 id 当用户 id），显式受限态
   const uid = String(peer.uid ?? peer.user_id ?? '');
   const hasTarget = uid !== '';
-  const q = useEndpoint('userMessageList', { uid, p: 1 }, { enabled: hasTarget });
-  const rows = (q.data as any)?.list ?? [];
+  // R3-1 分页化：累积+去重（同 FocusPage 语义），20/页
+  const [page, setPage] = useState(1);
+  const [rows, setRows] = useState<any[]>([]);
+  const q = useEndpoint('userMessageList', { uid, p: page }, { enabled: hasTarget });
+  useEffect(() => {
+    const fresh = ((q.data as any)?.list ?? []) as any[];
+    if (q.state !== 'Data' && q.state !== 'Stale') return;
+    setRows((prev) => {
+      if (page === 1) return fresh;
+      const seen = new Set(prev.map((r) => String(r.mid ?? r.id ?? '')));
+      return [...prev, ...fresh.filter((r) => !seen.has(String(r.mid ?? r.id ?? '')))];
+    });
+  }, [q.data, q.state, page]);
+  const canMore = (q.state === 'Data' || q.state === 'Stale')
+    && ((q.data as any)?.list ?? []).length >= 20;
   return (
     <div data-test="msg-history" style={{ marginTop: 12 }}>
       {!hasTarget && (
@@ -28,8 +47,16 @@ function MsgHistory({ peer, myId }: { peer: any; myId: string }) {
       {hasTarget && (
         <StateBlock state={q.state} fail={q.fail} onRetry={() => q.refetch()} skeletonRows={2} />
       )}
-      {hasTarget && q.state === 'Empty' && (
+      {hasTarget && q.state === 'Empty' && page === 1 && (
         <div className="state-card" data-test="msg-history-empty">无更多历史消息</div>
+      )}
+      {hasTarget && canMore && (
+        <div className="chiprow" style={{ justifyContent: 'center' }}>
+          <button className="btn" data-test="msg-more" disabled={q.isFetching}
+            onClick={() => setPage((v) => v + 1)}>
+            {q.isFetching ? '加载中…' : '加载更多'}
+          </button>
+        </div>
       )}
       {hasTarget && rows.filter((m: any) => String(m.content ?? '').trim()).map((m: any, i: number) => (
         <div key={String(m.mid ?? i)} data-test="msg-row"
@@ -49,6 +76,49 @@ function MsgHistory({ peer, myId }: { peer: any; myId: string }) {
       <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 8 }}>
         读取会话历史可能触发站方已读上报（消息族端点副作用如实披露）。
       </p>
+      {hasTarget && (
+        <div className="composer" data-test="msg-send" style={{ marginTop: 12 }}>
+          <div className="composer-field">
+            <label className="composer-label" htmlFor="msg-send-input">发送私信</label>
+            <textarea id="msg-send-input" className="composer-area" style={{ minHeight: 60 }}
+              data-test="msg-send-input" value={sendText}
+              disabled={sendPhase === 'Submitting'}
+              onChange={(e) => { setSendText(e.target.value); }} />
+          </div>
+          <div className="chiprow" style={{ alignItems: 'center', margin: 0 }}>
+            <button className="btn btn-primary" data-test="msg-send-btn"
+              disabled={sendPhase === 'Submitting' || !sendText.trim()}
+              onClick={async () => {
+                if (sendPhase === 'Submitting' || !sendText.trim()) return;
+                setSendPhase('Submitting');
+                const r = await runMutation({
+                  endpointId: 'userMessageSendMsg',
+                  params: { uid, content: sendText },
+                  timeoutMs: 15000,
+                });
+                setSendPhase(r.state);
+                setSendMsg(r.msg ?? '');
+                if (r.state === 'Confirmed') { setSendText(''); setTimeout(() => setSendPhase('idle'), 2000); }
+              }}>
+              {sendPhase === 'Submitting' ? '发送中…' : '发送'}
+            </button>
+            {sendPhase === 'Confirmed' && (
+              <span data-test="msg-send-ok" style={{ fontSize: 13, color: 'var(--accent)' }}>已发送 ✓</span>
+            )}
+            {sendPhase === 'OutcomeUnknown' && (
+              <span data-test="msg-send-unknown" style={{ fontSize: 12.5, color: 'var(--accent)' }}>
+                {sendMsg || '结果未知，请勿重复发送'}
+              </span>
+            )}
+            {sendPhase === 'Rejected' && (
+              <span data-test="msg-send-rej" style={{ fontSize: 12.5, color: 'var(--text3)' }}>{sendMsg}</span>
+            )}
+          </div>
+          <p className="page-sub" style={{ margin: '8px 0 0' }}>
+            点「发送」即以你的账号真实私信对方。
+          </p>
+        </div>
+      )}
     </div>
   );
 }
