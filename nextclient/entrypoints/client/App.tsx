@@ -112,7 +112,7 @@ export default function App() {
       )}
       <div className="shell">
       <nav className="navcol" aria-label="主导航">
-        <div className="navbrand">SDGun <em>New</em></div>
+        <div className="navbrand">SDGun<span className="navbrand-sub">客户端</span></div>
         {TABS.map((t) => {
           const Icon = t.icon;
           const unread = t.id === 'messages' ? msgUnread : 0;

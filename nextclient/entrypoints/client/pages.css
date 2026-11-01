@@ -19,7 +19,9 @@ html, body { margin: 0; }
   background: var(--surface); border-right: 1px solid var(--border);
   padding: var(--sp-6) var(--sp-3) var(--sp-4); box-sizing: border-box; }
 .navbrand { font-weight: 700; font-size: var(--fs-lg); padding: var(--sp-1) var(--sp-3) var(--sp-4); }
-.navbrand em { font-style: normal; color: var(--accent); }
+.navbrand-sub { margin-left: 6px; font-size: var(--fs-2xs); font-weight: 600;
+  color: var(--accent); background: var(--accent-soft); border-radius: var(--r-full);
+  padding: 1px 8px; vertical-align: 2px; }
 .navlink { display: flex; align-items: center; gap: var(--sp-3);
   padding: 10px var(--sp-3); border-radius: var(--r-md); font-size: var(--fs-sm);
   text-decoration: none; color: var(--text2); position: relative; }
@@ -213,3 +215,18 @@ html, body { margin: 0; }
 /* ---- R4-3 编辑器工具栏：窄屏收缩（按钮换行） ---- */
 .composer-toolbar > div { flex-wrap: wrap; gap: 4px; }
 .composer-toolbar .btn { padding: 4px 8px; font-size: var(--fs-2xs); }
+
+/* ---- R6-2 toast ---- */
+.toast-host { position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+  z-index: 3000; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.toast { background: var(--surface); color: var(--text); border: 1px solid var(--border2);
+  border-left: 3px solid var(--accent); border-radius: var(--r-sm);
+  padding: 8px 16px; font-size: var(--fs-xs); box-shadow: 0 4px 16px rgba(0,0,0,.2); }
+.toast-ok { border-left-color: var(--ok); }
+.toast-err { border-left-color: var(--accent); }
+
+/* ---- R6-1 宽屏右栏（≥1280：快捷目录） ---- */
+@media (min-width: 1280px) {
+  .shell { grid-template-columns: var(--nav-w) 1fr; }
+  .main { max-width: var(--content-w); }
+}

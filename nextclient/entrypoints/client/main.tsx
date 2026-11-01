@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TOKENS } from '../../lib/theme';
 import { exposeTestSeam } from '../../lib/broker';
 import App from './App';
+import { ToastHost } from './toast';
 
 exposeTestSeam();
 
@@ -26,6 +27,7 @@ createRoot(document.getElementById('root') as HTMLElement).render(
     <QueryClientProvider client={qc}>
       <SessionProvider>
         <App />
+        <ToastHost />
       </SessionProvider>
     </QueryClientProvider>
   </React.StrictMode>,

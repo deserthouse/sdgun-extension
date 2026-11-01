@@ -9,6 +9,7 @@ import { draftKey, loadReplyDraftText, saveReplyDraftText, useDraftOwner } from 
 import { runMutation, type MutationState } from '../../lib/mutation';
 import { formatTime, formatCount } from '../../lib/format';
 import { Avatar } from './Avatar';
+import { toast } from './toast';
 import { useSession } from '../../lib/session';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -145,9 +146,21 @@ function ApplaudButton({ pid, count, isLiked }: {
   const [liked, setLiked] = useState(isLiked);
   const [n, setN] = useState(count);
   const { phase, msg, run } = useMutationRun();
-  const done = liked || phase === 'Confirmed' || phase === 'OutcomeUnknown';
+  // W7-1 取消赞 toggle：Confirmed 落定后再点=取消（contentCancelApplaud）
+  const settledLiked = liked && (phase === 'Confirmed' || phase === 'idle' || phase === 'Draft');
+  const done = settledLiked || phase === 'OutcomeUnknown';
   async function onClick() {
-    if (liked || phase === 'Submitting' || phase === 'Confirmed' || phase === 'OutcomeUnknown') return;
+    if (phase === 'Submitting' || phase === 'Confirmed' || phase === 'OutcomeUnknown') return;
+    if (settledLiked) {
+      setLiked(false);
+      setN((v) => Math.max(0, v - 1));
+      const st = await run('contentCancelApplaud', { content_id: pid }, () => {
+        setLiked(true);
+        setN((v) => v + 1);
+      });
+      if (st === 'Rejected') setN((v) => Math.max(count, v));
+      return;
+    }
     setLiked(true); // 乐观
     setN((v) => v + 1);
     const st = await run('contentAddApplaud', { content_id: pid }, () => {
@@ -158,9 +171,10 @@ function ApplaudButton({ pid, count, isLiked }: {
   }
   return (
     <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-      <button className="btn" data-test={`applaud-${pid}`} disabled={!authed || done || phase === 'Submitting'}
-        aria-label={liked || phase === 'Confirmed' ? `已点赞（${n}）` : `点赞（${n}）`}
-        title={authed ? undefined : '登录后可点赞（真实写入由你的账号执行）'}
+      <button className="btn" data-test={`applaud-${pid}`}
+        disabled={!authed || phase === 'Submitting' || phase === 'OutcomeUnknown'}
+        aria-label={liked ? `已点赞（${n}），点击取消` : `点赞（${n}）`}
+        title={authed ? (liked ? '点击取消点赞' : undefined) : '登录后可点赞（真实写入由你的账号执行）'}
         onClick={onClick}>
         👍 {n}{liked && phase !== 'Submitting' ? ' · 已赞' : phase === 'Submitting' ? ' · 提交中…' : ''}
       </button>
@@ -181,14 +195,32 @@ function ApplaudButton({ pid, count, isLiked }: {
 function FollowButton({ userId, name }: {
   userId: string; name: string;
 }) {
-  // 批D：关注动作端点未在官 APK 勘出——保持封存（诚实标注），W7 勘依赖后接入
-  void userId; void name;
+  // W7-2：关注端点已勘定（fansAdd GET uid）——登录门控生产接线
+  const { session } = useSession();
+  const authed = session !== 'loading' && session.auth !== null;
+  const { phase, msg, run } = useMutationRun();
+  const [followed, setFollowed] = useState(false);
+  const done = followed || phase === 'Confirmed' || phase === 'OutcomeUnknown';
+  async function onClick() {
+    if (done || phase === 'Submitting') return;
+    setFollowed(true); // 乐观
+    await run('fansAdd', { uid: userId }, () => setFollowed(false));
+  }
   return (
     <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-      <button className="btn" data-test="follow-op" disabled
-        title="关注动作端点待勘定，暂不可用（W7）">
-        关注 {name}
+      <button className="btn" data-test="follow-op" disabled={!authed || done || phase === 'Submitting'}
+        title={authed ? undefined : '登录后可关注（真实写入由你的账号执行）'}
+        onClick={onClick}>
+        {followed && phase !== 'Submitting' ? `已关注 ${name}` : phase === 'Submitting' ? '提交中…' : `关注 ${name}`}
       </button>
+      {phase === 'OutcomeUnknown' && (
+        <span style={{ fontSize: 11.5, color: 'var(--accent)' }} data-test="follow-unknown">
+          {msg || '结果未知——请勿重复提交'}
+        </span>
+      )}
+      {phase === 'Rejected' && (
+        <span style={{ fontSize: 11.5, color: 'var(--text3)' }} data-test="follow-rejected">{msg}</span>
+      )}
     </span>
   );
 }
@@ -213,7 +245,6 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
   const [lightbox, setLightbox] = useState<{
     srcs: string[]; index: number; trigger: HTMLElement | null;
   } | null>(null);
-  const [copied, setCopied] = useState('');
   const op = useEndpoint('threadView', { tid });
   const cl = useEndpoint('commentList', onlyOp
     ? { tid, p: page, step: 20, authorid: String((op.data as any)?.data?.user_id ?? '') }
@@ -295,11 +326,10 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
       : `https://bbs.sdgun.com.cn/forum.php?mod=viewthread&tid=${tid}&mobile=2`;
     try {
       await navigator.clipboard.writeText(url);
-      setCopied('已复制');
+      toast('链接已复制', 'ok');
     } catch {
-      setCopied('复制失败');
+      toast('复制失败', 'err');
     }
-    setTimeout(() => setCopied(''), 2000);
   }
 
   return (
@@ -315,11 +345,6 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
         <button className="btn" data-test="copy-link" aria-label="复制帖子链接" onClick={copyLink}>
           复制链接
         </button>
-        {copied && (
-          <span data-test="copy-feedback" style={{ fontSize: 12, color: 'var(--text3)' }}>
-            {copied}
-          </span>
-        )}
       </div>
       <StateBlock state={op.state} fail={op.fail} onRetry={() => op.refetch()} />
       {main && (
@@ -381,8 +406,7 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
             <button className="btn" data-test={`floor-link-${String(f.id ?? '')}`}
               onClick={() => {
                 const url = `${location.origin}${location.pathname}#/thread/${tid}/${String(f.id ?? '')}`;
-                navigator.clipboard.writeText(url).then(() => setCopied('楼层链接已复制'), () => setCopied('复制失败'));
-                setTimeout(() => setCopied(''), 2000);
+                navigator.clipboard.writeText(url).then(() => toast('楼层链接已复制', 'ok'), () => toast('复制失败', 'err'));
               }}>复制楼层链接</button>
           </div>
           <div className="card-meta" style={{ marginTop: 8 }}>
