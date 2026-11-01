@@ -6,6 +6,7 @@ import { sanitizeContent } from '../../lib/sanitize';
 import { draftKey, loadReplyDraftText, saveReplyDraftText, useDraftOwner } from '../../lib/draft';
 import { runMutation, type MutationState } from '../../lib/mutation';
 import { verifyPicSecurityCode, captchaImageUrl } from '../../lib/auth';
+import { callEndpoint, isFail } from '../../lib/broker';
 import { useSession } from '../../lib/session';
 import { useRef } from 'react';
 import { StateBlock } from './StateBlock';
@@ -25,6 +26,10 @@ export function EditorPage({ tid }: { tid?: string }) {
   const [content, setContent] = useState('');
   const [preview, setPreview] = useState(false);
   const [files, setFiles] = useState<string[]>([]);
+  // R4-1 附件上传链：选文件→上传（multipart）→URL 引用插入正文→失败可重试
+  const [upState, setUpState] = useState<'idle' | 'uploading' | 'done' | 'err'>('idle');
+  const [upErr, setUpErr] = useState('');
+  const fileRef = useRef<HTMLInputElement | null>(null);
   const [submit, setSubmit] = useState<SubmitState>({ phase: 'idle' });
   const [flash, setFlash] = useState(false); // E31-03：成功瞬态提示（与 idle 收束解耦）
   const { session } = useSession();
@@ -235,10 +240,47 @@ export function EditorPage({ tid }: { tid?: string }) {
                 onChange={(e) => { setContent(e.target.value); saveDraft(title, board, e.target.value); }} />}
         </div>
         <div className="composer-field" data-test="ed-attachments">
-          <div className="composer-label">附件</div>
+          <div className="composer-label">附件（图片）</div>
           {files.map((f) => <div key={f} className="card-meta">📎 {f}</div>)}
-          <button className="btn" disabled title="附件上传即将开放"
-            onClick={() => setFiles([...files, '占位附件'])}>添加附件</button>
+          {upErr && <div className="card-meta" style={{ color: 'var(--accent)' }} data-test="up-error">{upErr}</div>}
+          <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
+            data-test="up-file"
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (!f) return;
+              if (!f.type.startsWith('image/')) {
+                setUpState('err'); setUpErr('仅支持图片文件'); return;
+              }
+              if (f.size > 8 * 1024 * 1024) {
+                setUpState('err'); setUpErr('图片超过 8MB 限制'); return;
+              }
+              setUpState('uploading'); setUpErr('');
+              try {
+                const r = await callEndpoint<{ url?: string }>('uploadPicNew', {
+                  params: {},
+                  file: f, fileField: 'file', fileName: f.name,
+                });
+                if (isFail(r)) throw new Error(r.msg);
+                const url = r.url ?? '';
+                if (url) {
+                  setFiles((v) => [...v, f.name]);
+                  setContent((v) => `${v}
+<img src="${url}" alt="${f.name}">`);
+                  setUpState('done');
+                } else {
+                  setUpState('err'); setUpErr('上传响应缺少图片地址');
+                }
+              } catch (ex) {
+                setUpState('err');
+                setUpErr(isFail(ex) ? ex.msg : String((ex as Error).message ?? ex).slice(0, 80));
+              }
+            }} />
+          <button className="btn" data-test="up-pick" disabled={upState === 'uploading'}
+            onClick={() => fileRef.current?.click()}>
+            {upState === 'uploading' ? '上传中…' : upState === 'err' ? '重试上传' : '添加图片'}
+          </button>
+          {upState === 'done' && <span className="card-meta" style={{ color: 'var(--ok)' }}>上传成功</span>}
         </div>
         {capState.active && (
           <div className="card" data-test="ed-captcha" style={{ marginTop: 12 }}>

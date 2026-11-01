@@ -1,7 +1,7 @@
-# SDGun New Client 2.0.0-alpha.10
+# SDGun New Client 2.0.0-alpha.11
 
-- source SHA: 80a7ab631aa7ec04f28c0b641e9ce4930ab66a29
-- built: 2026-11-01T19:26:31+0800
+- source SHA: fcf1f7fc0ebba8a1225f4ac0da2183111320a1ce
+- built: 2026-11-02T01:15:47+0800
 - toolchain: node 24.22.1 (tools/node-portable.lock.json), wxt (package-lock.json)
-- asset: sdgun-next-client-2.0.0-alpha.10-chrome.zip sha256=6ee57afbe0cd7b3c63a527ca028a6710d9ea633b227b5c69c0792aeb63811cc8
+- asset: sdgun-next-client-2.0.0-alpha.11-chrome.zip sha256=361c1b30c3b7187abfc7eb59787b924d1cd0efae38eefa00293ebbdabf4ba0eb
 - rebuild: nextclient/README.md 一条命令复跑

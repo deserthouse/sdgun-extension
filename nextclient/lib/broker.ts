@@ -44,6 +44,10 @@ export interface CallOpts {
   timeoutMs?: number;
   /** W1/E28-01：请求信号贯穿——身份切换 cancelQueries 即中止在途旧请求 */
   signal?: AbortSignal;
+  /** R4-1 multipart 附件：文件 Blob（配合 paramLocation:'multipart' 端点） */
+  file?: Blob;
+  fileField?: string;
+  fileName?: string;
 }
 
 // 测试缝：host 覆盖（离线夹具服务器）。产品代码绝不调用 setter。
@@ -79,10 +83,22 @@ export async function callEndpoint<T = unknown>(id: string, opts: CallOpts = {})
   const url = new URL((hostOverride() ?? 'https://' + def.host) + def.path);
   // E24-07：form 端点参数不进 query（放 body）；读端点全为 query
   const isForm = def.method === 'POST' && def.paramLocation === 'form';
+  // R4-1：multipart 上传（FormData——文件经 CallOpts.file，浏览器自设 boundary）
+  const isMultipart = def.method === 'POST' && def.paramLocation === 'multipart';
   const formBody = isForm && opts.params
     ? new URLSearchParams(Object.entries(opts.params).map(([k, v]) => [k, String(v)])).toString()
     : undefined;
-  if (!isForm) {
+  let multipartBody: FormData | undefined;
+  if (isMultipart) {
+    multipartBody = new FormData();
+    for (const [k, v] of Object.entries(opts.params ?? {})) {
+      multipartBody.append(k, String(v));
+    }
+    if (opts.file) {
+      multipartBody.append(opts.fileField ?? 'file', opts.file, opts.fileName ?? 'upload.bin');
+    }
+  }
+  if (!isForm && !isMultipart) {
     for (const [k, v] of Object.entries(opts.params ?? {})) {
       url.searchParams.set(k, String(v));
     }
@@ -97,10 +113,11 @@ export async function callEndpoint<T = unknown>(id: string, opts: CallOpts = {})
       const resp = await fetch(url.toString(), {
         method: def.method,
         signal: ctrl.signal,
-        headers: def.method === 'POST'
+        headers: def.method === 'POST' && !isMultipart
           ? { 'Content-Type': 'application/x-www-form-urlencoded' }
-          : undefined,
+          : undefined, // multipart 由浏览器自设 boundary
         ...(formBody !== undefined ? { body: formBody } : {}),
+        ...(multipartBody !== undefined ? { body: multipartBody } : {}),
       });
       if (!resp.ok) {
         throw { kind: 'RetryableError', msg: `HTTP ${resp.status}`, code: resp.status } as Fail;

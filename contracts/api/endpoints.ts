@@ -12,7 +12,7 @@ export interface EndpointDef {
   method: 'GET' | 'POST';
   host: 'app.sdgun.com.cn' | 'mag1.sdgun.net';
   path: string; // 精确路径（不含 query）
-  paramLocation: 'query' | 'form'; // E24-07：参数编码位置
+  paramLocation: 'query' | 'form' | 'multipart'; // E24-07：参数编码位置；multipart=R4-1 附件上传
   sideEffect: SideEffect;
   auth: 'guest-ok' | 'token-required';
   pagination: 'page' | 'none';
@@ -180,14 +180,14 @@ export const ENDPOINTS: Record<string, EndpointDef> = {
   uploadPicNew: {
     endpointId: 'uploadPicNew',
     method: 'POST',
-    paramLocation: 'query' as const, // multipart 由调用方扩展（broker TODO）——登记保留
+    paramLocation: 'multipart' as const, // R4-1：文件经 CallOpts.file 传入
     host: 'mag1.sdgun.net',
     path: '/core/attachment/attachment/uploadPicNew',
     sideEffect: 'write',
     auth: 'token-required',
     pagination: 'none',
     response: S.UploadResp,
-    notes: '图片上传（R4-1 静态取证：官 APK API.Upload.uploadPicNew）。multipart 形态+响应字段待真数据核；agent 合成验证，真实上传=账号本人。',
+    notes: '图片上传（R4-1 静态取证：官 APK API.Upload.uploadPicNew）。multipart file 字段名待真数据核（默认 file）；agent 合成验证，真实上传=账号本人。',
   },
   userMessageSendMsg: {
     endpointId: 'userMessageSendMsg',

@@ -485,6 +485,16 @@ export function BoardPage({ fid }: { fid: string }) {
     try { sessionStorage.setItem(boardStateKey(fid), JSON.stringify({ page, order })); } catch {}
   }, [fid, page, order]);
   const isPinned = (t: any) => Number(t.is_top) > 0;
+  const rtree = useEndpoint('circleTree');
+  const dirBoards = useMemo(() => {
+    const out: { fid: string; name: string }[] = [];
+    for (const g of (rtree.data as any)?.list ?? []) {
+      for (const c of g.circle_list ?? []) {
+        if (String(c.type_value) !== fid) out.push({ fid: String(c.type_value), name: c.name });
+      }
+    }
+    return out.slice(0, 10);
+  }, [rtree.data, fid]);
   return (
     <section>
       <div className="page-header">
@@ -580,6 +590,16 @@ export function BoardPage({ fid }: { fid: string }) {
           }} />
       </div>
       {endReached && <div className="state-card" data-test="no-more">没有更多了</div>}
+      {dirBoards.length > 0 && (
+        <aside className="board-dir" data-test="board-dir" aria-label="其他板块">
+          <div className="section-title">其他板块</div>
+          <div className="chiprow">
+            {dirBoards.map((b) => (
+              <a key={b.fid} className="chip" href={`#/board/${b.fid}`}>{b.name}</a>
+            ))}
+          </div>
+        </aside>
+      )}
     </section>
   );
 }
