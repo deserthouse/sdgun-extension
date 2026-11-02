@@ -11,6 +11,8 @@ import { formatTime, formatCount } from '../../lib/format';
 import { Avatar } from './Avatar';
 import { toast } from './toast';
 import { useSession } from '../../lib/session';
+import { recordHistory } from '../../lib/history';
+import { internalRouteFromUrl } from '../../lib/linkmap';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -300,6 +302,86 @@ function AuthorBio({ des }: { des: string }) {
   );
 }
 
+// G3 举报 H5 通道（Android MainActivity R2/F17 同构）：userReportView?type=14&
+// type_value=base64({"contentId":pid})——外开官方页，agent 零真实举报。
+function reportUrl(contentId: string): string {
+  let b64 = '';
+  try {
+    b64 = btoa(JSON.stringify({ contentId }));
+  } catch {
+    return '';
+  }
+  return `https://mag1.sdgun.net/mag/user/v1/User/userReportView?type=14&type_value=${
+    encodeURIComponent(b64)}`;
+}
+
+// G3 投票块（threadView 附带 vote 对象时渲染；VoteListItem 字段静态取证。
+// 选项数据源待真帖样本——渲染端全字段缺失容忍，无 vote 对象零渲染）
+function VoteBlock({ vote, tid }: { vote: any; tid: string }) {
+  const opts: any[] = Array.isArray(vote?.options) ? vote.options : [];
+  const { phase, msg, run } = useMutationRun();
+  const [picked, setPicked] = useState<string | null>(null);
+  const total = Number(vote?.num) || 0;
+  if (opts.length === 0) return null;
+  return (
+    <div className="card" data-test="vote-block" style={{ marginTop: 12 }}>
+      <div className="card-title">投票{vote.title ? `：${String(vote.title)}` : ''}
+        {Number(vote.num) > 0 ? `（${total} 人参与）` : ''}</div>
+      {opts.map((o: any) => {
+        const oid = String(o.id ?? '');
+        const n = Number(o.num) || 0;
+        const pct = total > 0 ? Math.round((n / total) * 100) : 0;
+        return (
+          <button key={oid} className="btn" data-test={`vote-opt-${oid}`}
+            style={{ display: 'flex', justifyContent: 'space-between', width: '100%',
+              marginTop: 6, textAlign: 'left' }}
+            disabled={phase === 'Submitting' || String(vote.isExpired) === '1'}
+            onClick={async () => {
+              if (picked || phase === 'Submitting') return;
+              setPicked(oid);
+              const st = await run('addVote', { content_id: tid, option_id: oid });
+              if (st === 'Rejected') setPicked(null);
+            }}>
+            <span>{picked === oid ? '✓ ' : ''}{String(o.optionText ?? oid)}</span>
+            <span style={{ color: 'var(--text3)' }}>{total > 0 ? `${n} · ${pct}%` : ''}</span>
+          </button>
+        );
+      })}
+      {phase === 'OutcomeUnknown' && (
+        <span data-test="vote-unknown" style={{ fontSize: 12.5, color: 'var(--accent)' }}>
+          {msg || '结果未知，请勿重复提交'}</span>
+      )}
+      {String(vote.isExpired) === '1' && (
+        <div className="card-meta">投票已结束</div>
+      )}
+      <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 6 }}>
+        真实投票以你的账号执行；选项形态待真实投票帖核对。
+      </p>
+    </div>
+  );
+}
+
+// G7 宽屏右栏·楼层速览（≥1280 渲染；点击跳楼=复用 jumpToPid；楼层名截断）
+function FloorRail({ floors, onJump }: { floors: any[]; onJump: (pid: string) => void }) {
+  if (floors.length === 0) return null;
+  return (
+    <aside className="content-rail" data-test="floor-rail" aria-label="楼层速览">
+      <div className="section-title" style={{ fontSize: 12 }}>楼层速览</div>
+      {floors.slice(0, 40).map((f: any) => {
+        const pid = String(f.id ?? '');
+        return (
+          <a key={pid} className="rail-item" data-test={`rail-${pid}`}
+            onClick={(e) => { e.preventDefault(); onJump(pid); }}
+            title={String(f.user_name ?? '')}>
+            <span>{String(f.user_name ?? '').slice(0, 10)}</span>
+            <span className="rf">{String(f.floor ?? '')}#</span>
+          </a>
+        );
+      })}
+    </aside>
+  );
+}
+
 function BackTop() {
   const [show, setShow] = useState(false);
   useEffect(() => {
@@ -347,6 +429,10 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
     }
     scrollRestored.current = true;
   }, [cl.state, scrollKey]);
+  // G2 本地帖历史：标题就绪即记录（纯客户端，零请求）
+  useEffect(() => {
+    if (main?.title) recordHistory(tid, String(main.title));
+  }, [main?.title, tid]);
   const totalPage = Number((cl.data as any)?.total_page ?? 1);
   const opUserId = String(main?.user_id ?? '');
   const opName = String(main?.user_name ?? '');
@@ -414,6 +500,7 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
 
   return (
     <section>
+      <div className="thread-body">
       <div className="page-header">
         <p className="crumb">
           <a href={`#/board/${String(main?.fid ?? '')}`}>‹ {String(main?.forum_name ?? '板块')}</a>
@@ -446,6 +533,7 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
             {opUserId && <FollowButton userId={opUserId} name={opName} />}
           </div>
           {String(main.des ?? '') && <AuthorBio des={String(main.des)} />}
+          {(main as any).vote && <VoteBlock vote={(main as any).vote} tid={tid} />}
           <ContentView html={String(main.content ?? '')}
             onImg={(srcs, index, trigger) => setLightbox({ srcs, index, trigger })} />
         </div>
@@ -524,6 +612,24 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
                 const url = `${location.origin}${location.pathname}#/thread/${tid}/${String(f.id ?? '')}`;
                 navigator.clipboard.writeText(url).then(() => toast('楼层链接已复制', 'ok'), () => toast('复制失败', 'err'));
               }}>复制楼层链接</button>
+            {/* G3 角色可见性：真实行字段（2026-10-15 实采）can_edit/can_delete/edit_url——
+                有权限才渲染入口；编辑优先官方 edit_url（H5 外开），无 URL 时诚实禁用。
+                举报=全员可用的官方 H5 通道（Android 同构）。 */}
+            {(f.can_edit === true || f.can_edit === 1 || f.can_edit === '1') && (
+              f.edit_url
+                ? <a className="btn" data-test={`floor-edit-${String(f.id ?? '')}`}
+                    href={String(f.edit_url)} target="_blank" rel="noreferrer">编辑</a>
+                : <button className="btn" data-test={`floor-edit-${String(f.id ?? '')}`} disabled
+                    title="本楼层可编辑，但服务端未提供编辑入口（modthreadkey 链待勘）">编辑</button>
+            )}
+            {(f.can_delete === true || f.can_delete === 1 || f.can_delete === '1') && (
+              <button className="btn" data-test={`floor-del-${String(f.id ?? '')}`} disabled
+                title="删除入口待勘定（端点编目缺——如实禁用，不伪造）">删除</button>
+            )}
+            {(() => { const ru = reportUrl(String(f.id ?? '')); return ru
+              ? <a className="btn" data-test={`floor-report-${String(f.id ?? '')}`}
+                  href={ru} target="_blank" rel="noreferrer">举报</a>
+              : null; })()}
           </div>
           <div className="card-meta" style={{ marginTop: 8 }}>
             <ApplaudButton pid={String(f.id ?? f.floor ?? '')} count={Number(f.applaud_count) || 0}
@@ -538,6 +644,8 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
       </div>
       <BackTop />
       <ReplyDraft tid={tid} owner={draftOwner} />
+      </div>
+      <FloorRail floors={floors} onJump={jumpToPid} />
       {lightbox && (
         <Lightbox srcs={lightbox.srcs} index={lightbox.index}
           onClose={() => {

@@ -71,6 +71,12 @@ function MsgHistory({ peer, myId }: { peer: any; myId: string }) {
             <div style={{ fontSize: 'var(--fs-sm)', lineHeight: 'var(--lh-sm)' }}>
               {String(m.content ?? '')}
             </div>
+            {m.dateline ? (
+              <div className="card-meta" data-test="msg-time"
+                style={{ marginTop: 2, textAlign: String(m.uid) === myId ? 'right' : 'left' }}>
+                {formatTime(m.dateline)}
+              </div>
+            ) : null}
           </div>
         </div>
       ))}

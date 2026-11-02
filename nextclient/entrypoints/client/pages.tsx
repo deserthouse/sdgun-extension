@@ -8,6 +8,7 @@ import { login, fetchAccountInfo, verifyPicSecurityCode, captchaImageUrl, type A
 import { useSession } from '../../lib/session';
 import { formatTime, formatCount } from '../../lib/format';
 import { internalRouteFromUrl } from '../../lib/linkmap';
+import { loadHistory, clearHistory } from '../../lib/history';
 import { Avatar } from './Avatar';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -164,9 +165,67 @@ export function MyPage() {
       <AccountCard auth={auth as AuthInfo} info={info} onLogout={doLogout} />
       <UserThreadList uid={auth.userId} isSelf={true} />
       <Collections />
+      <LocalHistory />
+      <MyVisitors />
       <p style={{ fontSize: 13, color: 'var(--text2)', marginTop: 12 }}>
         消息与通知已移至左栏「消息」页。
       </p>
+    </div>
+  );
+}
+
+// G2 本地帖历史（纯客户端，零请求——Android ThreadHistoryStore 同构）
+function LocalHistory() {
+  const [rows, setRows] = useState(() => loadHistory());
+  const [open, setOpen] = useState(false);
+  return (
+    <div data-test="local-history" style={{ marginTop: 16 }}>
+      <h2 style={{ fontSize: 15, color: 'var(--text2)', margin: '0 0 8px', display: 'flex',
+        alignItems: 'center', gap: 10 }}>
+        最近浏览
+        <button className="btn" data-test="history-toggle" aria-expanded={open}
+          style={{ padding: '2px 10px' }} onClick={() => setOpen(!open)}>
+          {open ? '收起' : `展开（${rows.length}）`}
+        </button>
+        {rows.length > 0 && open && (
+          <button className="btn" data-test="history-clear" style={{ padding: '2px 10px' }}
+            onClick={() => { clearHistory(); setRows([]); }}>清空</button>
+        )}
+      </h2>
+      {open && (rows.length === 0
+        ? <div className="state-card" data-test="history-empty">暂无浏览记录</div>
+        : rows.slice(0, 30).map((e) => (
+          <a key={e.tid} className="card" data-test="history-row" href={`#/thread/${e.tid}`}>
+            <div className="card-title">{e.title}</div>
+            <div className="card-meta">{formatTime(Math.floor(e.ts / 1000))}</div>
+          </a>)))}
+    </div>
+  );
+}
+
+// G2 访客列表（myVisitor：谁看过我——登录态读端点，合成验证）
+function MyVisitors() {
+  const q = useEndpoint('myVisitor', { p: 1, step: 20 });
+  const rows = ((q.data as any)?.list ?? []) as any[];
+  return (
+    <div data-test="my-visitors" style={{ marginTop: 16 }}>
+      <h2 style={{ fontSize: 15, color: 'var(--text2)', margin: '0 0 8px' }}>
+        最近访客 <StateBadge state={q.state} />
+      </h2>
+      <StateBlock state={q.state} fail={q.fail} onRetry={() => q.refetch()} skeletonRows={1} />
+      {q.state === 'Empty' && <div className="state-card" data-test="visitors-empty">暂无访客记录</div>}
+      {rows.length > 0 && (
+        <div className="chiprow">
+          {rows.slice(0, 10).map((v, i) => {
+            const uid = String(v.userId ?? v.uid ?? '');
+            const name = String(v.name ?? (uid || '(访客)'));
+            return uid
+              ? <a key={uid + i} className="chip" href={`#/user/${uid}`} data-test="visitor-row">
+                  <Avatar src={v.head} name={name} size={20} />{name}</a>
+              : <span key={i} className="chip">{name}</span>;
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -414,6 +473,50 @@ function MyBoards({ userId }: { userId: string }) {
   );
 }
 
+// G1 热议热榜（旧线 forumlist/hotfeed 模式移植）：活跃板块×order=heat 各取 3 条，
+// 客户端聚合按（回复×10+查看）排序取前 10。请求预算=板块数（≤5）/5min（staleTime）。
+// 数据经 lift 上浮到 HotFeed 聚合（React state 桥，不绕 TanStack）。
+function HotBoard({ fid, onRows }: { fid: string; onRows: (fid: string, rows: any[]) => void }) {
+  const q = useEndpoint('forumView', { fid, p: 1, step: 3, order: 'heat' });
+  useEffect(() => {
+    if (q.state === 'Data' || q.state === 'Stale') onRows(fid, row(q.data));
+  }, [q.data, q.state, fid]);
+  return null;
+}
+function HotFeed({ fids }: { fids: string[] }) {
+  const [byBoard, setByBoard] = useState<Record<string, any[]>>({});
+  const merged = useMemo(() => {
+    const all = Object.values(byBoard).flat();
+    const seen = new Set<string>();
+    return all
+      .filter((t: any) => { const k = String(t.tid); if (seen.has(k)) return false; seen.add(k); return true; })
+      .sort((a: any, b: any) => (Number(b.reply_count) * 10 + Number(b.click))
+        - (Number(a.reply_count) * 10 + Number(a.click)))
+      .slice(0, 10);
+  }, [byBoard]);
+  return (
+    <div data-test="hotfeed" style={{ marginBottom: 16 }}>
+      <div className="section-title">热议热榜</div>
+      {merged.length === 0 && (
+        <div className="card-meta" style={{ padding: '4px 2px' }}>热榜生成中…</div>
+      )}
+      {merged.map((t: any, i: number) => (
+        <a key={String(t.tid)} className="card thread-row" data-test="hot-row" href={`#/thread/${t.tid}`}>
+          <span style={{ color: 'var(--text3)', fontSize: 12, minWidth: 20 }}>{i + 1}</span>
+          <div className="thread-main">
+            <div className="card-title">{t.subject}</div>
+            <div className="card-meta">
+              {t.user_name} · 回 {formatCount(t.reply_count)} · 看 {formatCount(t.click)}
+            </div>
+          </div>
+        </a>
+      ))}
+      {fids.slice(0, 5).map((fid) => (
+        <HotBoard key={fid} fid={fid} onRows={(f, rs) => setByBoard((prev) => ({ ...prev, [f]: rs }))} />
+      ))}
+    </div>
+  );
+}
 export function FocusPage() {
   const [channel, setChannel] = useState(7);
   const [page, setPage] = useState(1);
@@ -470,10 +573,22 @@ export function FocusPage() {
           </button>
         </div>
       )}
+      {tree.state !== 'InitialLoading' && (() => {
+        const fids: string[] = [];
+        for (const g of row(tree.data)) {
+          for (const c of (g.circle_list ?? [])) {
+            const fid = String(c.type_value ?? '');
+            if (fid && fids.length < 5) fids.push(fid);
+          }
+        }
+        return fids.length > 0 ? <HotFeed fids={fids} /> : null;
+      })()}
       <div className="section-title">快捷入口</div>
       <div className="chiprow" data-test="tools">
+        {/* G9：原生搜索内链（窄屏 navtools 隐藏——聚焦页是窄屏搜索的可达入口） */}
+        <a className="chip" data-test="tools-search" href="#/search">搜索帖子</a>
         {[['论坛导读', 'forum.php?mod=guide&mobile=2'], ['个人中心', 'home.php?mod=space&do=profile&mobile=2'],
-          ['站内搜索', 'search.php?mod=forum&mobile=2']].map(([t, path]) => (
+          ['H5 搜索', 'search.php?mod=forum&mobile=2']].map(([t, path]) => (
           <a key={t} className="chip" target="_blank" rel="noreferrer"
             href={`https://bbs.sdgun.com.cn/${path}`}>{t} ↗</a>
         ))}

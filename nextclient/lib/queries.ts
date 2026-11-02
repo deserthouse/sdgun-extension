@@ -14,7 +14,7 @@ function isEmptyData(d: unknown): boolean {
 }
 
 export function useEndpoint<T>(id: string, params?: Record<string, string | number>,
-  opts?: { keepPrev?: boolean; enabled?: boolean }) {
+  opts?: { keepPrev?: boolean; enabled?: boolean; refetchMs?: number }) {
   const { session } = useSession();
   const ready = session !== 'loading' && opts?.enabled !== false; // enabled=false 阻止点火
   // W1/E28-01：私有键空间=epoch+owner——身份切换后旧键失活（迟到回填进不了新键），
@@ -26,6 +26,8 @@ export function useEndpoint<T>(id: string, params?: Record<string, string | numb
     enabled: ready,
     retry: false,
     staleTime: 5 * 60_000,
+    // G1b：可选轮询（未读徽标 60s）——staleTime 之上的显式刷新通道
+    ...(opts?.refetchMs ? { refetchInterval: opts.refetchMs } : {}),
     // W2/T3-1：分页类公共读保留上一页数据（翻页不闪骨架）。
     // 私有/身份敏感查询禁用——身份切换时上一身份内容不得残留（E28-01 口径）。
     ...(opts?.keepPrev ? { placeholderData: keepPreviousData } : {}),

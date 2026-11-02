@@ -284,3 +284,48 @@ export const UserContentListResp = z.object({
     contentDesc: z.string().optional(),
   }).passthrough()),
 }).passthrough();
+
+// G2 访客列表（2026-11-02 静态取证：myVisitor v3=self「谁看过我」；listUserVisitor v1=
+// 他人主页访客？——API.java:102 与 361 两常量；参数形态待真数据核，行字段 passthrough）
+export const VisitorListResp = z.object({
+  success: z.boolean(),
+  list: z.array(z.object({
+    userId: z.unknown().optional(),
+    uid: z.unknown().optional(),
+    name: z.string().optional(),
+    head: z.string().optional(),
+    time: z.unknown().optional(),
+    dateline: z.unknown().optional(),
+  }).passthrough()),
+}).passthrough();
+
+// G4 搜索（circleSearch=topicSearch 圈内/内容搜索；行=Show 帖子对象 passthrough——
+// 游客恒空为 2026-10-21 实测口径，登录态待使用覆盖）
+export const TopicSearchResp = z.object({
+  success: z.boolean(),
+  list: z.array(z.object({
+    id: z.unknown().optional(),
+    tid: z.unknown().optional(),
+    title: z.string().optional(),
+    content: z.string().optional(),
+    user_name: z.string().optional(),
+    time: z.unknown().optional(),
+  }).passthrough()),
+}).passthrough();
+
+// G3 投票（threadView 附带投票对象——VoteListItem 消费字段：id/title/options[{id,
+// optionText,num,pic}]/num/isExpired/isAnonymous/expireTime；真实帖样本未采，
+// 行字段 passthrough 宽松+「待真帖样本」注记）
+export const VoteObj = z.object({
+  id: z.unknown().optional(),
+  title: z.string().optional(),
+  num: z.unknown().optional(),
+  isExpired: z.unknown().optional(),
+  isAnonymous: z.unknown().optional(),
+  options: z.array(z.object({
+    id: z.unknown().optional(),
+    optionText: z.string().optional(),
+    num: z.unknown().optional(),
+    pic: z.string().optional(),
+  }).passthrough()).optional(),
+}).passthrough().optional();

@@ -11,6 +11,8 @@ import { MessagesPage } from './messages';
 import { IconFocus, IconCommunity, IconMail, IconUser, IconSearch, IconGear } from './icons';
 import { EditorPage } from './editor';
 import { ThreadPage } from './thread';
+import { SearchPage } from './search';
+import { AccountSettingsPage } from './account';
 
 const TABS = [
   { id: 'focus', label: '聚焦', icon: IconFocus },
@@ -31,6 +33,8 @@ function currentRoute(): { name: string; param?: string; param2?: string } {
   if (editor) return { name: 'editor', param: editor[1] };
   if (h === 'settings') return { name: 'settings' };
   if (h === 'about') return { name: 'about' }; // B-2：关于页
+  if (h === 'search') return { name: 'search' }; // G4：原生搜索
+  if (h === 'account') return { name: 'account' }; // G5：账号设置
   if (TABS.some((t) => t.id === h)) return { name: h };
   return { name: 'focus' };
 }
@@ -44,7 +48,8 @@ export default function App() {
   // R3-2 未读徽标：登录态通知摘要（计数含私信+系统+好友申请）
   const { session: navSession } = useSession();
   const navAuthed = navSession !== 'loading' && navSession.auth !== null;
-  const notifyQ = useEndpoint('userNotifyIndex', {}, { enabled: navAuthed });
+  // G1b 未读轮询：登录态 60s 自动刷新 + 窗口聚焦即刷（浏览器关闭不承诺送达——已背书口径）
+  const notifyQ = useEndpoint('userNotifyIndex', {}, { enabled: navAuthed, refetchMs: 60000 });
   const nd = (notifyQ.data as any)?.data ?? {};
   const msgUnread = (Number(nd.has_letter) || 0) + (Number(nd.system_notify_count) || 0)
     + (Number(nd.friend_apply_count) || 0);
@@ -181,10 +186,9 @@ export default function App() {
             </a>
           );
         })}
-        <a className="navlink navtools" data-test="search-h5"
-          href="https://bbs.sdgun.com.cn/search.php?mod=forum&mobile=2"
-          target="_blank" rel="noreferrer">
-          <IconSearch /><span>H5 搜索</span>
+        <a className="navlink navtools" data-test="search-entry" href="#/search"
+          aria-current={route.name === 'search' ? 'page' : undefined}>
+          <IconSearch /><span>搜索</span>
         </a>
         <div className="navfoot">
           <a className="navlink" data-test="settings-link" href="#/settings" title="设置"
@@ -205,6 +209,10 @@ export default function App() {
           ? <EditorPage key={route.param ?? 'compose'} tid={route.param} />
           : route.name === 'about'
           ? <AboutPage probe={probe} />
+          : route.name === 'search'
+          ? <SearchPage />
+          : route.name === 'account'
+          ? <AccountSettingsPage />
           : route.name === 'settings'
           ? (
             <div data-test="settings-page">

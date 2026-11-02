@@ -251,3 +251,21 @@ html, body { margin: 0; }
 /* B-3 伴生加固：简介/摘要常含长 URL（不可断拉丁串撑破 grid 轨道——探针 80 字
    无空格词 min-content=582px 实锤），与 .content-html 同款断词口径 */
 .card-sub { overflow-wrap: anywhere; }
+
+/* ---- G7 宽屏右栏（≥1280：帖子页楼层速览+板块页其他板块上提） ---- */
+.content-rail { display: none; } /* 窄屏默认无右栏 */
+@media (min-width: 1280px) {
+  section:has(> .content-rail) { display: grid;
+    grid-template-columns: minmax(0,1fr) 220px; gap: var(--sp-4); align-items: start; }
+  .thread-body { min-width: 0; grid-column: 1; grid-row: 1; }
+  .content-rail { grid-column: 2; grid-row: 1; }
+  .content-rail { display: block; position: sticky;
+    top: calc(var(--sdg-banner-h, 0px) + var(--sp-4));
+    max-height: calc(100vh - var(--sdg-banner-h, 0px) - var(--sp-8)); overflow-y: auto;
+    border-left: 1px solid var(--border); padding-left: var(--sp-3); }
+  .content-rail .rail-item { display: flex; justify-content: space-between; gap: 6px;
+    padding: 5px 6px; border-radius: var(--r-sm); font-size: var(--fs-2xs);
+    color: var(--text2); text-decoration: none; cursor: pointer; }
+  .content-rail .rail-item:hover { background: var(--surface2); color: var(--text); }
+  .content-rail .rail-item .rf { color: var(--text3); flex: none; }
+}
