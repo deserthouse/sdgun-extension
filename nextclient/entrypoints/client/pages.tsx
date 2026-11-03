@@ -217,11 +217,15 @@ function MyVisitors() {
       {rows.length > 0 && (
         <div className="chiprow">
           {rows.slice(0, 10).map((v, i) => {
-            const uid = String(v.userId ?? v.uid ?? '');
-            const name = String(v.name ?? (uid || '(访客)'));
+            // soak 实测修正：myVisitor 行=嵌套 {user:{…}, visit_time_str}；
+            // listUserVisitor 行=扁平。两形态都取。
+            const vu = v.user ?? v;
+            const uid = String(vu.user_id ?? vu.userId ?? '');
+            const name = String(vu.name ?? (uid || '(访客)'));
             return uid
-              ? <a key={uid + i} className="chip" href={`#/user/${uid}`} data-test="visitor-row">
-                  <Avatar src={v.head} name={name} size={20} />{name}</a>
+              ? <a key={uid + i} className="chip" href={`#/user/${uid}`} data-test="visitor-row"
+                  title={v.visit_time_str ? `最近来访 ${String(v.visit_time_str)}` : undefined}>
+                  <Avatar src={vu.head} name={name} size={20} />{name}</a>
               : <span key={i} className="chip">{name}</span>;
           })}
         </div>
@@ -307,10 +311,10 @@ function AccountCard({ auth, info, onLogout }: { auth: AuthInfo; info: Record<st
 // F2-1 粉丝/关注列表（userFansList/userFollowList v3；self 分流 myFansList/MyFollowsList v1）。
 // 行=FansFollowsDataView 消费字段（2026-11-02 静态取证）；行点击→ #/user/{userId}。
 function UserFansList({ uid, tab, isSelf }: { uid: string; tab: 'fans' | 'follows'; isSelf: boolean }) {
-  const id = isSelf ? (tab === 'fans' ? 'myFansList' : 'myFollowsList')
-    : (tab === 'fans' ? 'userFansList' : 'userFollowList');
-  // F2-1 他人链路参数（FansActivity 实证）：user_id+step；self 链路无 uid 参数
-  const q = useEndpoint(id, isSelf ? { p: 1, step: 20 } : { user_id: uid, p: 1, step: 20 });
+  // soak 实测修正（2026-11-03）：v1 self 端点需 user_id 参数（无参=code0 拒）——
+  // self/他人统一走 v3 双端点（userFansList/userFollowList 均带 user_id 实测通）
+  const id = tab === 'fans' ? 'userFansList' : 'userFollowList';
+  const q = useEndpoint(id, { user_id: uid, p: 1, step: 20 });
   const rows = row(q.data);
   return (
     <div data-test={`user-${tab}`} style={{ marginTop: 14 }}>
@@ -325,7 +329,7 @@ function UserFansList({ uid, tab, isSelf }: { uid: string; tab: 'fans' | 'follow
         </div>
       )}
       {rows.map((u: any, i: number) => {
-        const ruid = String(u.userId ?? u.uid ?? '');
+        const ruid = String(u.user_id ?? u.userId ?? u.uid ?? ''); // 真实键=user_id（soak 实测）
         const inner = (
           <>
             <Avatar src={u.head} name={u.name ?? ruid} size={36} />
@@ -333,8 +337,8 @@ function UserFansList({ uid, tab, isSelf }: { uid: string; tab: 'fans' | 'follow
               <div className="card-title">{String(u.name ?? (ruid || '(用户)'))}</div>
               <div className="card-meta">
                 {Number(u.status) === 2 ? '互相关注' : ''}
-                {u.certDes ? ` · ${String(u.certDes)}` : ''}
-                {u.distanceInfo ? ` · ${String(u.distanceInfo)}` : ''}
+                {u.cert_des ? ` · ${String(u.cert_des)}` : ''}
+                {u.distance_info ? ` · ${String(u.distance_info)}` : ''}
               </div>
             </div>
           </>
@@ -352,9 +356,11 @@ function UserFansList({ uid, tab, isSelf }: { uid: string; tab: 'fans' | 'follow
 
 // F2-2 用户帖子列表：self=userContentList（官方「论坛帖子」）；
 // 他人=userForumOrShowPage（user_id+config_id=3，官方 tab 链路等价推断——记录在端点 notes）。
-function UserThreadList({ uid, isSelf }: { uid: string; isSelf: boolean }) {
-  const q = useEndpoint(isSelf ? 'userContentList' : 'userForumOrShowPage',
-    isSelf ? { p: 1, step: 20 } : { user_id: uid, config_id: 3, p: 1, step: 20 });
+function UserThreadList({ uid, isSelf = false }: { uid: string; isSelf?: boolean }) {
+  // soak 实测修正（2026-11-03）：userContentList v1 需 type 参数（code0 拒）；
+  // userForumOrShowPage 对 self（实测 n=2）与他人（n=20）均通——统一单端点
+  const q = useEndpoint('userForumOrShowPage',
+    { user_id: uid, config_id: 3, p: 1, step: 20 });
   const rows = row(q.data);
   return (
     <div data-test="user-threads" style={{ marginTop: 14 }}>
@@ -372,9 +378,9 @@ function UserThreadList({ uid, isSelf }: { uid: string; isSelf: boolean }) {
             <div style={{ flex: 1 }}>
               <div className="card-title">{String(t.title ?? `(帖子 ${t.id ?? ''})`)}</div>
               <div className="card-meta">
-                {t.forumName ? `${String(t.forumName)} · ` : ''}
-                {t.createTimeStr ? `${String(t.createTimeStr)} · ` : ''}
-                评 {formatCount(t.commentCount)}{t.click ? ` · 看 ${formatCount(t.click)}` : ''}
+                {(t.forum_name || t.forumName) ? `${String(t.forum_name ?? t.forumName)} · ` : ''}
+                {(t.create_time_str || t.createTimeStr) ? `${String(t.create_time_str ?? t.createTimeStr)} · ` : ''}
+                评 {formatCount(t.comment_count ?? t.commentCount)}{t.click ? ` · 看 ${formatCount(t.click)}` : ''}
               </div>
             </div>
           </>
@@ -393,12 +399,13 @@ export function UserProfilePage({ uid, tab }: { uid: string; tab?: 'fans' | 'fol
   const myId = session === 'loading' ? '' : String(session.auth?.userId ?? '');
   const isSelf = uid === myId && myId !== '';
   const up = useEndpoint('userHome', { uid });
-  const d = (up.data as any)?.data ?? {};
-  // F2-2 诚实受限门：他人帖子列表由官方 tab_config 驱动（config_id=3=论坛帖子 tab）——
-  // 服务端未下发该 tab 的用户不渲染帖子区块、不发请求（不伪造入口）。
+  const root = (up.data as any) ?? {};
+  const d = root.data ?? {};
+  // soak 实测修正（2026-11-03）：tab_config 在响应**顶层**（数组形态，非 data 内字符串）——
+  // 首版读 data.tab_config 恒 undefined=帖子区块永不渲染（真实缺陷）。兼容字符串旧形态。
   const hasForumTab = useMemo(() => {
     try {
-      const tc = d.tab_config;
+      const tc = root.tab_config ?? d.tab_config;
       const arr = typeof tc === 'string' ? JSON.parse(tc) : tc;
       return Array.isArray(arr) && arr.some((e: any) => String(e?.config_id) === '3');
     } catch { return false; }
@@ -415,9 +422,11 @@ export function UserProfilePage({ uid, tab }: { uid: string; tab?: 'fans' | 'fol
             {d.group_name ? `${d.group_name}${d.group_level ? ` · Lv.${d.group_level}` : ''}` : ''}
           </div>
           <div className="card-meta">
-            帖 {Number(d.thread_count) || 0} · 回 {Number(d.post_count) || 0} ·{' '}
-            <a data-test="fans-link" href={`#/user/${uid}/fans`}>粉 {Number(d.fans_num) || 0}</a> ·{' '}
-            <a data-test="follows-link" href={`#/user/${uid}/follows`}>关注 {Number(d.follow_num) || 0}</a>
+            {/* soak 实测修正（2026-11-03）：真实计数键=fans_count/follow_count/showTopicNumber
+                （首版 fans_num/follow_num 恒 0——真实缺陷） */}
+            {d.showTopicNumber != null && `帖 ${formatCount(d.showTopicNumber)} · `}
+            <a data-test="fans-link" href={`#/user/${uid}/fans`}>粉 {formatCount(d.fans_count ?? d.fans_num)}</a> ·{' '}
+            <a data-test="follows-link" href={`#/user/${uid}/follows`}>关注 {formatCount(d.follow_count ?? d.follow_num)}</a>
           </div>
         </div>
       </div>
@@ -800,7 +809,7 @@ export function BoardPage({ fid }: { fid: string }) {
               <div className="card-title">{t.subject}</div>
               {t.des ? <div className="card-sub">{String(t.des).slice(0, 60)}</div> : null}
               <div className="card-meta">
-                {t.user_name} · {formatTime(t.lastpost ?? t.dateline)} ·
+                {t.user_name} · {formatTime(t.last_reply_time ?? t.lastpost ?? t.dateline)} ·
                 回 {formatCount(t.reply_count)} · 看 {formatCount(t.click)}
               </div>
             </div>

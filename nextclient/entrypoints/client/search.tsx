@@ -26,7 +26,7 @@ export function SearchPage() {
         setFired(text.trim());
       }}>
         <div className="composer-field">
-          <label className="composer-label" htmlFor="search-input">搜索帖子内容</label>
+          <label className="composer-label" htmlFor="search-input">搜索板块/圈子（帖子内容请用 H5 搜索）</label>
           <input id="search-input" className="composer-input" data-test="search-input"
             value={text} placeholder="输入关键词，回车搜索"
             onChange={(e) => setText(e.target.value)} />
@@ -43,23 +43,24 @@ export function SearchPage() {
       {fired && <StateBlock state={q.state} fail={q.fail} onRetry={() => q.refetch()} skeletonRows={3} />}
       {fired && q.state === 'Empty' && (
         <div className="state-card" data-test="search-empty">
-          未登录时搜索结果为空（站方游客限制）；登录后可用，或使用 H5 搜索。
+          没有匹配的板块/圈子。帖子内容搜索请用 H5 搜索（站方无内容搜索 API——2026-11-03 实测与 2026-10-21 测绘互证）。
         </div>
       )}
+      {/* soak 实测定性：allTopicSearch=圈子搜索（行={id,name,info,icon_tburl,link}） */}
       {rows.map((r, i) => {
-        const tid = String(r.tid ?? r.id ?? '');
-        const href = tid ? `#/thread/${tid}`
-          : (typeof r.link === 'string' ? internalRouteFromUrl(r.link) ?? r.link : null);
+        const cid = String(r.id ?? '');
+        const href = typeof r.link === 'string' && r.link
+          ? internalRouteFromUrl(r.link) ?? r.link : null;
         const inner = (
           <>
-            <div className="card-title">{String(r.title ?? '(结果)')}</div>
-            {r.content ? <div className="card-sub">{String(r.content).replace(/<[^>]+>/g, '').slice(0, 80)}</div> : null}
-            <div className="card-meta">{String(r.user_name ?? '')}{r.time ? ` · ${formatTime(r.time)}` : ''}</div>
+            <div className="card-title">{String(r.name ?? `(圈子 ${cid})`)}</div>
+            {r.info ? <div className="card-sub">{String(r.info).slice(0, 80)}</div> : null}
           </>
         );
         return href
-          ? <a key={tid + i} className="card" data-test="search-row" href={href}>{inner}</a>
-          : <div key={i} className="card" data-test="search-row">{inner}</div>;
+          ? <a key={cid + i} className="card" data-test="search-row"
+              {...(href.startsWith('#') ? { href } : { href, target: '_blank', rel: 'noreferrer' })}>{inner}</a>
+          : <div key={cid + i} className="card" data-test="search-row">{inner}</div>;
       })}
     </section>
   );

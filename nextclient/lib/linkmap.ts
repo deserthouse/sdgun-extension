@@ -11,9 +11,12 @@ export function internalRouteFromUrl(url: string): string | null {
     // 帖子：viewthread tid / threadWapPage tid（H5 分享页，单 tid 服务端自解析板块）
     const tid = q.get('tid');
     if (tid && /^\d+$/.test(tid)) return `#/thread/${tid}`;
-    // 板块：forumdisplay fid
-    if (u.pathname.includes('forumdisplay') && q.get('fid') && /^\d+$/.test(q.get('fid')!)) {
-      return `#/board/${q.get('fid')}`;
+    // 板块：forumdisplay fid（两种官方形态：forumdisplay.php 直 path 与
+    // forum.php?mod=forumdisplay——soak 实测圈子 link 为后者，首版只查 pathname 漏映射）
+    const fid = q.get('fid');
+    if (fid && /^\d+$/.test(fid)
+      && (u.pathname.includes('forumdisplay') || q.get('mod') === 'forumdisplay')) {
+      return `#/board/${fid}`;
     }
     // 用户：home.php?mod=space&uid=N
     if (q.get('mod') === 'space' && q.get('uid') && /^\d+$/.test(q.get('uid')!)) {

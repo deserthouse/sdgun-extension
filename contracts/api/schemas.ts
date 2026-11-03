@@ -247,20 +247,22 @@ export const UserMessageListResp = z.object({
   }).passthrough()),
 }).passthrough();
 
-// F2-1 粉丝/关注列表（2026-11-02 静态取证：API.java Chat.fansList/MyFollowsList v1=self、
-// User.userFansList/userFollowList v3=他人[user_id+step]；FansActivity.param 实证）。
-// 行=FansFollowsDataView 消费字段：userId/name/head/status(2=互相关注)/certDes/
-// certPicUrl/headPendantUrl/distanceInfo。响应整体信封待真数据核（使用自然覆盖）。
+// F2-1 粉丝/关注列表（v3 userFansList/userFollowList=2026-11-03 真账号只读实测信封；
+// v1 myFansList/MyFollowsList 实测需 user_id 参数→产品统一走 v3 双端点）。
+// 真实行键（soak_20261103）：user_id/name/head/status/cert_des/cert_pic_url/
+// medal_pic_url/group_ico_src/is_vip/special_relation_status…（jadx getter=userId
+// 但 JSON 键=user_id——soak 实测修正）。
 export const FansListResp = z.object({
   success: z.boolean(),
   list: z.array(z.object({
-    userId: z.unknown().optional(),
+    user_id: z.unknown().optional(),
+    userId: z.unknown().optional(), // jadx 旧记（真数据未见，防御保留）
     name: z.string().optional(),
     head: z.string().optional(),
     status: z.unknown().optional(),
-    certDes: z.string().optional(),
-    certPicUrl: z.string().optional(),
-    distanceInfo: z.string().optional(),
+    cert_des: z.string().optional(),
+    cert_pic_url: z.string().optional(),
+    distance_info: z.string().optional(),
   }).passthrough()),
 }).passthrough();
 
@@ -277,39 +279,51 @@ export const UserContentListResp = z.object({
     tid: z.unknown().optional(),
     title: z.string().optional(),
     fid: z.unknown().optional(),
+    forum_name: z.string().optional(), // 真实键（soak 实测；jadx getter=forumName）
     forumName: z.string().optional(),
+    comment_count: z.unknown().optional(), // 真实键
     commentCount: z.unknown().optional(),
     click: z.unknown().optional(),
+    create_time_str: z.string().optional(), // 真实键
     createTimeStr: z.string().optional(),
+    video_url: z.string().optional(),
+    pics_arr: z.array(z.unknown()).optional(),
     contentDesc: z.string().optional(),
   }).passthrough()),
 }).passthrough();
 
-// G2 访客列表（2026-11-02 静态取证：myVisitor v3=self「谁看过我」；listUserVisitor v1=
-// 他人主页访客？——API.java:102 与 361 两常量；参数形态待真数据核，行字段 passthrough）
+// G2 访客列表（2026-11-03 真账号实测两形态）：myVisitor v3 行=嵌套
+// {user:{user_id,name,head,medal_pic_url,…}, visit_time_str, visit_des…}；
+// listUserVisitor v1 行=扁平 {user_id,name,head,sign,…}。两形态并存宽松。
 export const VisitorListResp = z.object({
   success: z.boolean(),
   list: z.array(z.object({
-    userId: z.unknown().optional(),
-    uid: z.unknown().optional(),
+    user_id: z.unknown().optional(),
     name: z.string().optional(),
     head: z.string().optional(),
-    time: z.unknown().optional(),
-    dateline: z.unknown().optional(),
+    visit_time_str: z.string().optional(),
+    visit_des: z.unknown().optional(),
+    user: z.object({
+      user_id: z.unknown().optional(),
+      name: z.string().optional(),
+      head: z.string().optional(),
+    }).passthrough().optional(),
   }).passthrough()),
 }).passthrough();
 
-// G4 搜索（circleSearch=topicSearch 圈内/内容搜索；行=Show 帖子对象 passthrough——
-// 游客恒空为 2026-10-21 实测口径，登录态待使用覆盖）
+// G4 搜索（2026-11-03 实测定性：allTopicSearch=**圈子搜索**——行={id,name,info,
+// icon_tburl,link,is_open_activity}，与 2026-10-21 测绘「无帖子内容搜索 API」互证；
+// 帖子内容搜索维持 H5 承载）。topicSearch(Show/topicSearch)=圈內搜索另一形态（实测
+// code=0 拒，参数语境不同——登记保留不使用）。
 export const TopicSearchResp = z.object({
   success: z.boolean(),
+  is_exist: z.unknown().optional(),
   list: z.array(z.object({
     id: z.unknown().optional(),
-    tid: z.unknown().optional(),
-    title: z.string().optional(),
-    content: z.string().optional(),
-    user_name: z.string().optional(),
-    time: z.unknown().optional(),
+    name: z.string().optional(),
+    info: z.string().optional(),
+    icon_tburl: z.string().optional(),
+    link: z.string().optional(),
   }).passthrough()),
 }).passthrough();
 

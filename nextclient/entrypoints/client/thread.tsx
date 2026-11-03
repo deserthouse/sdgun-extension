@@ -524,9 +524,10 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
                 <strong style={{ color: 'var(--text)' }}>{opName}</strong>
                 <span className="pin" style={{ marginLeft: 6 }}>楼主</span>
               </div>
-              {String(main.dateline ?? main.time ?? '') && (
+              {(main.create_time ?? main.dateline ?? main.time) != null && (
                 <div className="card-meta" data-test="op-time">
-                  {formatTime(main.dateline ?? main.time)}
+                  {/* soak 实测：threadView 时间键=create_time（unix）/create_time_ago */}
+                  {formatTime(main.create_time ?? main.dateline ?? main.time)}
                 </div>
               )}
             </div>

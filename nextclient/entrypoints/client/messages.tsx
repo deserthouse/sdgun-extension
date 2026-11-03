@@ -236,14 +236,19 @@ function MessagesAuthed() {
 // C4-1 通知历史（notifyList v3）：端点为 read-may-mutate——读取可能触发站方已读
 // 上报（如实披露）；响应整体信封待真数据验证（C4 凭据批），当前渲染行公共字段。
 function NotifyHistory() {
-  const nl = useEndpoint('notifyList', { p: 1 });
+  // soak 实测修正（2026-11-03）：notifyList 需分类 code 参数（NotifyActivity.param('code')
+  // 实证；无参=「通知编码不可为空」code0 拒）。官方按分类入口拉取；本客户端尚无分类
+  // 入口→诚实受限态+零请求（不再发必败请求伪装成故障）。
+  const nl = useEndpoint('notifyList', { p: 1 }, { enabled: false });
   const rows = ((nl.data as any)?.list ?? []) as any[];
   return (
     <div data-test="notify-history" style={{ marginTop: 16 }}>
       <h2 style={{ fontSize: 15, color: 'var(--text2)', margin: '0 0 8px' }}>
         通知历史 <StateBadge state={nl.state} />
       </h2>
-      <StateBlock state={nl.state} fail={nl.fail} onRetry={() => nl.refetch()} skeletonRows={3} />
+      <div className="state-card" data-test="notify-history-gated">
+        通知历史按官方分类查看（需分类入口，随官方信封形态接入）；当前可查看上方通知摘要。
+      </div>
       {nl.state !== 'InitialLoading' && rows.map((n, i) => {
         // F3-2/F3-3 目标导航：link 站内可映射（viewthread tid 等）→ 客户端路由；
         // 不可映射的 http link → 外开；无 link → 不可点（不伪造目标）。
