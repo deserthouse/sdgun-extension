@@ -242,6 +242,9 @@ html, body { margin: 0; }
 .banner-stack { position: fixed; top: 0; left: 0; right: 0; z-index: 1200; }
 .shell { margin-top: var(--sdg-banner-h, 0px);
   min-height: calc(100vh - var(--sdg-banner-h, 0px)); }
+/* R5/WP9：grid item 自动最小尺寸断链（EV-04 同族——main 的 min-content 被编辑器
+   toolbar 内在宽撑破 grid 轨道，375 溢出 26px；横滚容器已在但 track 层仍需断链） */
+.main { min-width: 0; }
 /* top/height 联动仅桌面 sticky 模式——<900px 是 fixed 底部 tabbar，
    top/height 必须保持 auto，否则侧栏整列盖住主内容（375 相位读图实锤的 B-1 回归） */
 @media (min-width: 900px) {
@@ -269,3 +272,13 @@ html, body { margin: 0; }
   .content-rail .rail-item:hover { background: var(--surface2); color: var(--text); }
   .content-rail .rail-item .rf { color: var(--text3); flex: none; }
 }
+
+
+/* ---- R5/WP9（B1104-V1）：编辑器窄屏工具组——label 不竖排、插入工具独立横滚行 ---- */
+.composer-toolbar .composer-label { white-space: nowrap; flex: none; }
+.composer-toolbar > div { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto;
+  flex: 1; min-width: 0; scrollbar-width: none; }
+.composer-toolbar { flex-wrap: nowrap; min-width: 0; max-width: 100%; }
+.composer { min-width: 0; max-width: 100%; }
+.composer-field { min-width: 0; max-width: 100%; }
+.composer-toolbar > div .btn { flex: none; }

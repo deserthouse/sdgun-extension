@@ -1,6 +1,6 @@
 // G3/M6-A 消息真实路由：游客=登录提示；登录态=通知摘要+会话组列表+详情面板。
 // C4-4：详情面板接 userMessageList 会话历史（静态取证；read-may-mutate 如实披露）。
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useEndpoint } from '../../lib/queries';
 import { StateBlock, StateBadge } from './StateBlock';
 import { useSession } from '../../lib/session';
@@ -156,6 +156,7 @@ function MessagesAuthed() {
   const myId = session === 'loading' ? '' : String(session.auth?.userId ?? '');
   const [tab, setTab] = useState<'msg' | 'notify'>('msg');
   const [openGroup, setOpenGroup] = useState<any | null>(null);
+  const [openCat, setOpenCat] = useState<string | null>(null); // R4/WP6 通知分类入口
   const msg = useEndpoint(tab === 'msg' ? 'userMessageGroupList' : 'userNotifyIndex',
     tab === 'msg' ? { p: 1 } : {});
   const items = (msg.data as any)?.list ?? [];
@@ -208,16 +209,22 @@ function MessagesAuthed() {
       {tab === 'notify' && msg.state !== 'InitialLoading' && notify && (
         <div data-test="notify-summary">
           {(() => {
-            const rows = [
-              ['私信', notify.has_letter ? '有新私信' : '暂无新私信'],
-              ['系统通知', String(notify.system_notify_count ?? 0)],
-              ['好友申请', String(notify.friend_apply_count ?? 0)],
+            // R4/WP6（BU-04）：分类入口（code=jadx ConversationFragment 实证：
+            // at=@我的/focus=关注/applaud=点赞/comment=评论——v1 摘要无分类计数，
+            // 先按静态四类给入口；applaud 借位 system_notify_count 待真数据核）
+            const cats: [string, string, string][] = [
+              ['at', '@我的', '0'],
+              ['focus', '关注', '0'],
+              ['applaud', '点赞', String(notify.system_notify_count ?? 0)],
+              ['comment', '评论', '0'],
             ];
-            return rows.map(([k, v]) => (
-              <div key={k} className="card" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span className="card-title">{k}</span>
-                <span className="card-meta">{v}</span>
-              </div>
+            return cats.map(([code, label, count]) => (
+              <button key={code} className="card" data-test={`notify-cat-${code}`}
+                style={{ display: 'flex', justifyContent: 'space-between', cursor: 'pointer' }}
+                onClick={() => setOpenCat(code)}>
+                <span className="card-title">{label}</span>
+                <span className="card-meta">{count}</span>
+              </button>
             ));
           })()}
           {notify.service ? (
@@ -226,32 +233,52 @@ function MessagesAuthed() {
               <div className="card-sub">{String(notify.service.content ?? '')}</div>
             </div>
           ) : null}
-          <NotifyHistory />
+          <NotifyHistory cat={openCat} onClose={() => setOpenCat(null)} />
         </div>
       )}
     </div>
   );
 }
 
-// C4-1 通知历史（notifyList v3）：端点为 read-may-mutate——读取可能触发站方已读
-// 上报（如实披露）；响应整体信封待真数据验证（C4 凭据批），当前渲染行公共字段。
-function NotifyHistory() {
-  // soak 实测修正（2026-11-03）：notifyList 需分类 code 参数（NotifyActivity.param('code')
-  // 实证；无参=「通知编码不可为空」code0 拒）。官方按分类入口拉取；本客户端尚无分类
-  // 入口→诚实受限态+零请求（不再发必败请求伪装成故障）。
-  const nl = useEndpoint('notifyList', { p: 1 }, { enabled: false });
-  const rows = ((nl.data as any)?.list ?? []) as any[];
+// C4-1/R4-WP6 通知历史：分类驱动（code=入口选择；read-may-mutate 披露不变）。
+function NotifyHistory({ cat, onClose }: { cat: string | null; onClose: () => void }) {
+  const [page, setPage] = useState(1);
+  const [rows, setRows] = useState<any[]>([]);
+  const q = useEndpoint('notifyList', { code: cat ?? '', p: page }, { enabled: cat !== null });
+  useEffect(() => { setPage(1); setRows([]); }, [cat]); // 切分类重置游标与列表
+  useEffect(() => {
+    const fresh = ((q.data as any)?.list ?? []) as any[];
+    if (q.state !== 'Data' && q.state !== 'Stale') return;
+    setRows((prev) => {
+      if (page === 1) return fresh;
+      const seen = new Set(prev.map((r) => String(r.id ?? r.notifyId ?? '')));
+      return [...prev, ...fresh.filter((r) => !seen.has(String(r.id ?? r.notifyId ?? '')))];
+    });
+  }, [q.data, q.state, page]);
+  const canMore = (q.state === 'Data' || q.state === 'Stale')
+    && ((q.data as any)?.list ?? []).length >= 20;
+  if (cat === null) {
+    return (
+      <div data-test="notify-history" style={{ marginTop: 16 }}>
+        <div className="state-card" data-test="notify-history-gated">
+          点上方分类（@我的/关注/点赞/评论）查看对应通知历史。
+        </div>
+      </div>
+    );
+  }
   return (
     <div data-test="notify-history" style={{ marginTop: 16 }}>
       <h2 style={{ fontSize: 15, color: 'var(--text2)', margin: '0 0 8px' }}>
-        通知历史 <StateBadge state={nl.state} />
+        通知历史（{cat}）<StateBadge state={q.state} />
+        <button className="btn" data-test="notify-cat-back" style={{ marginLeft: 10, padding: '2px 10px' }}
+          onClick={onClose}>‹ 返回分类</button>
       </h2>
-      <div className="state-card" data-test="notify-history-gated">
-        通知历史按官方分类查看（需分类入口，随官方信封形态接入）；当前可查看上方通知摘要。
-      </div>
-      {nl.state !== 'InitialLoading' && rows.map((n, i) => {
-        // F3-2/F3-3 目标导航：link 站内可映射（viewthread tid 等）→ 客户端路由；
-        // 不可映射的 http link → 外开；无 link → 不可点（不伪造目标）。
+      <StateBlock state={q.state} fail={q.fail} onRetry={() => q.refetch()} skeletonRows={2} />
+      {q.state === 'Empty' && page === 1 && (
+        <div className="state-card" data-test="notify-history-empty">该分类暂无通知</div>
+      )}
+      {rows.map((n, i) => {
+        // F3-2/F3-3 目标导航：link 站内可映射→客户端路由；不可映射 http→外开；无 link→不可点。
         const link = typeof n.link === 'string' && n.link ? n.link : null;
         const route = link ? internalRouteFromUrl(link) : null;
         const href = route ?? link;
@@ -267,6 +294,12 @@ function NotifyHistory() {
               href={href} {...(route ? {} : { target: '_blank', rel: 'noreferrer' })}>{inner}</a>
           : <div key={String(n.id ?? n.notifyId ?? i)} className="card" data-test="notify-row">{inner}</div>;
       })}
+      {canMore && (
+        <div className="chiprow" style={{ justifyContent: 'center' }}>
+          <button className="btn" data-test="notify-more" disabled={q.isFetching}
+            onClick={() => setPage((v) => v + 1)}>加载更多</button>
+        </div>
+      )}
       <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 6 }}>
         读取通知列表可能触发站方已读上报（消息族端点副作用如实披露）。
       </p>

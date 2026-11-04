@@ -58,3 +58,70 @@ export function loadReplyDraftText(key: string): string {
 export function saveReplyDraftText(key: string, text: string): void {
   localStorage.setItem(key, JSON.stringify({ content: text }));
 }
+
+// ---- R1/WP4-B 统一编辑事务（B1104-01/02/03+BU-03）：v2 草稿模型 ----
+// 所有写入口收敛 saveDraftDraft()；attachments（上传/插入产物）随稿持久化
+//（B1104-02：上传成功仅 setContent 不落稿——刷新丢引用）。读侧兼容 v1：
+// 纯文本/{content}/{title,board,content} → v2。历史 v1 稿首读时无损迁移。
+export interface DraftAttachment {
+  opId: string; // 上传操作唯一 id（归属门/乱序去重）
+  name: string; // 原文件名（展示）
+  url: string; // 服务端图片 URL（正文 <img> 引用）
+}
+export interface EditorDraft {
+  v: 2;
+  content: string;
+  title?: string;
+  board?: string;
+  quotePid?: string | null;
+  attachments: DraftAttachment[];
+}
+
+function parseDraft(raw: string | null): EditorDraft | null {
+  if (raw === null || raw === '') return null;
+  try {
+    if (!raw.startsWith('{')) {
+      // v1 纯文本（ReplyDraft 旧形态）
+      return { v: 2, content: raw, attachments: [] };
+    }
+    const d = JSON.parse(raw) as Record<string, unknown>;
+    if (d.v === 2) {
+      return {
+        v: 2,
+        content: typeof d.content === 'string' ? d.content : '',
+        title: typeof d.title === 'string' ? d.title : undefined,
+        board: typeof d.board === 'string' ? d.board : undefined,
+        quotePid: typeof d.quotePid === 'string' ? d.quotePid : null,
+        attachments: Array.isArray(d.attachments)
+          ? d.attachments.filter((a) => a && typeof (a as DraftAttachment).url === 'string')
+          : [],
+      };
+    }
+    // v1 JSON {content}/{title,board,content}
+    const content = typeof d.content === 'string' ? d.content : '';
+    return {
+      v: 2,
+      content,
+      title: typeof d.title === 'string' ? d.title : undefined,
+      board: typeof d.board === 'string' ? d.board : undefined,
+      attachments: [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function loadDraft(key: string): EditorDraft {
+  return parseDraft(localStorage.getItem(key)) ?? { v: 2, content: '', attachments: [] };
+}
+
+export function saveDraftDraft(key: string, d: EditorDraft): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(d));
+  } catch { /* 存储不可用时丢持久化（内存态仍在）——增强功能静默降级 */ }
+}
+
+/** 清草稿（发布成功收束用——E31-03 语义：只清「已提交的那份」由调用方核对快照） */
+export function clearDraft(key: string): void {
+  try { localStorage.removeItem(key); } catch { /* 同上 */ }
+}

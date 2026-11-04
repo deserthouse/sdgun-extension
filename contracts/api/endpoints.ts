@@ -187,7 +187,7 @@ export const ENDPOINTS: Record<string, EndpointDef> = {
     auth: 'token-required',
     pagination: 'none',
     response: S.UploadResp,
-    notes: '图片上传（R4-1 静态取证：官 APK API.Upload.uploadPicNew）。multipart file 字段名待真数据核（默认 file）；agent 合成验证，真实上传=账号本人。',
+    notes: '图片上传（官方契约定案 2026-11-05：Android ThreadPostSheet.kt UploadMultipart+jadx LocalFileUpload.onUpload——multipart 字段 type=share/filename=imgs/imgs=文件/time_stamp；B1104-03 修正首版 file 字段误记）。真实上传=账号本人。',
   },
   userMessageSendMsg: {
     endpointId: 'userMessageSendMsg',
@@ -418,6 +418,18 @@ export const ENDPOINTS: Record<string, EndpointDef> = {
     pagination: 'none',
     response: S.WriteResp,
     notes: '投票（API.java:121；VoteListDataView 实证参数 content_id+option_id）。真实投票=用户本人。',
+  },
+  userSearch: {
+    endpointId: 'userSearch',
+    method: 'GET',
+    paramLocation: 'query' as const,
+    host: 'mag1.sdgun.net',
+    path: '/mag/user/v1/User/userSearch',
+    sideEffect: 'read-only',
+    auth: 'token-required',
+    pagination: 'none', // Android ProfileRepository：DataPage 族 singlePage
+    response: S.UserSearchResp,
+    notes: '用户搜索（API.java:101；Android ProfileRepository:397 同源实证——@候选/用户搜索共用）。行键以真数据核（user_id/name/head 防御双读）。',
   },
   changePassword: {
     endpointId: 'changePassword',

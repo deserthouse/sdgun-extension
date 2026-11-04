@@ -251,26 +251,42 @@ function ApplaudButton({ pid, count, isLiked }: {
   );
 }
 
-function FollowButton({ userId, name }: {
-  userId: string; name: string;
+export function FollowButton({ userId, name, initial }: {
+  userId: string; name: string; initial?: boolean | null;
 }) {
-  // W7-2：关注端点已勘定（fansAdd GET uid）——登录门控生产接线
+  // W7-2/R4b（BU-05）：fansAdd+fansRemove 双向 toggle（removeRelation uid+remove_his=0，
+  // W7-2 勘定）；initial=userHome.relation_status 派生（null=未知态诚实标注）；
+  // 本人不可关注（BU-05）；Unknown 锁定不自动重发（M6-B 口径）
   const { session } = useSession();
   const authed = session !== 'loading' && session.auth !== null;
+  const myId = session === 'loading' ? '' : String(session.auth?.userId ?? '');
+  const isSelf = String(userId) === myId && myId !== '';
   const { phase, msg, run } = useMutationRun();
-  const [followed, setFollowed] = useState(false);
+  const [followed, setFollowed] = useState<boolean>(initial === true);
+  const unknownInitial = initial === null || initial === undefined;
   const done = followed || phase === 'Confirmed' || phase === 'OutcomeUnknown';
   async function onClick() {
     if (done || phase === 'Submitting') return;
     setFollowed(true); // 乐观
-    await run('fansAdd', { uid: userId }, () => setFollowed(false));
+    const st = await run('fansAdd', { uid: userId }, () => setFollowed(false));
+    if (st === 'Rejected') setFollowed(false);
   }
+  async function onUnfollow() {
+    if (!followed || phase === 'Submitting' || phase === 'OutcomeUnknown') return;
+    setFollowed(false); // 乐观取消
+    const st = await run('fansRemove', { uid: userId, remove_his: 0 }, () => setFollowed(true));
+    if (st === 'Rejected') setFollowed(true); // 回滚
+  }
+  if (isSelf) return null; // 本人：不渲染关注钮
   return (
     <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-      <button className="btn" data-test="follow-op" disabled={!authed || done || phase === 'Submitting'}
-        title={authed ? undefined : '登录后可关注（真实写入由你的账号执行）'}
-        onClick={onClick}>
-        {followed && phase !== 'Submitting' ? `已关注 ${name}` : phase === 'Submitting' ? '提交中…' : `关注 ${name}`}
+      <button className="btn" data-test="follow-op"
+        disabled={!authed || phase === 'Submitting' || (followed && phase === 'Confirmed') || phase === 'OutcomeUnknown'}
+        title={authed ? (unknownInitial && !followed ? '关注状态未知，点击后以服务端结果为准' : undefined)
+          : '登录后可关注（真实写入由你的账号执行）'}
+        onClick={followed ? onUnfollow : onClick}>
+        {followed && phase !== 'Submitting' ? `已关注 ${name}（点此取消）`
+          : phase === 'Submitting' ? '提交中…' : `关注 ${name}`}
       </button>
       {phase === 'OutcomeUnknown' && (
         <span style={{ fontSize: 11.5, color: 'var(--accent)' }} data-test="follow-unknown">
@@ -706,11 +722,9 @@ function ReplyDraft({ tid, owner }: { tid: string; owner: string | null }) {
           onClick={() => { if (key) localStorage.removeItem(key); setText(''); setRestored(false); setSaved(''); }}>
           清空草稿
         </button>
-        <button className="btn" data-test="draft-submit" disabled
-          title="真实发布写面封存：发布/回复属用户红线动作，真实写入由用户本人操作"
-          onClick={() => { /* 诚实禁用：不伪造提交 */ }}>
-          发布（未开放）
-        </button>
+        {/* R5/BU-06：帖尾草稿进入同帖编辑器（共用 owner+tid 草稿键，正文不丢） */}
+        <a className="btn" data-test="draft-continue" href={`#/editor?tid=${tid}`}
+          title="在编辑器中继续编辑并发布（草稿共用）">继续编辑并发布 ↗</a>
       </div>
     </div>
   );

@@ -327,6 +327,18 @@ export const TopicSearchResp = z.object({
   }).passthrough()),
 }).passthrough();
 
+// R1/BU-03 用户搜索（@候选；userSearch GET name singlePage——jadx+Android 双证）。
+// 行键待真数据核：user_id/name/head 防御双读（jadx getter≠JSON 键教训）。
+export const UserSearchResp = z.object({
+  success: z.boolean(),
+  list: z.array(z.object({
+    user_id: z.unknown().optional(),
+    id: z.unknown().optional(),
+    name: z.string().optional(),
+    head: z.string().optional(),
+  }).passthrough()),
+}).passthrough();
+
 // G3 投票（threadView 附带投票对象——VoteListItem 消费字段：id/title/options[{id,
 // optionText,num,pic}]/num/isExpired/isAnonymous/expireTime；真实帖样本未采，
 // 行字段 passthrough 宽松+「待真帖样本」注记）

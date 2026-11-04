@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useEndpoint } from '../../lib/queries';
 import { sanitizeContent } from '../../lib/sanitize';
-import { draftKey, loadReplyDraftText, saveReplyDraftText, useDraftOwner } from '../../lib/draft';
+import { draftKey, loadReplyDraftText, saveReplyDraftText, useDraftOwner,
+  loadDraft, saveDraftDraft, clearDraft, type EditorDraft } from '../../lib/draft';
 import { runMutation, type MutationState } from '../../lib/mutation';
 import { verifyPicSecurityCode, captchaImageUrl } from '../../lib/auth';
 import { callEndpoint, isFail } from '../../lib/broker';
@@ -25,10 +26,20 @@ export function EditorPage({ tid }: { tid?: string }) {
   const [board, setBoard] = useState('');
   const [content, setContent] = useState('');
   const [preview, setPreview] = useState(false);
-  const [files, setFiles] = useState<string[]>([]);
+  // R1/WP4-B：附件=结构化列表（opId/name/url 随稿持久化——B1104-02）
+  const [files, setFiles] = useState<{ opId: string; name: string; url: string }[]>([]);
   // R4-1 附件上传链：选文件→上传（multipart）→URL 引用插入正文→失败可重试
   const [upState, setUpState] = useState<'idle' | 'uploading' | 'done' | 'err'>('idle');
   const [upErr, setUpErr] = useState('');
+  const taRef = useRef<HTMLTextAreaElement | null>(null); // 选区感知插入（BU-03）
+  const mountedRef = useRef(true);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+  // R1/W3 竞态根治：异步回调（上传 onResult）读渲染闭包会拿到发起时的旧 files/content，
+  // 乱序到达互相覆盖——ref 镜像每渲染同步的最新值，回调一律读 ref
+  const filesRef = useRef(files);
+  filesRef.current = files;
+  const contentRef = useRef(content);
+  contentRef.current = content;
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [submit, setSubmit] = useState<SubmitState>({ phase: 'idle' });
   const [flash, setFlash] = useState(false); // E31-03：成功瞬态提示（与 idle 收束解耦）
@@ -50,14 +61,27 @@ export function EditorPage({ tid }: { tid?: string }) {
   // R4-2 写链验证码：CaptchaNeeded → 图码卡 → verify 成功后重提交
   const [capState, setCapState] = useState<{ active: boolean; code: string; err: string }>(
     { active: false, code: '', err: '' });
+  // R1/BU-03 @候选：userSearch GET name（API.java:101+Android ProfileRepository 同源）；
+  // 300ms 防抖+登录门（游客不点火）；无结果=诚实空态
+  const [atOpen, setAtOpen] = useState(false);
+  const [atQuery, setAtQuery] = useState('');
+  const [atDebounced, setAtDebounced] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setAtDebounced(atQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [atQuery]);
+  const atQ = useEndpoint('userSearch', { name: atDebounced },
+    { enabled: atOpen && authed && atDebounced !== '' });
   // E24-04 修复：key=null（身份未 ready）→ 不加载也不允许编辑；
   // key 变化 → 无条件恢复存值或清空（不做 dLoaded 单次封死——异步 auth 变化会换 key）
   const identityReady = draftK !== null;
 
+  // R1/WP4-B：统一 v2 草稿恢复（content/title/board/quotePid/attachments 一次重建）
   useEffect(() => {
     if (!draftK) return;
     if (replyMode) {
-      let c = loadReplyDraftText(draftK);
+      const d = loadDraft(draftK);
+      let c = d.content;
       // W3/批B：引用回复——帖子页暂存的引用（键含 owner，切换身份自动失效）
       try {
         const qk = `sdg2.quote.${owner}.${tid}`;
@@ -71,24 +95,59 @@ export function EditorPage({ tid }: { tid?: string }) {
         }
       } catch { /* 引用暂存损坏则忽略 */ }
       setContent(c);
+      setQuotePid((prev) => (d.quotePid ?? prev));
+      setFiles(d.attachments);
       setTitle('');
       setBoard('');
       return;
     }
-    try {
-      const saved = localStorage.getItem(draftK);
-      if (saved) {
-        const d = JSON.parse(saved);
-        setTitle(d.title ?? '');
-        setContent(d.content ?? '');
-        setBoard(d.board ?? '');
-      } else {
-        setTitle('');
-        setContent('');
-        setBoard('');
-      }
-    } catch { setTitle(''); setContent(''); setBoard(''); }
+    const d = loadDraft(draftK);
+    setTitle(d.title ?? '');
+    setContent(d.content);
+    setBoard(d.board ?? '');
+    setFiles(d.attachments);
   }, [draftK, replyMode]);
+
+  // R1/WP4-B 统一持久化入口：content/attachments（及可选 title/board）一次写稿
+  // ——上传/插入/打字全走这里（B1104-02：程序化插入必须落稿）
+  function persistDraft(nextContent: string, nextFiles: typeof files,
+    t = title, b = board, qp = quotePid) {
+    if (!draftK) return;
+    const d: EditorDraft = { v: 2, content: nextContent, attachments: nextFiles };
+    if (replyMode) {
+      d.quotePid = qp;
+      saveDraftDraft(draftK, d);
+      return;
+    }
+    d.title = t;
+    d.board = b;
+    saveDraftDraft(draftK, d);
+  }
+
+  // R1/BU-03 选区感知插入：光标/选区处替换+落稿+焦点恢复（上传/表情/@ 共用）
+  function applyInsert(text: string, nextFiles?: typeof files) {
+    const ta = taRef.current;
+    const cur = contentRef.current; // 最新正文（非渲染闭包——W3 竞态）
+    const nf0 = nextFiles ?? filesRef.current;
+    let next: string;
+    let caret: number;
+    if (ta) {
+      const start = ta.selectionStart ?? cur.length;
+      const end = ta.selectionEnd ?? start;
+      next = cur.slice(0, start) + text + cur.slice(end);
+      caret = start + text.length;
+    } else {
+      next = cur + text; // textarea 未挂载（预览态等）→ 追加
+      caret = next.length;
+    }
+    setContent(next);
+    setFiles(nf0);
+    persistDraft(next, nf0);
+    setTimeout(() => {
+      const el = taRef.current;
+      if (el) { el.focus(); el.setSelectionRange(caret, caret); }
+    }, 0);
+  }
 
   function saveDraft(t: string, b: string, c: string) {
     if (!draftK) return;
@@ -145,11 +204,10 @@ export function EditorPage({ tid }: { tid?: string }) {
       if (key0) {
         try {
           const raw = localStorage.getItem(key0);
-          const same = replyMode
-            ? (raw !== null && (JSON.parse(raw).content ?? '') === snap.content)
-            : (raw !== null && JSON.parse(raw).content === snap.content
-               && JSON.parse(raw).title === snap.title);
-          if (same) localStorage.removeItem(key0);
+          const d = loadDraft(key0); // v1/v2 兼容读取
+          const same = d.content === snap.content
+            && (replyMode || (d.title ?? '') === snap.title);
+          if (same) clearDraft(key0);
         } catch { /* 损坏草稿不阻塞收束 */ }
       }
       setContent((prev) => (prev === snap.content ? '' : prev));
@@ -198,8 +256,8 @@ export function EditorPage({ tid }: { tid?: string }) {
   return (
     <div data-test="editor" style={{ maxWidth: 720 }}>
       {replyMode && (
-        <p style={{ fontSize: 13, color: 'var(--text2)', margin: '0 0 12px' }} data-test="ed-reply-context">
-          回复帖子 tid={tid} · 草稿与帖子页共用，发布后以你的账号真实回复
+        <p style={{ fontSize: 13, color: 'var(--text2)', margin: '0 0 12px', overflowWrap: 'anywhere' }} data-test="ed-reply-context">
+          回复：{String((tv.data as any)?.data?.title ?? `帖子 ${tid}`)} · 草稿与帖子页共用，发布后以你的账号真实回复
         </p>
       )}
       <div className="composer" data-test="ed-workspace">
@@ -214,7 +272,7 @@ export function EditorPage({ tid }: { tid?: string }) {
         {!replyMode && (
           <div className="composer-field">
             <BoardSelect value={board} identityReady={identityReady}
-              onChange={(v) => { setBoard(v); saveDraft(title, v, content); }} />
+              onChange={(v) => { setBoard(v); persistDraft(content, files, title, v); }} />
           </div>
         )}
         <div className="composer-field">
@@ -222,11 +280,11 @@ export function EditorPage({ tid }: { tid?: string }) {
             <label className="composer-label" style={{ marginBottom: 0 }} htmlFor="ed-content">正文</label>
             <div style={{ display: 'flex', gap: 6 }}>
               <button className="btn" data-test="ed-at" title="插入 @提及"
-                onClick={() => setContent((v) => v + '@')}>@</button>
+                onClick={() => setAtOpen(!atOpen)}>@</button>
               {['😀', '👍', '🔥', '🎉', '😭', '😡'].map((em) => (
                 <button key={em} className="btn" data-test={`ed-emoji-${em.codePointAt(0)}`}
                   title={`插入 ${em}`}
-                  onClick={() => setContent((v) => v + em)}>{em}</button>
+                  onClick={() => applyInsert(em)}>{em}</button>
               ))}
               <button className="btn" data-test="ed-preview"
                 onClick={() => setPreview(!preview)}>{preview ? '继续编辑' : '预览'}</button>
@@ -235,13 +293,38 @@ export function EditorPage({ tid }: { tid?: string }) {
           {preview
             ? <div className="content-html" data-test="ed-preview-view"
                 dangerouslySetInnerHTML={{ __html: sanitizeContent(content) }} />
-            : <textarea id="ed-content" className="composer-area" data-test="ed-content" value={content}
-                disabled={!identityReady}
-                onChange={(e) => { setContent(e.target.value); saveDraft(title, board, e.target.value); }} />}
+            : <>
+                <textarea id="ed-content" ref={taRef} className="composer-area" data-test="ed-content" value={content}
+                  disabled={!identityReady}
+                  onChange={(e) => { setContent(e.target.value); persistDraft(e.target.value, files); }} />
+                {atOpen && (
+                  <div className="card" data-test="at-panel" style={{ marginTop: 6, padding: 10 }}>
+                    <div className="composer-label">插入 @提及（输入名字片段搜索用户）</div>
+                    <input className="composer-input" data-test="at-input" value={atQuery}
+                      placeholder="用户名片段…" aria-label="用户搜索输入"
+                      onChange={(e) => setAtQuery(e.target.value)} />
+                    {atQ.state === 'InitialLoading' && <div className="card-meta">搜索中…</div>}
+                    {atQ.state === 'Empty' && <div className="card-meta">没有匹配的用户</div>}
+                    {atQ.state === 'RetryableError' && <div className="card-meta">搜索失败（可稍后重试）</div>}
+                    {(((atQ.data as any)?.list ?? []) as any[]).map((u: any) => (
+                      <button key={String(u.user_id ?? u.id)} className="btn" data-test="at-cand"
+                        style={{ display: 'flex', width: '100%', justifyContent: 'space-between', marginTop: 4 }}
+                        onClick={() => {
+                          applyInsert(`@${String(u.name ?? '')} `);
+                          setAtOpen(false);
+                          setAtQuery('');
+                        }}>
+                        <span>{String(u.name ?? '')}</span>
+                        <span style={{ color: 'var(--text3)' }}>{String(u.user_id ?? u.id ?? '')}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>}
         </div>
         <div className="composer-field" data-test="ed-attachments">
           <div className="composer-label">附件（图片）</div>
-          {files.map((f) => <div key={f} className="card-meta">📎 {f}</div>)}
+          {files.map((f) => <div key={f.opId} className="card-meta">📎 {f.name}</div>)}
           {upErr && <div className="card-meta" style={{ color: 'var(--accent)' }} data-test="up-error">{upErr}</div>}
           <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
             data-test="up-file"
@@ -256,22 +339,45 @@ export function EditorPage({ tid }: { tid?: string }) {
                 setUpState('err'); setUpErr('图片超过 8MB 限制'); return;
               }
               setUpState('uploading'); setUpErr('');
+              // R1/B1104-01：上传归属门——发起时冻结 owner/epoch/target/opId，
+              // 结果落地前逐项复核；不符→零 setState/零草稿写（服务端可能已执行，
+              // 只是不进新身份 UI——不声称「未执行」）
+              const opId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+              const mine = { ...ownRef.current };
+              const target = replyMode ? tid! : 'editor';
               try {
+                // B1104-03 官方契约（Android ThreadPostSheet.kt UploadMultipart/
+                // jadx LocalFileUpload.onUpload）：type=share / filename=imgs /
+                // imgs=文件 / time_stamp
                 const r = await callEndpoint<{ url?: string }>('uploadPicNew', {
-                  params: {},
-                  file: f, fileField: 'file', fileName: f.name,
+                  params: { type: 'share', filename: 'imgs', time_stamp: Math.floor(Date.now() / 1000) },
+                  file: f, fileField: 'imgs', fileName: f.name,
                 });
                 if (isFail(r)) throw new Error(r.msg);
                 const url = r.url ?? '';
+                const drifted = ownRef.current.owner !== mine.owner
+                  || ownRef.current.epoch !== mine.epoch
+                  || (replyMode ? tid! : 'editor') !== target
+                  || !mountedRef.current;
+                if (drifted) {
+                  return; // 零 UI 写（含「上传成功」提示——那也是新身份的 UI）
+                }
                 if (url) {
-                  setFiles((v) => [...v, f.name]);
-                  setContent((v) => `${v}
-<img src="${url}" alt="${f.name}">`);
+                  const att = { opId, name: f.name, url };
+                  const nextFiles = [...filesRef.current, att]; // 最新附件表（W3 乱序）
+                  setFiles(nextFiles);
+                  applyInsert(`
+<img src="${url}" alt="${f.name}">`, nextFiles);
                   setUpState('done');
                 } else {
                   setUpState('err'); setUpErr('上传响应缺少图片地址');
                 }
               } catch (ex) {
+                if (ownRef.current.owner !== mine.owner
+                  || ownRef.current.epoch !== mine.epoch
+                  || !mountedRef.current) {
+                  return; // 迟到失败同样不进新身份 UI
+                }
                 setUpState('err');
                 setUpErr(isFail(ex) ? ex.msg : String((ex as Error).message ?? ex).slice(0, 80));
               }

@@ -10,6 +10,7 @@ import { formatTime, formatCount } from '../../lib/format';
 import { internalRouteFromUrl } from '../../lib/linkmap';
 import { loadHistory, clearHistory } from '../../lib/history';
 import { Avatar } from './Avatar';
+import { FollowButton } from './thread';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const row = (d: any) => (d?.list ?? []) as any[];
@@ -205,8 +206,21 @@ function LocalHistory() {
 
 // G2 访客列表（myVisitor：谁看过我——登录态读端点，合成验证）
 function MyVisitors() {
-  const q = useEndpoint('myVisitor', { p: 1, step: 20 });
-  const rows = ((q.data as any)?.list ?? []) as any[];
+  // R4/WP7（BU-04）：分页化（累积+去重）
+  const [page, setPage] = useState(1);
+  const [rows, setRows] = useState<any[]>([]);
+  const q = useEndpoint('myVisitor', { p: page, step: 20 });
+  useEffect(() => {
+    const fresh = ((q.data as any)?.list ?? []) as any[];
+    if (q.state !== 'Data' && q.state !== 'Stale') return;
+    setRows((prev) => {
+      if (page === 1) return fresh;
+      const seen = new Set(prev.map((r) => String(r.user?.user_id ?? r.user_id ?? '')));
+      return [...prev, ...fresh.filter((r) => !seen.has(String(r.user?.user_id ?? r.user_id ?? '')))];
+    });
+  }, [q.data, q.state, page]);
+  const canMore = (q.state === 'Data' || q.state === 'Stale')
+    && ((q.data as any)?.list ?? []).length >= 20;
   return (
     <div data-test="my-visitors" style={{ marginTop: 16 }}>
       <h2 style={{ fontSize: 15, color: 'var(--text2)', margin: '0 0 8px' }}>
@@ -216,7 +230,7 @@ function MyVisitors() {
       {q.state === 'Empty' && <div className="state-card" data-test="visitors-empty">暂无访客记录</div>}
       {rows.length > 0 && (
         <div className="chiprow">
-          {rows.slice(0, 10).map((v, i) => {
+          {rows.slice(0, 30).map((v, i) => {
             // soak 实测修正：myVisitor 行=嵌套 {user:{…}, visit_time_str}；
             // listUserVisitor 行=扁平。两形态都取。
             const vu = v.user ?? v;
@@ -228,6 +242,12 @@ function MyVisitors() {
                   <Avatar src={vu.head} name={name} size={20} />{name}</a>
               : <span key={i} className="chip">{name}</span>;
           })}
+        </div>
+      )}
+      {canMore && (
+        <div className="chiprow" style={{ justifyContent: 'center' }}>
+          <button className="btn" data-test="visitors-more" disabled={q.isFetching}
+            onClick={() => setPage((v) => v + 1)}>加载更多</button>
         </div>
       )}
     </div>
@@ -314,8 +334,21 @@ function UserFansList({ uid, tab, isSelf }: { uid: string; tab: 'fans' | 'follow
   // soak 实测修正（2026-11-03）：v1 self 端点需 user_id 参数（无参=code0 拒）——
   // self/他人统一走 v3 双端点（userFansList/userFollowList 均带 user_id 实测通）
   const id = tab === 'fans' ? 'userFansList' : 'userFollowList';
-  const q = useEndpoint(id, { user_id: uid, p: 1, step: 20 });
-  const rows = row(q.data);
+  // R4/WP7（BU-04）：分页化（累积+去重+加载更多——Collections 既有模式）
+  const [page, setPage] = useState(1);
+  const [rows, setRows] = useState<any[]>([]);
+  const q = useEndpoint(id, { user_id: uid, p: page, step: 20 });
+  useEffect(() => { setPage(1); setRows([]); }, [uid, tab]);
+  useEffect(() => {
+    const fresh = row(q.data);
+    if (q.state !== 'Data' && q.state !== 'Stale') return;
+    setRows((prev) => {
+      if (page === 1) return fresh;
+      const seen = new Set(prev.map((r) => String(r.user_id ?? r.userId ?? '')));
+      return [...prev, ...fresh.filter((r) => !seen.has(String(r.user_id ?? r.userId ?? '')))];
+    });
+  }, [q.data, q.state, page]);
+  const canMore = (q.state === 'Data' || q.state === 'Stale') && row(q.data).length >= 20;
   return (
     <div data-test={`user-${tab}`} style={{ marginTop: 14 }}>
       <h2 style={{ fontSize: 15, color: 'var(--text2)', margin: '0 0 8px' }}>
@@ -347,9 +380,12 @@ function UserFansList({ uid, tab, isSelf }: { uid: string; tab: 'fans' | 'follow
           ? <a key={`${ruid}-${i}`} className="card" data-test="fan-row" href={`#/user/${ruid}`}>{inner}</a>
           : <div key={i} className="card" data-test="fan-row">{inner}</div>;
       })}
-      <p style={{ fontSize: 12, color: 'var(--text3)', marginTop: 6 }}>
-        列表形态来自官方静态取证，响应信封待真数据核（使用自然覆盖）。
-      </p>
+      {canMore && (
+        <div className="chiprow" style={{ justifyContent: 'center' }}>
+          <button className="btn" data-test="fans-more" disabled={q.isFetching}
+            onClick={() => setPage((v) => v + 1)}>加载更多</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -359,9 +395,21 @@ function UserFansList({ uid, tab, isSelf }: { uid: string; tab: 'fans' | 'follow
 function UserThreadList({ uid, isSelf = false }: { uid: string; isSelf?: boolean }) {
   // soak 实测修正（2026-11-03）：userContentList v1 需 type 参数（code0 拒）；
   // userForumOrShowPage 对 self（实测 n=2）与他人（n=20）均通——统一单端点
+  const [page, setPage] = useState(1);
+  const [rows, setRows] = useState<any[]>([]);
   const q = useEndpoint('userForumOrShowPage',
-    { user_id: uid, config_id: 3, p: 1, step: 20 });
-  const rows = row(q.data);
+    { user_id: uid, config_id: 3, p: page, step: 20 });
+  useEffect(() => { setPage(1); setRows([]); }, [uid]);
+  useEffect(() => {
+    const fresh = row(q.data);
+    if (q.state !== 'Data' && q.state !== 'Stale') return;
+    setRows((prev) => {
+      if (page === 1) return fresh;
+      const seen = new Set(prev.map((r) => String(r.tid ?? r.id ?? '')));
+      return [...prev, ...fresh.filter((r) => !seen.has(String(r.tid ?? r.id ?? '')))];
+    });
+  }, [q.data, q.state, page]);
+  const canMore = (q.state === 'Data' || q.state === 'Stale') && row(q.data).length >= 20;
   return (
     <div data-test="user-threads" style={{ marginTop: 14 }}>
       <h2 style={{ fontSize: 15, color: 'var(--text2)', margin: '0 0 8px' }}>
@@ -371,24 +419,15 @@ function UserThreadList({ uid, isSelf = false }: { uid: string; isSelf?: boolean
       {q.state === 'Empty' && (
         <div className="state-card" data-test="user-threads-empty">暂无帖子</div>
       )}
-      {rows.map((t: any, i: number) => {
-        const tid = String(t.tid ?? '');
-        const inner = (
-          <>
-            <div style={{ flex: 1 }}>
-              <div className="card-title">{String(t.title ?? `(帖子 ${t.id ?? ''})`)}</div>
-              <div className="card-meta">
-                {(t.forum_name || t.forumName) ? `${String(t.forum_name ?? t.forumName)} · ` : ''}
-                {(t.create_time_str || t.createTimeStr) ? `${String(t.create_time_str ?? t.createTimeStr)} · ` : ''}
-                评 {formatCount(t.comment_count ?? t.commentCount)}{t.click ? ` · 看 ${formatCount(t.click)}` : ''}
-              </div>
-            </div>
-          </>
-        );
-        return tid
-          ? <a key={tid} className="card" data-test="user-thread-row" href={`#/thread/${tid}`}>{inner}</a>
-          : <div key={i} className="card" data-test="user-thread-row">{inner}</div>;
-      })}
+      {rows.map((t: any, i: number) => (
+        <ThreadPreviewCard key={String(t.tid ?? t.id ?? i)} t={t} testAttr="user-thread-row" />
+      ))}
+      {canMore && (
+        <div className="chiprow" style={{ justifyContent: 'center' }}>
+          <button className="btn" data-test="uthreads-more" disabled={q.isFetching}
+            onClick={() => setPage((v) => v + 1)}>加载更多</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -429,6 +468,13 @@ export function UserProfilePage({ uid, tab }: { uid: string; tab?: 'fans' | 'fol
             <a data-test="follows-link" href={`#/user/${uid}/follows`}>关注 {formatCount(d.follow_count ?? d.follow_num)}</a>
           </div>
         </div>
+        {/* R4b/BU-05：主页关注钮——数据就绪后才挂载（initial 随数据一次性定格，
+            避免 skeleton 期 initial=null 被 useState 定格为 false——wp6 F1a 实测） */}
+        {!isSelf && d.name && (
+          <FollowButton userId={uid} name={String(d.name ?? uid)}
+            initial={Number(d.relation_status) === 1 || Number(d.relation_status) === 2 ? true
+              : Number(d.relation_status) === 0 ? false : null} />
+        )}
       </div>
       <StateBlock state={up.state} fail={up.fail} onRetry={() => up.refetch()} skeletonRows={2} />
       {tab
@@ -482,6 +528,55 @@ function MyBoards({ userId }: { userId: string }) {
   );
 }
 
+// R2/WP1-B（BU-01）统一链接分流：站内可映射→同窗 hash 锚（零新标签）；
+// 外站 http(s)→外开；缺 link/异常协议→null（调用方渲染非链接卡，禁 '#'空页）。
+function cardLinkTarget(link: unknown): { href: string; external: boolean } | null {
+  if (typeof link !== 'string' || !link.trim()) return null;
+  if (!/^https?:\/\//i.test(link)) return null; // javascript:/data: 等→不可点
+  const route = internalRouteFromUrl(link);
+  if (route) return { href: route, external: false };
+  return { href: link, external: true };
+}
+
+// R3/WP2-B（BU-02）跨入口图文一致：forumView/userForumOrShowPage 行→同一预览卡。
+// 只消费行内字段（零 N+1——禁逐帖 threadView）；无图不渲染占位、视频行 video_url
+// 有值→▶ 徽标；长标题 CSS 截断。复用 Board 行字段名（soak 真实键）。
+function ThreadPreviewCard({ t, className = 'card thread-row', leading, testAttr }: {
+  t: any; className?: string; leading?: React.ReactNode; testAttr?: string;
+}) {
+  const tid = String(t.tid ?? '');
+  if (!tid) return null;
+  const pics = Array.isArray(t.pics) ? t.pics
+    : Array.isArray(t.pics_arr) ? t.pics_arr : [];
+  const pic0 = pics.find((u: unknown) => typeof u === 'string' && u.startsWith('http'));
+  const videoUrl = typeof t.video_url === 'string' && t.video_url ? t.video_url
+    : (Array.isArray(t.videos) && t.videos[0] && (t.videos[0].url || t.videos[0].video_url)) || null;
+  const des = typeof t.des === 'string' && t.des.trim()
+    ? t.des.replace(/<[^>]+>/g, '').trim().slice(0, 60) : '';
+  const count = pics.length || (t.pics_count ? Number(t.pics_count) : 0);
+  return (
+    <a className={className} href={`#/thread/${tid}`} data-test={testAttr}>
+      {leading}
+      {pic0 && (
+        <span className="thread-thumb" data-test="row-thumb">
+          <img src={pic0} alt="" loading="lazy" referrerPolicy="no-referrer" />
+          {count > 1 && <i className="thumb-count">{count} 图</i>}
+        </span>
+      )}
+      <div className="thread-main">
+        <div className="card-title">{String(t.subject ?? t.title ?? '')}</div>
+        {des ? <div className="card-sub">{des}</div> : null}
+        <div className="card-meta">
+          {t.user_name ? `${String(t.user_name)} · ` : ''}
+          {formatTime(t.last_reply_time ?? t.lastpost ?? t.dateline)} ·{' '}
+          回 {formatCount(t.reply_count ?? t.comment_count)} · 看 {formatCount(t.click)}
+          {videoUrl ? <span style={{ marginLeft: 6, color: 'var(--accent)' }}>▶ 视频</span> : null}
+        </div>
+      </div>
+    </a>
+  );
+}
+
 // G1 热议热榜（旧线 forumlist/hotfeed 模式移植）：活跃板块×order=heat 各取 3 条，
 // 客户端聚合按（回复×10+查看）排序取前 10。请求预算=板块数（≤5）/5min（staleTime）。
 // 数据经 lift 上浮到 HotFeed 聚合（React state 桥，不绕 TanStack）。
@@ -510,20 +605,14 @@ function HotFeed({ fids }: { fids: string[] }) {
         <div className="card-meta" style={{ padding: '4px 2px' }}>热榜生成中…</div>
       )}
       {merged.map((t: any, i: number) => (
-        <a key={String(t.tid)} className="card thread-row" data-test="hot-row" href={`#/thread/${t.tid}`}>
-          <span style={{ color: 'var(--text3)', fontSize: 12, minWidth: 20 }}>{i + 1}</span>
-          <div className="thread-main">
-            <div className="card-title">{t.subject}</div>
-            <div className="card-meta">
-              {t.user_name} · 回 {formatCount(t.reply_count)} · 看 {formatCount(t.click)}
-            </div>
-          </div>
-        </a>
+        <ThreadPreviewCard key={String(t.tid)} t={t} testAttr="hot-row"
+          leading={<span style={{ color: 'var(--text3)', fontSize: 12, minWidth: 20 }}>{i + 1}</span>} />
       ))}
       {fids.slice(0, 5).map((fid) => (
         <HotBoard key={fid} fid={fid} onRows={(f, rs) => setByBoard((prev) => ({ ...prev, [f]: rs }))} />
       ))}
-    </div>
+
+</div>
   );
 }
 export function FocusPage() {
@@ -564,16 +653,25 @@ export function FocusPage() {
         <StateBlock state={info.state === 'Data' ? 'Data' : info.state} fail={info.fail}
           onRetry={() => info.refetch()} />
       )}
-      {items.map((it: any) => (
-        <a key={String(it.id)} className="card info-card" href={it.link ?? '#'}
-          target="_blank" rel="noreferrer">
-          <div className="card-title">{it.title}</div>
-          {it.des ? <div className="card-sub">{String(it.des).slice(0, 80)}</div> : null}
-          <div className="card-meta">
-            {it.from || it.user_name} · {it.publish_time_str} · 评 {formatCount(it.comment_count)}
-          </div>
-        </a>
-      ))}
+      {items.map((it: any) => {
+        // BU-01：本站链（帖/板块/用户）同窗内跳；真资讯外链才外开；缺 link=非链接卡
+        const tgt = cardLinkTarget(it.link);
+        const inner = (
+          <>
+            <div className="card-title">{it.title}</div>
+            {it.des ? <div className="card-sub">{String(it.des).slice(0, 80)}</div> : null}
+            <div className="card-meta">
+              {it.from || it.user_name} · {it.publish_time_str} · 评 {formatCount(it.comment_count)}
+            </div>
+          </>
+        );
+        if (!tgt) {
+          return <div key={String(it.id)} className="card info-card" data-test="info-no-link">{inner}</div>;
+        }
+        return tgt.external
+          ? <a key={String(it.id)} className="card info-card" href={tgt.href} target="_blank" rel="noreferrer">{inner}</a>
+          : <a key={String(it.id)} className="card info-card" href={tgt.href}>{inner}</a>;
+      })}
       {canLoadMore && (
         <div className="chiprow" style={{ justifyContent: 'center' }}>
           <button className="btn" data-test="info-more" disabled={info.isFetching}
@@ -595,7 +693,7 @@ export function FocusPage() {
       <div className="section-title">快捷入口</div>
       <div className="chiprow" data-test="tools">
         {/* G9：原生搜索内链（窄屏 navtools 隐藏——聚焦页是窄屏搜索的可达入口） */}
-        <a className="chip" data-test="tools-search" href="#/search">搜索帖子</a>
+        <a className="chip" data-test="tools-search" href="#/search">搜索板块/圈子</a>
         {[['论坛导读', 'forum.php?mod=guide&mobile=2'], ['个人中心', 'home.php?mod=space&do=profile&mobile=2'],
           ['H5 搜索', 'search.php?mod=forum&mobile=2']].map(([t, path]) => (
           <a key={t} className="chip" target="_blank" rel="noreferrer"
@@ -807,7 +905,7 @@ export function BoardPage({ fid }: { fid: string }) {
             <Avatar src={t.user_head} name={t.user_name} size={36} />
             <div className="thread-main">
               <div className="card-title">{t.subject}</div>
-              {t.des ? <div className="card-sub">{String(t.des).slice(0, 60)}</div> : null}
+              {t.des ? <div className="card-sub">{String(t.des).replace(/<[^>]+>/g, '').trim().slice(0, 60)}</div> : null}
               <div className="card-meta">
                 {t.user_name} · {formatTime(t.last_reply_time ?? t.lastpost ?? t.dateline)} ·
                 回 {formatCount(t.reply_count)} · 看 {formatCount(t.click)}
