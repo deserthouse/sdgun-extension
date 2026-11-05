@@ -469,11 +469,13 @@ export function UserProfilePage({ uid, tab }: { uid: string; tab?: 'fans' | 'fol
           </div>
         </div>
         {/* R4b/BU-05：主页关注钮——数据就绪后才挂载（initial 随数据一次性定格，
-            避免 skeleton 期 initial=null 被 useState 定格为 false——wp6 F1a 实测） */}
+            避免 skeleton 期 initial=null 被 useState 定格——wp6 F1a 实测）。
+            relation_status 取值域：**-1=未关注（soak3 真数据实测）**；1/2=已关注/互关
+            （jadx 推断，待已关注样本核）；其余=未知态 */}
         {!isSelf && d.name && (
           <FollowButton userId={uid} name={String(d.name ?? uid)}
             initial={Number(d.relation_status) === 1 || Number(d.relation_status) === 2 ? true
-              : Number(d.relation_status) === 0 ? false : null} />
+              : Number(d.relation_status) === -1 ? false : null} />
         )}
       </div>
       <StateBlock state={up.state} fail={up.fail} onRetry={() => up.refetch()} skeletonRows={2} />
@@ -615,6 +617,28 @@ function HotFeed({ fids }: { fids: string[] }) {
 </div>
   );
 }
+// N-D2/G5 工具宫格（toolsDefaultGetFour 4 行；游客可读——soak/探针双证）
+function ToolsGrid() {
+  const q = useEndpoint('toolsDefault', {});
+  const rows = ((q.data as any)?.list ?? []) as any[];
+  if (q.state !== 'Data' && q.state !== 'Stale') return null;
+  if (rows.length === 0) return null; // 站方下线→区块消失（不占位）
+  return (
+    <>
+      <div className="section-title">工具</div>
+      <div className="chiprow" data-test="tools-grid">
+        {rows.slice(0, 8).map((t: any, i: number) => {
+          const tgt = cardLinkTarget(t.link);
+          if (!tgt) return null; // 不可点工具不渲染（不伪造入口）
+          return tgt.external
+            ? <a key={i} className="chip" data-test="tool-item" href={tgt.href} target="_blank" rel="noreferrer">{String(t.title ?? '')} ↗</a>
+            : <a key={i} className="chip" data-test="tool-item" href={tgt.href}>{String(t.title ?? '')}</a>;
+        })}
+      </div>
+    </>
+  );
+}
+
 export function FocusPage() {
   const [channel, setChannel] = useState(7);
   const [page, setPage] = useState(1);
@@ -690,6 +714,8 @@ export function FocusPage() {
         }
         return fids.length > 0 ? <HotFeed fids={fids} /> : null;
       })()}
+      {/* N-D2/G5 工具宫格（站方 config 数据驱动；link 分流同 BU-01 口径） */}
+      <ToolsGrid />
       <div className="section-title">快捷入口</div>
       <div className="chiprow" data-test="tools">
         {/* G9：原生搜索内链（窄屏 navtools 隐藏——聚焦页是窄屏搜索的可达入口） */}

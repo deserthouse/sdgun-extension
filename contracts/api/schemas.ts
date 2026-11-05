@@ -47,7 +47,7 @@ export const CommentListResp = z.object({
       content: z.string().optional(),
       floor: z.union([z.number(), z.string()]).optional(),
       time: z.string().optional(),
-    }).passthrough().optional(),
+    }).passthrough().nullable().optional(), // nullable：服务端对无引用楼层可下发 null（xv 视觉审查抓出——null 曾致整响应 ResponseUnverified）
   }).passthrough()),
   page: z.union([z.number(), z.string()]).optional(),
   total_page: z.union([z.number(), z.string()]).optional(),
@@ -324,6 +324,18 @@ export const TopicSearchResp = z.object({
     info: z.string().optional(),
     icon_tburl: z.string().optional(),
     link: z.string().optional(),
+  }).passthrough()),
+}).passthrough();
+
+// N-D 工具宫格（toolsDefaultGetFour 2026-11-05 只读探针实测 4 行：
+// title/link/pic/keywords；link 外站/站内分流由渲染层 cardLinkTarget 决定）
+export const ToolsResp = z.object({
+  success: z.boolean(),
+  list: z.array(z.object({
+    title: z.string().optional(),
+    link: z.string().optional(),
+    pic: z.string().optional(),
+    keywords: z.string().optional(),
   }).passthrough()),
 }).passthrough();
 

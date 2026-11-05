@@ -27,5 +27,11 @@ export function magSsKey(unixSec: number): string {
   return rsaEncryptB64(`shuidan,${unixSec}`);
 }
 
+// N-C/G4 updateUser v4 契约（SimpleEditActivity:148 实证）：params=RSA 加密的
+// JSON 字符串（contentKey=sign 等）。与登录密码同一公钥基础设施。
+export function encryptParams(obj: Record<string, string>): string {
+  return rsaEncryptB64(JSON.stringify(obj));
+}
+
 export const LOGIN_URL = 'https://mag1.sdgun.net/mag/user/v1/user/login';
 export const USERINFO_URL = 'https://mag1.sdgun.net/mag/user/v1/User/getUserInfo';

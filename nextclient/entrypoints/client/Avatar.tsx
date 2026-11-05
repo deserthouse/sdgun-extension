@@ -17,5 +17,14 @@ export function Avatar({ src, name, size = 36 }: {
     return <img className="avatar" style={style} src={url} alt="" loading="lazy"
       referrerPolicy="no-referrer" data-avatar={String(name ?? '')} />;
   }
-  return <span className="avatar" style={style} aria-hidden>{ch}</span>;
+  // N-D3（XV-3）：中性人物轮廓 SVG 替首字灰块（令牌化 currentColor 随主题）
+  return (
+    <span className="avatar" style={{ ...style, background: 'var(--surface2)' }} aria-hidden
+      data-avatar={String(name ?? '')}>
+      <svg width={size * 0.62} height={size * 0.62} viewBox="0 0 24 24" fill="var(--text3)">
+        <circle cx="12" cy="8.4" r="4" />
+        <path d="M4 20c0-4 3.6-6.4 8-6.4s8 2.4 8 6.4v1H4z" />
+      </svg>
+    </span>
+  );
 }

@@ -172,12 +172,20 @@ function MessagesAuthed() {
           style={tab === 'notify' ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}}
           onClick={() => { setTab('notify'); setOpenGroup(null); }}>通知</button>
       </div>
-      <StateBlock state={msg.state} fail={msg.fail} onRetry={() => msg.refetch()} skeletonRows={3} />
+      {/* NA1/XV-2：Empty 态跳过全局 StateBlock——页面自有「暂无消息会话」卡即终态，
+          两者并存=空态双卡堆叠（E31-04 家族第三次，wp6 NA1 反例在册） */}
+      {msg.state !== 'Empty' && (
+        <StateBlock state={msg.state} fail={msg.fail} onRetry={() => msg.refetch()} skeletonRows={3} />
+      )}
 
       {tab === 'msg' && msg.state === 'Empty' && !openGroup && (
         <div className="state-card" data-test="empty">暂无消息会话</div>
       )}
-      {tab === 'msg' && !openGroup && items.map((m: any) => (
+      {/* N-B2：宽屏双栏列容器（CSS grid ≥1024；窄屏顺序流） */}
+      {tab === 'msg' && <div data-test="msg-list-col"
+        style={openGroup ? undefined : undefined}
+        className={openGroup ? 'msg-list-col has-detail' : 'msg-list-col'}>
+      {tab === 'msg' && items.map((m: any) => (
         <button key={String(m.id)} className="card msg-group" data-test="msg-group"
           onClick={() => setOpenGroup(m)}>
           <Avatar src={m.user_head ?? m.head} name={m.name ?? m.title ?? m.user_name} size={40} />
@@ -190,7 +198,9 @@ function MessagesAuthed() {
           {m.time ? <span className="card-meta">{formatTime(m.time)}</span> : null}
         </button>
       ))}
+      </div>}
       {tab === 'msg' && openGroup && (
+        <div data-test="msg-detail-col">
         <div className="card" data-test="msg-detail">
           <div className="card-meta">
             <button className="btn" data-test="detail-back"
@@ -204,10 +214,11 @@ function MessagesAuthed() {
           ) : null}
           <MsgHistory peer={openGroup} myId={myId} />
         </div>
+        </div>
       )}
 
       {tab === 'notify' && msg.state !== 'InitialLoading' && notify && (
-        <div data-test="notify-summary">
+        <div data-test="notify-summary" style={{ minWidth: 0 }}>
           {(() => {
             // R4/WP6（BU-04）：分类入口（code=jadx ConversationFragment 实证：
             // at=@我的/focus=关注/applaud=点赞/comment=评论——v1 摘要无分类计数，

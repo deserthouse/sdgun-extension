@@ -282,3 +282,33 @@ html, body { margin: 0; }
 .composer { min-width: 0; max-width: 100%; }
 .composer-field { min-width: 0; max-width: 100%; }
 .composer-toolbar > div .btn { flex: none; }
+
+/* ---- N-A4/G6 窄屏帖子底部操作条（官方移动形态对齐） ---- */
+.thread-mobile-bar { display: none; }
+@media (max-width: 899px) {
+  .thread-mobile-bar { display: flex; position: fixed; left: 0; right: 0;
+    bottom: calc(var(--tabbar-h) + var(--sp-6) + env(safe-area-inset-bottom)); z-index: 90;
+    gap: var(--sp-2); padding: var(--sp-2) var(--sp-4);
+    background: var(--surface); border-top: 1px solid var(--border);
+    justify-content: center; }
+  .thread-mobile-bar .btn { flex: 1; justify-content: center; max-width: 160px; }
+  /* 底条悬浮会遮帖尾内容——主列底部留出底条高度（回复草稿可完整触达） */
+  .thread-mobile-bar ~ * .composer-area,
+  .main { scroll-padding-bottom: 120px; }
+  section:has(~ .thread-mobile-bar) .reply-draft-card { padding-bottom: 56px; }
+}
+
+/* ---- N-B2 消息宽屏双栏（≥1024：左列表+右会话详情） ---- */
+@media (min-width: 1024px) {
+  [data-test="messages-authed"] { display: grid;
+    grid-template-columns: minmax(260px, 380px) minmax(0, 1fr);
+    gap: var(--sp-4); align-items: start; }
+  [data-test="messages-authed"] > .chiprow { grid-column: 1 / -1; }
+  [data-test="msg-list-col"] { min-width: 0; }
+  [data-test="msg-detail-col"] { min-width: 0; position: sticky; top: var(--sp-4); }
+}
+
+/* N-B2：窄屏推栈（有详情时隐藏列表）；宽屏双栏常显 */
+@media (max-width: 1023px) {
+  .msg-list-col.has-detail { display: none; }
+}

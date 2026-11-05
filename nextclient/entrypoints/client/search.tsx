@@ -1,21 +1,22 @@
-// G4 原生搜索（topicSearch/allTopicSearch 勘定登记）：游客恒空=诚实空态（2026-10-21
-// 实测口径）；H5 回退保留。行点击→站内路由（tid 可映射）或外开。
+// G4→N-B1 搜索页：双通道（板块/圈子 | 用户）。行键=soak3 实测（圈子 id/name/icon_tburl/link；用户 id/name/cert_des）。
+// 帖子内容搜索：站方无内容搜索 API（soak 实测与 2026-10-21 测绘互证）→ H5 承载显式标注。
 import { useState } from 'react';
 import { useEndpoint } from '../../lib/queries';
 import { StateBlock, StateBadge } from './StateBlock';
 import { internalRouteFromUrl } from '../../lib/linkmap';
-import { formatTime } from '../../lib/format';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export function SearchPage() {
   const [text, setText] = useState('');
   const [fired, setFired] = useState('');
-  const { session } = {} as any; // 占位防误用（本页不读会话——游客即知恒空）
-  const q = useEndpoint('allTopicSearch', { keyword: fired, p: 1, step: 20 },
-    { enabled: fired !== '' });
+  const [tab, setTab] = useState<'circle' | 'user'>('circle');
+  const circleQ = useEndpoint('allTopicSearch', { keyword: fired, p: 1, step: 20 },
+    { enabled: fired !== '' && tab === 'circle' });
+  const userQ = useEndpoint('userSearch', { name: fired, p: 1, step: 20 },
+    { enabled: fired !== '' && tab === 'user' });
+  const q = tab === 'circle' ? circleQ : userQ;
   const rows = ((q.data as any)?.list ?? []) as any[];
-  const authed = fired !== ''; // 简化：查询即发起；游客结果形态由服务端决定
   return (
     <section>
       <div className="page-header">
@@ -26,7 +27,7 @@ export function SearchPage() {
         setFired(text.trim());
       }}>
         <div className="composer-field">
-          <label className="composer-label" htmlFor="search-input">搜索板块/圈子（帖子内容请用 H5 搜索）</label>
+          <label className="composer-label" htmlFor="search-input">搜索板块/圈子/用户（帖子内容请用 H5 搜索）</label>
           <input id="search-input" className="composer-input" data-test="search-input"
             value={text} placeholder="输入关键词，回车搜索"
             onChange={(e) => setText(e.target.value)} />
@@ -37,30 +38,49 @@ export function SearchPage() {
           <StateBadge state={fired ? q.state : 'Data'} />
           <a className="chip" target="_blank" rel="noreferrer" data-test="search-h5"
             href={`https://bbs.sdgun.com.cn/search.php?mod=forum&mobile=2&srchtxt=${encodeURIComponent(fired || text)}`}>
-            H5 搜索 ↗</a>
+            H5 内容搜索 ↗</a>
         </div>
       </form>
+      {fired && (
+        <div className="chiprow" data-test="search-tabs">
+          <button className={'chip' + (tab === 'circle' ? ' on' : '')} data-test="search-tab-circle"
+            aria-pressed={tab === 'circle'}
+            onClick={() => setTab('circle')}>板块/圈子</button>
+          <button className={'chip' + (tab === 'user' ? ' on' : '')} data-test="search-tab-user"
+            aria-pressed={tab === 'user'}
+            onClick={() => setTab('user')}>用户</button>
+        </div>
+      )}
       {fired && <StateBlock state={q.state} fail={q.fail} onRetry={() => q.refetch()} skeletonRows={3} />}
       {fired && q.state === 'Empty' && (
         <div className="state-card" data-test="search-empty">
-          没有匹配的板块/圈子。帖子内容搜索请用 H5 搜索（站方无内容搜索 API——2026-11-03 实测与 2026-10-21 测绘互证）。
+          {tab === 'circle' ? '没有匹配的板块/圈子。帖子内容搜索请用 H5 搜索（站方无内容搜索 API）。'
+            : '没有匹配的用户。'}
         </div>
       )}
-      {/* soak 实测定性：allTopicSearch=圈子搜索（行={id,name,info,icon_tburl,link}） */}
-      {rows.map((r, i) => {
-        const cid = String(r.id ?? '');
+      {tab === 'circle' && rows.map((r, i) => {
         const href = typeof r.link === 'string' && r.link
           ? internalRouteFromUrl(r.link) ?? r.link : null;
         const inner = (
           <>
-            <div className="card-title">{String(r.name ?? `(圈子 ${cid})`)}</div>
+            <div className="card-title">{String(r.name ?? `(圈子 ${r.id ?? ''})`)}</div>
             {r.info ? <div className="card-sub">{String(r.info).slice(0, 80)}</div> : null}
           </>
         );
         return href
-          ? <a key={cid + i} className="card" data-test="search-row"
+          ? <a key={String(r.id ?? i)} className="card" data-test="search-row"
               {...(href.startsWith('#') ? { href } : { href, target: '_blank', rel: 'noreferrer' })}>{inner}</a>
-          : <div key={cid + i} className="card" data-test="search-row">{inner}</div>;
+          : <div key={String(r.id ?? i)} className="card" data-test="search-row">{inner}</div>;
+      })}
+      {tab === 'user' && rows.map((u, i) => {
+        const uid = String(u.user_id ?? u.id ?? '');
+        return uid
+          ? <a key={uid + i} className="card" data-test="search-row" data-user-row="1"
+              href={`#/user/${uid}`}>
+              <div className="card-title">{String(u.name ?? `(用户 ${uid})`)}</div>
+              {u.cert_des ? <div className="card-sub">{String(u.cert_des)}</div> : null}
+            </a>
+          : null;
       })}
     </section>
   );

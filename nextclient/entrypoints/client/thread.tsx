@@ -251,6 +251,46 @@ function ApplaudButton({ pid, count, isLiked }: {
   );
 }
 
+// N-A3/G1 收藏动作：userCollectAdd（Android MainActivity.doCollect 同构实参：
+// title=帖题/url=触屏版帖链/content_type=thread/id=fid/content_id=tid）；
+// 初值未知诚实态（forumView/threadView 均无收藏字段——soak 实证）；
+// 取消=收藏列表管理（collectDelete 需记录 id，帖内无——按钮只管添加，已添加提示入口）
+function CollectButton({ tid, title, fid }: { tid: string; title: string; fid: string }) {
+  const { session } = useSession();
+  const authed = session !== 'loading' && session.auth !== null;
+  const { phase, msg, run } = useMutationRun();
+  const [collected, setCollected] = useState(false);
+  const done = collected || phase === 'Confirmed' || phase === 'OutcomeUnknown';
+  async function onClick() {
+    if (done || phase === 'Submitting') return;
+    setCollected(true); // 乐观
+    const st = await run('userCollectAdd', {
+      title, url: `https://bbs.sdgun.com.cn/forum.php?mod=viewthread&tid=${tid}`,
+      content_type: 'thread', id: fid, content_id: tid,
+    }, () => setCollected(false));
+    if (st === 'Rejected') setCollected(false);
+  }
+  return (
+    <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+      <button className="btn" data-test="collect-op"
+        disabled={!authed || phase === 'Submitting' || done}
+        title={authed ? (done ? '已收藏——管理/取消请到「我的」页收藏列表' : undefined)
+          : '登录后可收藏（真实写入由你的账号执行）'}
+        onClick={onClick}>
+        {collected && phase !== 'Submitting' ? '已收藏 ✓' : phase === 'Submitting' ? '收藏中…' : '收藏'}
+      </button>
+      {phase === 'OutcomeUnknown' && (
+        <span style={{ fontSize: 11.5, color: 'var(--accent)' }} data-test="collect-unknown">
+          {msg || '结果未知——请勿重复提交'}
+        </span>
+      )}
+      {phase === 'Rejected' && (
+        <span style={{ fontSize: 11.5, color: 'var(--text3)' }} data-test="collect-rejected">{msg}</span>
+      )}
+    </span>
+  );
+}
+
 export function FollowButton({ userId, name, initial }: {
   userId: string; name: string; initial?: boolean | null;
 }) {
@@ -528,6 +568,9 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
         <button className="btn" data-test="copy-link" aria-label="复制帖子链接" onClick={copyLink}>
           复制链接
         </button>
+        {main && (
+          <CollectButton tid={tid} title={String(main.title ?? '')} fid={String(main.fid ?? '')} />
+        )}
       </div>
       <StateBlock state={op.state} fail={op.fail} onRetry={() => op.refetch()} />
       {main && (
@@ -663,6 +706,12 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
       <ReplyDraft tid={tid} owner={draftOwner} />
       </div>
       <FloorRail floors={floors} onJump={jumpToPid} />
+      {/* N-A4/G6 窄屏底部操作条（<900px 显示；桌面隐藏）——官方移动形态对齐 */}
+      <div className="thread-mobile-bar" data-test="thread-mobile-bar">
+        <a className="btn btn-primary" href={`#/editor?tid=${tid}`}>回复</a>
+        {main && <CollectButton tid={tid} title={String(main.title ?? '')} fid={String(main.fid ?? '')} />}
+        <button className="btn" data-test="mbar-copy" onClick={copyLink}>复制链接</button>
+      </div>
       {lightbox && (
         <Lightbox srcs={lightbox.srcs} index={lightbox.index}
           onClose={() => {
