@@ -837,6 +837,8 @@ export function BoardPage({ fid }: { fid: string }) {
   const rows = useMemo(() => {
     const seen = new Set<string>();
     return rowsAll.filter((t: any) => {
+      // P0：广告行（_type=pic_ad，无 tid）不进列表（真实投放期实测）
+      if (String(t.tid ?? '') === '' || t.tid === null) return false;
       const k = String(t.tid);
       if (seen.has(k)) return false;
       seen.add(k);
@@ -852,16 +854,17 @@ export function BoardPage({ fid }: { fid: string }) {
     try { sessionStorage.setItem(boardStateKey(fid), JSON.stringify({ page, order })); } catch {}
   }, [fid, page, order]);
   const isPinned = (t: any) => Number(t.is_top) > 0;
-  const rtree = useEndpoint('circleTree');
+  // P0 根治（2026-11-06）：BoardPage 此前挂两个 circleTree 钩（tree 板块名+rtree 目录）
+  // ——并发挂载竞态下可双请求（c1 N3 门禁间歇红 3 次）。合并为单钩共享。
   const dirBoards = useMemo(() => {
     const out: { fid: string; name: string }[] = [];
-    for (const g of (rtree.data as any)?.list ?? []) {
+    for (const g of (tree.data as any)?.list ?? []) {
       for (const c of g.circle_list ?? []) {
         if (String(c.type_value) !== fid) out.push({ fid: String(c.type_value), name: c.name });
       }
     }
     return out.slice(0, 10);
-  }, [rtree.data, fid]);
+  }, [tree.data, fid]);
   return (
     <section>
       <div className="page-header">

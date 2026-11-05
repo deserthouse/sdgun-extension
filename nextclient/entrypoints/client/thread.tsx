@@ -650,7 +650,7 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
             </span>
             <span>{formatTime(f.time)} · {f.floor}#</span>
           </div>
-          {f.to_comment ? <QuoteBlock q={f.to_comment} onJump={jumpToPid} /> : null}
+          {f.to_comment && !Array.isArray(f.to_comment) ? <QuoteBlock q={f.to_comment} onJump={jumpToPid} /> : null}
           <ContentView html={String(f.content ?? '')}
             onImg={(srcs, index, trigger) => setLightbox({ srcs, index, trigger })} />
           <div className="floor-head">

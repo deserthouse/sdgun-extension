@@ -5,9 +5,12 @@ import { z } from 'zod';
 
 const okCode = z.number().int();
 
+// P0 修正（2026-11-06 用户实装实测）：forumView 列表**混插广告行**（_type='pic_ad'，
+// 无 tid/subject，投放期首行即广告）——行级必填假设打死整页。tid/subject 容忍
+// null/缺省，广告行由渲染层按 tid 过滤（ThreadPreviewCard 已守卫）。
 const ForumRow = z.object({
-  tid: z.union([z.number(), z.string()]),
-  subject: z.string(),
+  tid: z.union([z.number(), z.string()]).nullable().optional(),
+  subject: z.string().nullable().optional(),
   des: z.string().optional(),
   // 封面图组（2026-10-29 实采：字符串 URL 数组，picapp 域；可为 '[]'/null）
   pics: z.array(z.string()).nullable().optional(),
@@ -29,7 +32,7 @@ export const ForumViewResp = z.object({
 const Floor = z.union([
   z.number().int().gte(2),
   z.string().regex(/^\d+$/).refine((s) => parseInt(s, 10) >= 2, 'floor starts at 2'),
-]);
+]).nullable(); // P0 防御：null 楼层不得打死整页（契约 floor>=2 仅约束有值行）
 
 export const CommentListResp = z.object({
   success: z.boolean(),
@@ -41,13 +44,18 @@ export const CommentListResp = z.object({
     // C1-2 引用（真实形态样本 tests/probe_out/to_comment_sample_2026-10-25.json）：
     // {id=被引用 pid, user_name, content(HTML 串), floor, time, ...}；被引楼层可能已删
     // → 所有字段 optional，渲染端缺失容忍。
-    to_comment: z.object({
-      id: z.union([z.number(), z.string()]).optional(),
-      user_name: z.string().optional(),
-      content: z.string().optional(),
-      floor: z.union([z.number(), z.string()]).optional(),
-      time: z.string().optional(),
-    }).passthrough().nullable().optional(), // nullable：服务端对无引用楼层可下发 null（xv 视觉审查抓出——null 曾致整响应 ResponseUnverified）
+    // P0（2026-11-06 用户实装实测）：无引用楼层的 to_comment 有三种真实形态——
+    // 缺省 / null / **空数组 []**（数组形态曾致整响应 ResponseUnverified）。
+    to_comment: z.union([
+      z.object({
+        id: z.union([z.number(), z.string()]).optional(),
+        user_name: z.string().optional(),
+        content: z.string().optional(),
+        floor: z.union([z.number(), z.string()]).optional(),
+        time: z.string().optional(),
+      }).passthrough(),
+      z.array(z.unknown()), // 空数组（真实实测）
+    ]).nullable().optional(),
   }).passthrough()),
   page: z.union([z.number(), z.string()]).optional(),
   total_page: z.union([z.number(), z.string()]).optional(),
@@ -186,10 +194,15 @@ export const ForumDetailResp = z.object({
     icon: z.string().optional(),
     today_num: z.unknown().optional(),
     total_num: z.unknown().optional(),
-    threadtypes: z.array(z.object({
-      typeid: z.unknown().optional(),
-      name: z.string().optional(),
-    }).passthrough()).optional(),
+    // P0（2026-11-06 实测）：threadtypes 真实=**字符串**（''/编码串），非数组——
+    // 渲染层已按 isArray 守卫；schema 容忍两形态
+    threadtypes: z.union([
+      z.array(z.object({
+        typeid: z.unknown().optional(),
+        name: z.string().optional(),
+      }).passthrough()),
+      z.string(),
+    ]).nullable().optional(),
     moderators: z.unknown().optional(),
     children: z.unknown().optional(),
   }).passthrough().optional(),
