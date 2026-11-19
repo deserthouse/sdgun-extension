@@ -1,41 +1,27 @@
-# nextclient — SDGun 新版浏览器客户端（G0/E00 实验场）
+# SDGun 新版浏览器客户端（2.0 预览通道）
 
-依据：[扩展域工作计划](../docs/extension_work_plan_2026-10-22.md) N 批 + [扩展分册](../docs/extension_next_design_2026-10-21.md)。
-**本目录是实验场**：G1 起并入 extension/（并入时一次性定案公开仓同步策略，见 N-0 卡）。
-`node_modules/`、`.output/`、`.wxt/` 不入库；源码 + lockfile + 工具链凭证入库。
+这一分支保存 2.0 预览版的源码快照。扩展可浏览帖子和个人资料，支持登录、编辑草稿和提交内容。经典稳定版的说明见 [main 分支](https://github.com/deserthouse/sdgun-extension/tree/main)。
 
-## 一条命令复跑
+## 下载与版本
 
-```bash
-# 前置（仅首次）：下载便携 Node（sha256 对官方 SHASUMS256.txt 核验）
-tests/.venv_review/Scripts/python.exe -B nextclient/tools/fetch_node.py
+从 [Releases](https://github.com/deserthouse/sdgun-extension/releases) 选择目标 `v2.0.0-alpha.N` 预发布并下载该版 Chrome ZIP。文件名与 SHA-256 见该版本的发布说明。解压后，在扩展管理页选择“加载已解压的扩展程序”，指向含 manifest.json 的目录。
 
-# 构建（git-bash；npm 走 127.0.0.1:10808 代理）
-export PATH="$PWD/tools/node-portable/node-v24.22.1-win-x64:$PATH"
-export HTTPS_PROXY=http://127.0.0.1:10808 HTTP_PROXY=http://127.0.0.1:10808
-cd nextclient && npm.cmd install --no-fund --no-audit && node.exe node_modules/wxt/bin/wxt.mjs build
+[BUILD-INFO.md](../BUILD-INFO.md) 对应本分支当前快照，记录开发仓提交、工具链、构建时间和附件摘要。查看旧版时请切换到对应 tag。版本字符串取自 [package.json](package.json)，Chrome 的数字版本由 [WXT 配置](wxt.config.ts) 转换。
+
+## 源码与构建
+
+在快照根目录使用 Node.js 24.22.1 及其 npm，依赖版本见 [package-lock.json](package-lock.json)。
+
+```sh
+cd nextclient
+npm ci
+npm run build
 ```
 
-产物：`.output/chrome-mv3/`（MV3）+ `wxt zip` 产出 `.output/*.zip`。
+WXT 的 Chrome MV3 输出在 `.output/chrome-mv3/`。发布附件的摘要标识发布时的 ZIP，重新打包的时间戳可能不同。
 
-## 工具链锁定（2026-10-22）
+## 数据与 AI 使用声明
 
-- Node `v24.22.1`（LTS v24 线，官方 latest-v24.x 解析；sha256 `d2046d28…` 对官方 SHASUMS256.txt 核验；凭证=`tools/node-portable.lock.json`）
-- 依赖精确版本以 `package-lock.json` 为准（wxt 0.20.27 / Vite 8.3.5 / React 19 / TS 5.9 / Radix dialog / TanStack Query 5）；无全局安装、无 CDN/远程脚本。
-- **Playwright 页面不冒充生产打包**（分册红线）；现有离线 JS 探针继续用 Playwright 承载，与构建无关。
+预览版支持登录、联网读取论坛数据以及按用户操作上传和发布。草稿和部分阅读状态保存在本机。经典版的隐私说明仅适用于经典版。
 
-## 构建可复现性档位（2026-10-22 实测）
-
-两次干净构建（间隔 `rm -rf .output`）：解包内容逐字节一致（`CONTENT_IDENTICAL`）；
-zip 容器字节不一致（条目时间戳随重建变化）。**档位=可重建/输入已固定**（上游 §9.9.5：
-未做严格可复现就只称可重建——严格可复现需固定 zip 时间戳，G1 并入发版链时再决策）。
-
-## 当前内容（N-0 骨架）
-
-- `entrypoints/background.ts`：SW 存在性证明（N-4 强停/唤醒验证在此扩）。
-- `entrypoints/client/`：React + Radix Dialog + TanStack Query 三件栈在场证明页（离线，零请求）。
-- manifest：MV3；权限最小集 `storage` + `declarativeNetRequest`；无 host_permissions（E00 结论后逐域申请）。
-
-## 验收记录（N-0，2026-10-22）
-
-`wxt prepare` → `tsc --noEmit` 通过 → `wxt build` 产出 MV3 四件（manifest/client.html/background.js/chunk 285KB）→ 产物 grep `eval(` 零命中 → zip 89.23KB。两次干净构建内容级一致（见上）。
+本项目不含任何人类成分。项目代码由 AI 编写，需求、审阅与验收由维护者负责。
