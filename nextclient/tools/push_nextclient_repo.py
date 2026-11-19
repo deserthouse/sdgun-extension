@@ -111,7 +111,7 @@ def main():
         f'- built: {run(["date", "+%Y-%m-%dT%H:%M:%S%z"])}\n'
         f'- toolchain: node 24.22.1 (tools/node-portable.lock.json), wxt (package-lock.json)\n'
         f'- asset: {zip_path.name} sha256={asset_sha}\n'
-        f'- rebuild: nextclient/README.md 一条命令复跑\n')
+        f'- rebuild: [构建说明](nextclient/README.md#源码与构建)\n')
 
     tree = collect(NEXT, 'nextclient') + collect(CONTRACTS, 'contracts')
     print(f'快照树 {len(tree)} 文件（源码+lockfile+契约，无构建产物）：')

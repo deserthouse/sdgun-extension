@@ -2,6 +2,8 @@
 
 这一分支保存 2.0 预览版的源码快照。扩展可浏览帖子和个人资料，支持登录、编辑草稿和提交内容。经典稳定版的说明见 [main 分支](https://github.com/deserthouse/sdgun-extension/tree/main)。
 
+[逐版更新日志](CHANGELOG.md)
+
 ## 下载与版本
 
 从 [Releases](https://github.com/deserthouse/sdgun-extension/releases) 选择目标 `v2.0.0-alpha.N` 预发布并下载该版 Chrome ZIP。文件名与 SHA-256 见该版本的发布说明。解压后，在扩展管理页选择“加载已解压的扩展程序”，指向含 manifest.json 的目录。
