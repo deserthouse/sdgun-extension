@@ -1,4 +1,4 @@
-# sdgun-extension
+# SDGun Forum Web Access
 
 桌面浏览器访问 SDGun 论坛的社区扩展：UA 伪装 + 现代化卡片界面（Manifest V3，Chrome / Edge / Brave 等 Chromium 系浏览器通用）。
 
@@ -47,21 +47,19 @@ python tools/extension_build.py --test
 
 产出 `dist/` 下 zip：GitHub Release 分发用。
 
-## 说明与免责（Disclaimer）
+## 经典版的数据与使用说明（Disclaimer）
 
 **本扩展是阅读体验优化层**：它将论坛自有的移动端触屏版页面在桌面浏览器中重新排版呈现。**呈现的内容与手机浏览器访问完全一致**（同一页面来源、同一权限边界）；在此之上，扩展自身另有：可关闭的后台资讯/缩略图请求（游客接口，弹窗开关「图文增强」）与本机缓存——范围与开关见 `PRIVACY.md`。
 
 - **本地存储范围**：界面偏好 + 论坛内容的标题/摘要/图片 URL 缓存（tid 级，7 天，仅本机 `storage.local`，不与任何账号绑定、不上传）；无统计、无埋点、无远程代码、无凭据处理。详见 `PRIVACY.md`。
-- **不提供任何逆向、破解服务**：不逆向论坛程序或协议，不破解任何权限、付费墙或访问控制；UA 改写仅用于解除论坛对 PC 端的展示限制，其呈现的全部内容均为任何手机浏览器无需凭据即可公开访问的内容。
-- **不侵犯任何版权**：本仓库不含任何论坛素材或资源，不复制、不分发任何受版权保护的内容；扩展内展示的一切内容版权归原权利人所有。
-- **不承担任何法律责任**：在适用法律允许的最大范围内，本扩展按「现状」（AS IS）提供，不作任何明示或默示担保；因使用本扩展产生的一切后果由使用者自行承担，开发者不承担任何责任。使用即表示同意自行遵守论坛规则。
+- **内容与使用**：论坛内容和商标归相应权利人所有。使用者须遵守论坛规则；本项目按现状提供。
 - **非官方**：本扩展与 SDGun 论坛及其运营方无任何关联，未获其授权或认可。
 
-**Disclaimer**: This extension is a reading-experience layer over the forum's own mobile pages; the content it presents is exactly what a phone browser sees. It collects no personal data; its own behavior — opt-out background guest-endpoint fetches and local caches — is enumerated in PRIVACY.md, provides no reverse-engineering or cracking services, infringes no copyright, and is provided AS IS without warranty of any kind — the developers assume no legal liability for its use. Unofficial; not affiliated with SDGun.
+**Classic extension.** The extension restyles forum pages. Its optional requests and local caches are described in the [privacy policy](PRIVACY.md). The 2.0 preview adds signed-in features and drafts. This community project is unaffiliated with SDGun.
 
 ## AI 使用披露（AI Disclosure）
 
-本项目的全部代码由 AI 编写，不含任何人类编写成分；人类负责提出需求、审阅与验收（All code in this project is AI-written; humans define requirements and provide review and acceptance）。
+本项目不含任何人类成分。项目代码由 AI 编写，人类负责提出需求、审阅与验收（All code in this project is AI-written; humans define requirements and provide review and acceptance）。
 
 ---
 

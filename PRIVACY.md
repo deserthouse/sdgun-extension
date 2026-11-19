@@ -1,6 +1,6 @@
 # Privacy Policy — SDGun Forum Web Access
 
-_Last updated: 2026-10-21 (v1.20.x source; factual-consistency revision)_
+This policy describes the classic extension on the `main` branch. The 2.0 preview also provides signed-in forum features and local drafts. See the [preview release notes](https://github.com/deserthouse/sdgun-extension/releases) for the version you installed.
 
 This browser extension ("SDGun Forum Web Access") collects no personal data and contains no analytics, no tracking, and no remote code. Its rendering happens locally in your browser; its **network behavior is fully enumerated below** — note that, beyond the page requests you make yourself, the extension *does* initiate opt-out background requests (see the "Background fetching" bullet) and stores local caches:
 
