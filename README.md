@@ -59,7 +59,7 @@ python tools/extension_build.py --test
 
 ## AI 使用披露（AI Disclosure）
 
-本项目不含任何人类成分。项目代码由 AI 编写，人类负责提出需求、审阅与验收（All code in this project is AI-written; humans define requirements and provide review and acceptance）。
+本项目不含任何人类成分。本项目的全部代码由 AI 编写，不含任何人类编写成分。人类负责提出需求、审阅与验收（All code in this project is AI-written; humans define requirements and provide review and acceptance）。
 
 ---
 
