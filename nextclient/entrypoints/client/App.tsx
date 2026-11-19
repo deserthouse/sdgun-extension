@@ -48,8 +48,9 @@ export default function App() {
   // R3-2 未读徽标：登录态通知摘要（计数含私信+系统+好友申请）
   const { session: navSession } = useSession();
   const navAuthed = navSession !== 'loading' && navSession.auth !== null;
-  // G1b 未读轮询：登录态 60s 自动刷新 + 窗口聚焦即刷（浏览器关闭不承诺送达——已背书口径）
-  const notifyQ = useEndpoint('userNotifyIndex', {}, { enabled: navAuthed, refetchMs: 60000 });
+  // S3/F13：60s 自动轮询移除（read-may-mutate 端点后台自动打=未经用户动作的潜在副作用——
+  // 三轮复审互证）。保留窗口聚焦刷新+手动（进消息页/显式操作），浏览器关闭不承诺送达口径不变。
+  const notifyQ = useEndpoint('userNotifyIndex', {}, { enabled: navAuthed });
   const nd = (notifyQ.data as any)?.data ?? {};
   const msgUnread = (Number(nd.has_letter) || 0) + (Number(nd.system_notify_count) || 0)
     + (Number(nd.friend_apply_count) || 0);

@@ -164,7 +164,7 @@ html, body { margin: 0; }
 .page-actions { display: flex; justify-content: flex-end; margin-top: var(--sp-2); }
 
 /* ---- 跳页输入 ---- */
-.pager-input { width: 52px; text-align: center; padding: 5px 4px !important;
+.pager-input, .composer-input.pager-input { width: 52px; text-align: center; padding: 5px 4px !important;
   font-size: var(--fs-xs) !important; border-radius: var(--r-sm) !important;
   border: 1px solid var(--border2) !important; background: var(--surface) !important;
   color: var(--text) !important; }
@@ -228,7 +228,7 @@ html, body { margin: 0; }
 /* ---- R6-1 宽屏右栏（≥1280：快捷目录） ---- */
 @media (min-width: 1280px) {
   .shell { grid-template-columns: var(--nav-w) 1fr; }
-  .main { max-width: var(--content-w); }
+  .main { max-width: min(980px, calc(100vw - 340px)); } /* S5/F8: ≥1280 宽版阅读列 */
 }
 
 /* ---- F1-4 视频/音频消费（宽高约束随容器；autoplay 不入白名单） ---- */
@@ -295,7 +295,7 @@ html, body { margin: 0; }
   /* 底条悬浮会遮帖尾内容——主列底部留出底条高度（回复草稿可完整触达） */
   .thread-mobile-bar ~ * .composer-area,
   .main { scroll-padding-bottom: 120px; }
-  section:has(~ .thread-mobile-bar) .reply-draft-card { padding-bottom: 56px; }
+  section:has(~ .thread-mobile-bar) [data-test="reply-draft"] { padding-bottom: 64px; }
 }
 
 /* ---- N-B2 消息宽屏双栏（≥1024：左列表+右会话详情） ---- */

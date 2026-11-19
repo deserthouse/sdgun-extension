@@ -2,8 +2,9 @@
 // 白名单：图片只放行站方图域（picapp/bbs 附件），其余协议/脚本/表单一律剥离。
 import DOMPurify from 'dompurify';
 
-// 正文图白名单=协议级（论坛正文大量外链图床；禁 data:/javascript: 等危险协议；
-// 渲染统一 referrerpolicy=no-referrer 兜隐私）
+// 白名单=协议级 http/https（含 data:image/ 例外——由 DOMPurify hook 处理；
+// 论坛正文大量外链图床，不做域级限制；渲染统一 referrerpolicy=no-referrer 兜隐私）。
+// S6：旧注释「只放行站方图域」与实现不符——已对齐实况。
 const ALLOWED_IMG = /^https?:\/\//i;
 
 // img src 域白名单钩子（模块级注册一次；sanitize 时自动生效）

@@ -194,14 +194,21 @@ export const ForumDetailResp = z.object({
     icon: z.string().optional(),
     today_num: z.unknown().optional(),
     total_num: z.unknown().optional(),
-    // P0（2026-11-06 实测）：threadtypes 真实=**字符串**（''/编码串），非数组——
-    // 渲染层已按 isArray 守卫；schema 容忍两形态
+    // S1（2026-11-20 三轮复审+主审取证）：threadtypes 真实三形态——
+    // ①数组（夹具/历史兼容）②字符串（fid153=''）③**字典**（fid175/54/188/199：
+    // {required,listable,types:{typeid→name 对象}}——meta/fd_175.json 实证）。
+    // 字典形态曾被 union 拒→forumDetail 整体 ResponseUnverified→板块头卡连坐丢失（三轮 P1）。
     threadtypes: z.union([
       z.array(z.object({
         typeid: z.unknown().optional(),
         name: z.string().optional(),
       }).passthrough()),
       z.string(),
+      z.object({
+        required: z.unknown().optional(),
+        listable: z.unknown().optional(),
+        types: z.record(z.string(), z.string()),
+      }).passthrough(),
     ]).nullable().optional(),
     moderators: z.unknown().optional(),
     children: z.unknown().optional(),

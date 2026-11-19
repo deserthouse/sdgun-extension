@@ -155,7 +155,7 @@ export async function callEndpoint<T = unknown>(id: string, opts: CallOpts = {})
       if (isFail(e)) throw e;
       if (e instanceof DOMException && e.name === 'AbortError') {
         // 外部取消（身份切换/组件卸载）与超时同形——网络态 Fail 由上层忽略静默
-        throw { kind: 'NetworkError', msg: 'aborted' } as Fail;
+        throw { kind: 'NetworkError', msg: '网络中断或已取消，请重试' } as Fail; // S4/F16：内部 token 不直出
       }
       throw { kind: 'NetworkError', msg: String((e as Error)?.message ?? e).slice(0, 120) } as Fail;
     } finally {

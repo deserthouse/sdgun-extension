@@ -6,7 +6,7 @@ import { StateBlock, StateBadge } from './StateBlock';
 import { epochStart, epochStop, epochProbe } from '../../lib/epoch';
 import { login, fetchAccountInfo, verifyPicSecurityCode, captchaImageUrl, type AuthInfo } from '../../lib/auth';
 import { useSession } from '../../lib/session';
-import { formatTime, formatCount } from '../../lib/format';
+import { formatTime, formatCount, parseCountNum } from '../../lib/format';
 import { internalRouteFromUrl } from '../../lib/linkmap';
 import { loadHistory, clearHistory } from '../../lib/history';
 import { Avatar } from './Avatar';
@@ -276,7 +276,8 @@ function Collections() {
       <h2 style={{ fontSize: 15, color: 'var(--text2)', margin: '0 0 8px' }}>
         我的收藏 <StateBadge state={q.state} />
       </h2>
-      {page === 1 && (
+      {/* S4/F6：Empty 态跳过全局 StateBlock（页面自有空态卡即终态——镜像 messages NA1 互斥） */}
+      {page === 1 && q.state !== 'Empty' && (
         <StateBlock state={q.state} fail={q.fail} onRetry={() => q.refetch()} skeletonRows={2} />
       )}
       {q.state === 'Empty' && page === 1 && (
@@ -569,9 +570,9 @@ function ThreadPreviewCard({ t, className = 'card thread-row', leading, testAttr
         <div className="card-title">{String(t.subject ?? t.title ?? '')}</div>
         {des ? <div className="card-sub">{des}</div> : null}
         <div className="card-meta">
-          {t.user_name ? `${String(t.user_name)} · ` : ''}
-          {formatTime(t.last_reply_time ?? t.lastpost ?? t.dateline)} ·{' '}
-          回 {formatCount(t.reply_count ?? t.comment_count)} · 看 {formatCount(t.click)}
+          {[String(t.user_name ?? ''), formatTime(t.last_reply_time ?? t.lastpost ?? t.dateline),
+            `回 ${formatCount(t.reply_count ?? t.comment_count)}`,
+            t.click ? `看 ${formatCount(t.click)}` : ''].filter(Boolean).join(' · ')}
           {videoUrl ? <span style={{ marginLeft: 6, color: 'var(--accent)' }}>▶ 视频</span> : null}
         </div>
       </div>
@@ -596,8 +597,8 @@ function HotFeed({ fids }: { fids: string[] }) {
     const seen = new Set<string>();
     return all
       .filter((t: any) => { const k = String(t.tid); if (seen.has(k)) return false; seen.add(k); return true; })
-      .sort((a: any, b: any) => (Number(b.reply_count) * 10 + Number(b.click))
-        - (Number(a.reply_count) * 10 + Number(a.click)))
+      .sort((a: any, b: any) => (parseCountNum(b.reply_count) * 10 + parseCountNum(b.click))
+        - (parseCountNum(a.reply_count) * 10 + parseCountNum(a.click)))
       .slice(0, 10);
   }, [byBoard]);
   return (
@@ -768,12 +769,14 @@ export function CommunityPage() {
 
 // C1-1 排序条：forumView order 参数（值域=forumDetail orders 官方枚举，R-A0 实测；
 // 默认 lastpost=官方 Android 同款默认）。切排序=换查询游标：页码回 1、EOF 复位。
+// S1/F17：官方七种（api_survey/forumDetail orders 枚举）全量——补「默认」与「热帖 hot」
 const ORDERS = [
   { key: 'lastpost', label: '最新回复' },
   { key: 'dateline', label: '发帖时间' },
   { key: 'replies', label: '回复数' },
   { key: 'views', label: '查看数' },
   { key: 'heat', label: '热门度' },
+  { key: 'hot', label: '热帖' },
 ] as const;
 
 // E70-03 分页适配器：响应无 total_page 元数据时不得用 rows<step 推定 EOF——
@@ -798,15 +801,40 @@ export function BoardPage({ fid }: { fid: string }) {
   const restored = readBoardState(fid);
   const [page, setPage] = useState(restored.page);
   const [order, setOrder] = useState<string>(restored.order);
+  const [activeType, setActiveType] = useState('');
   const STEP = 20;
-  const q = useEndpoint('forumView', { fid, p: page, step: STEP, order }, { keepPrev: true });
+  // S1/F2：activeType 进请求参数（官方 forumView 支持 typeid——api_survey 在册）+ queryKey
+  const q = useEndpoint('forumView',
+    { fid, p: page, step: STEP, order, ...(activeType ? { typeid: activeType } : {}) },
+    { keepPrev: true });
   // R2-1 板块头卡+分类筛选：forumDetail 提供板块名/图标/今日帖/threadtypes
   const detail = useEndpoint('forumDetail', { fid });
   const dData = (detail.data as any)?.data ?? {};
-  const boardIcon = String(dData.icon ?? '');
-  const todayNum = Number(dData.today_num) || 0;
-  const totalNum = String(dData.total_num ?? '');
-  const typeChips = Array.isArray(dData.threadtypes) ? dData.threadtypes : [];
+  const boardIconRaw = String(dData.icon ?? '');
+  // S1/F9 头图规范化：http→https + 剥 './' 相对前缀拼根域（实证 icon='http://bbs.sdgun.com.cn/./data/...'）
+  const boardIcon = useMemo(() => {
+    if (!boardIconRaw) return '';
+    try {
+      const u = new URL(boardIconRaw.replace(/^https?:\/\/[^/]+\/(\.\/)+/, (m, _g) => m.split('/./')[0] + '/'));
+      u.protocol = 'https:';
+      return u.toString();
+    } catch {
+      return boardIconRaw.startsWith('https://') ? boardIconRaw : '';
+    }
+  }, [boardIconRaw]);
+  // S1/F5 统计真字段（实证 fid175：post_today/thread/post；today_num/total_num 服务端无此键——恒不渲染的根因）
+  const postToday = String(dData.post_today ?? '');
+  const threadCount = String(dData.thread ?? '');
+  const postCount = String(dData.post ?? '');
+  // S1/F2 分类三形态归一：数组原样/字符串→空/字典 types={typeid→name}→映射（meta/fd_175 实证）
+  const typeChips = useMemo(() => {
+    const tt = dData.threadtypes;
+    if (Array.isArray(tt)) return tt;
+    if (tt && typeof tt === 'object' && tt.types && typeof tt.types === 'object') {
+      return Object.entries(tt.types).map(([typeid, name]) => ({ typeid, name: String(name) }));
+    }
+    return [];
+  }, [detail.data]);
   // F2-3 角色可见性：forumDetail.moderators 版主徽章（渲染防御：数组取 name/user_name，
   // 字符串按分隔符拆；不识别形态不渲染——不做权限推断）
   const mods = useMemo(() => {
@@ -819,10 +847,13 @@ export function BoardPage({ fid }: { fid: string }) {
     }
     return [];
   }, [detail.data]);
-  const [activeType, setActiveType] = useState('');
   // C1-4 板块名映射：circleTree（5min 暖缓存，与社区页/编辑器共享）派生 fid→name
   const tree = useEndpoint('circleTree');
+  // S1/F18 板块名双源：forumDetail.name=板块自身元数据（权威），circleTree=回退
+  //（实证 fid175：detail「NERF讨论区」vs tree「软弹枪讨论区」）
   const boardName = useMemo(() => {
+    const dn = String(dData.name ?? '').trim();
+    if (dn) return dn;
     for (const g of (tree.data as any)?.list ?? []) {
       for (const c of g.circle_list ?? []) {
         if (String(c.type_value) === fid) return String(c.name);
@@ -831,6 +862,7 @@ export function BoardPage({ fid }: { fid: string }) {
     return '';
   }, [tree.data, fid]);
   const [endReached, setEndReached] = useState(false);
+  const totalPage = Number((q.data as any)?.total_page ?? 1);
   const rowsAll = row(q.data);
   // E24-02 修复：替换页语义（每页独立渲染），去重仅在当前响应内（useMemo 不写 ref）。
   // EOF 判定=响应空列表（非 render 后过滤恰好 0——此前 seenRef 全局消耗导致回上页清空）。
@@ -875,11 +907,24 @@ export function BoardPage({ fid }: { fid: string }) {
         {(boardName || boardIcon) && (
           <div className="board-head" data-test="board-head">
             {boardIcon && <img className="board-head-icon" src={boardIcon} alt=""
-              referrerPolicy="no-referrer" />}
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                // S1/F9 破图回退链：circleTree.icon_tburl（实证在册）→仍败隐藏
+                const t = (tree.data as any)?.list?.flatMap((g: any) => g.circle_list ?? [])
+                  ?.find((c: any) => String(c.type_value) === fid);
+                const fb = String(t?.icon_tburl ?? t?.icon_url ?? '');
+                const el = e.target as HTMLImageElement;
+                if (fb && el.src !== fb) el.src = fb;
+                else el.style.display = 'none';
+              }} />}
             <div>
               <div className="card-title">{boardName || `版块 ${fid}`}</div>
-              {(todayNum || totalNum) && (
-                <div className="card-meta">今日 {todayNum} · 共 {totalNum} 帖</div>
+              {(postToday || threadCount || postCount) && (
+                <div className="card-meta" data-test="board-stats">
+                  {postToday && `今日 ${postToday}`}{postToday && (threadCount || postCount) ? ' · ' : ''}
+                  {threadCount && `主题 ${threadCount}`}{threadCount && postCount ? ' · ' : ''}
+                  {postCount && `帖 ${postCount}`}
+                </div>
               )}
               {mods.length > 0 && (
                 <div className="card-meta" data-test="board-mods">
@@ -892,9 +937,30 @@ export function BoardPage({ fid }: { fid: string }) {
           </div>
         )}
       </div>
+      {/* S1/F2+F21：forumDetail/forumView 失败反馈（现零提示——字典板块曾整块连坐丢失无感知）；
+          fid54 类=板块级权限门（S0 勘定：登录态仍拒）→权限卡非重试 */}
+      {detail.state === 'PermissionDenied' && (
+        <div className="state-card" data-test="board-denied">该板块元数据无权查看</div>
+      )}
+      {detail.state === 'RetryableError' && (
+        <div className="state-card" data-test="detail-error">
+          板块信息加载失败（{detail.fail?.msg ?? '未知'}）
+          <button className="btn" style={{ marginLeft: 8 }} onClick={() => detail.refetch()}>重试</button>
+        </div>
+      )}
+      {(q.state === 'PermissionDenied' || (q.state === 'RetryableError'
+        && /尚未登录|没有权限/.test(q.fail?.msg ?? ''))) && (
+        <div className="state-card" data-test="list-denied">
+          该板块需要登录或额外权限才能查看帖子列表。
+          <div style={{ marginTop: 8 }}>
+            <a className="btn" href="https://bbs.sdgun.com.cn/forum.php?mod=forumdisplay&fid=54&mobile=2"
+              target="_blank" rel="noreferrer">在官方页面打开 ↗</a>
+          </div>
+        </div>
+      )}
       {typeChips.length > 0 && (
         <div className="chiprow" data-test="type-chips" role="group" aria-label="分类筛选">
-          <button className={'chip' + (activeType === '' ? ' on' : '')}
+          <button data-test="type-all" className={'chip' + (activeType === '' ? ' on' : '')}
             style={activeType === '' ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}}
             onClick={() => { setActiveType(''); setPage(1); }}>全部</button>
           {typeChips.map((t: any) => {
@@ -950,8 +1016,8 @@ export function BoardPage({ fid }: { fid: string }) {
         );
       })}
       <div className="chiprow" style={{ justifyContent: 'center', marginTop: 14, alignItems: 'center' }}>
-        <button className="btn" disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页</button>
-        <span style={{ color: 'var(--text3)', fontSize: 12 }}>第 {page} 页</span>
+        <button className="btn" disabled={page <= 1} onClick={() => { setPage(page - 1); setEndReached(false); }}>上一页</button>
+        <span style={{ color: 'var(--text3)', fontSize: 12 }}>第 {page} / {totalPage} 页</span>
         <button className="btn" data-test="next-page" disabled={endReached}
           onClick={() => setPage(page + 1)}>下一页</button>
         <input className="composer-input pager-input" data-test="page-input" type="number" min={1}

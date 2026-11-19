@@ -653,10 +653,7 @@ export function ThreadPage({ tid, pid }: { tid: string; pid?: string }) {
           {f.to_comment && !Array.isArray(f.to_comment) ? <QuoteBlock q={f.to_comment} onJump={jumpToPid} /> : null}
           <ContentView html={String(f.content ?? '')}
             onImg={(srcs, index, trigger) => setLightbox({ srcs, index, trigger })} />
-          <div className="floor-head">
-            <Avatar src={f.user_head} name={f.user_name} size={28} />
-            <span className="floor-user">{f.user_name}</span>
-          </div>
+
           <div className="chiprow floor-actions" style={{ marginTop: 8, marginBottom: 0 }}>
             <button className="btn" data-test={`quote-${String(f.id ?? '')}`}
               onClick={() => {

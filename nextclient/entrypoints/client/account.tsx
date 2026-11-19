@@ -59,20 +59,35 @@ function PasswordSection() {
   );
 }
 
-function PrivacyToggle({ id, label, endpoint, onValue, offValue, initial }: {
+// S3/F11：initial 改 unknown（真实原值无数据源——硬编码 true 是 R3 实锤的谎报）；
+// Rejected 回调兑现注释承诺的回滚（旧版注释说"失败自动回滚视觉态"但实现没有）
+function PrivacyToggle({ id, label, endpoint, onValue, offValue }: {
   id: string; label: string; endpoint: string;
-  onValue: string; offValue: string; initial: boolean;
+  onValue: string; offValue: string;
 }) {
-  const [on, setOn] = useState(initial);
+  const [on, setOn] = useState<boolean | null>(null); // null=未知（未从服务端读过原值）
   const { phase, go } = useWrite();
+  const checked = on === true;
   return (
     <div className="setrow" data-test={`privacy-${id}`}>
       <label className="setrow-label">{label}</label>
-      <button className="toggle" role="switch" data-test={`privacy-toggle-${id}`}
-        aria-checked={on} disabled={phase === 'Submitting'}
-        onClick={() => { const v = !on; setOn(v); go(endpoint, v ? { [id]: onValue } : { [id]: offValue }); }}>
-        <span className="toggle-knob" />
-      </button>
+      <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+        {on === null && (
+          <span style={{ fontSize: 12, color: 'var(--text3)' }} data-test={`privacy-unknown-${id}`}>
+            当前状态未知，首次切换即以你的账号生效
+          </span>
+        )}
+        <button className="toggle" role="switch" data-test={`privacy-toggle-${id}`}
+          aria-checked={checked} disabled={phase === 'Submitting'}
+          onClick={async () => {
+            const v = !checked;
+            setOn(v);
+            const st = await go(endpoint, v ? { [id]: onValue } : { [id]: offValue });
+            if (st === 'Rejected') setOn(!v); // 回滚兑现
+          }}>
+          <span className="toggle-knob" />
+        </button>
+      </span>
     </div>
   );
 }
@@ -182,12 +197,12 @@ export function AccountSettingsPage() {
       <SignEditor current='' />
       <div className="card" style={{ marginTop: 12 }}>
         <div className="card-title">隐私</div>
-        {/* 参数值域=静态推断（privacyFindSet/homePageSetting 的开/关取值形态待真数据核），
-            首次切换前有「待核对」披露；失败自动回滚视觉态 */}
+        {/* S3/F11：参数值域=静态推断待真数据核；初始态=诚实未知（不再硬编码 true）；
+            Rejected 回滚已兑现（旧版注释虚诺） */}
         <PrivacyToggle id="is_open_find" label="允许他人通过搜索找到我"
-          endpoint="privacyFindSet" onValue="1" offValue="0" initial={true} />
+          endpoint="privacyFindSet" onValue="1" offValue="0" />
         <PrivacyToggle id="home_visible" label="他人可见我的主页"
-          endpoint="homePageSetting" onValue="1" offValue="0" initial={true} />
+          endpoint="homePageSetting" onValue="1" offValue="0" />
         <p className="page-sub" style={{ margin: '8px 0 0' }}>
           隐私开关的参数取值形态待真实数据核对（切换失败会自动回滚显示）。
         </p>

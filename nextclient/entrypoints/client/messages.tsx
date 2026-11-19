@@ -223,11 +223,13 @@ function MessagesAuthed() {
             // R4/WP6（BU-04）：分类入口（code=jadx ConversationFragment 实证：
             // at=@我的/focus=关注/applaud=点赞/comment=评论——v1 摘要无分类计数，
             // 先按静态四类给入口；applaud 借位 system_notify_count 待真数据核）
+            // S2/F10：分类计数改诚实未知 '—'（官方摘要 v1 无分类维度——
+            // 假 0 与借位 system_notify_count 均系 R3 实锤，撤除）
             const cats: [string, string, string][] = [
-              ['at', '@我的', '0'],
-              ['focus', '关注', '0'],
-              ['applaud', '点赞', String(notify.system_notify_count ?? 0)],
-              ['comment', '评论', '0'],
+              ['at', '@我的', '—'],
+              ['focus', '关注', '—'],
+              ['applaud', '点赞', '—'],
+              ['comment', '评论', '—'],
             ];
             return cats.map(([code, label, count]) => (
               <button key={code} className="card" data-test={`notify-cat-${code}`}
@@ -280,7 +282,7 @@ function NotifyHistory({ cat, onClose }: { cat: string | null; onClose: () => vo
   return (
     <div data-test="notify-history" style={{ marginTop: 16 }}>
       <h2 style={{ fontSize: 15, color: 'var(--text2)', margin: '0 0 8px' }}>
-        通知历史（{cat}）<StateBadge state={q.state} />
+        通知历史（{({at:'@我的',focus:'关注',applaud:'点赞',comment:'评论'})[cat] ?? cat}）<StateBadge state={q.state} />
         <button className="btn" data-test="notify-cat-back" style={{ marginLeft: 10, padding: '2px 10px' }}
           onClick={onClose}>‹ 返回分类</button>
       </h2>
