@@ -2,6 +2,8 @@
 
 桌面浏览器访问 SDGun 论坛的社区扩展：UA 伪装 + 现代化卡片界面（Manifest V3，Chrome / Edge / Brave 等 Chromium 系浏览器通用）。
 
+[版本通道](#版本通道) · [经典版隐私说明](PRIVACY.md) · [预览版说明](https://github.com/deserthouse/sdgun-extension/blob/next-2.0/nextclient/README.md)
+
 论坛 `bbs.sdgun.com.cn` 通过服务端插件（closedonpc）屏蔽 PC 浏览器的 User-Agent，只放行移动端。本扩展一方面在网络层把发往 `*.sdgun.com.cn` 的请求改写为手机 UA（入口能力），另一方面在页面层把 Discuz 触屏版重绘为现代卡片式界面（全部功能可在弹窗开关）：
 
 | 页面 | 效果 |
@@ -57,9 +59,13 @@ python tools/extension_build.py --test
 
 **Classic extension.** The extension restyles forum pages. Its optional requests and local caches are described in the [privacy policy](PRIVACY.md). The 2.0 preview adds signed-in features and drafts. This community project is unaffiliated with SDGun.
 
-## AI 使用披露（AI Disclosure）
+<a name="ai-使用披露ai-disclosure"></a>
 
-本项目不含任何人类成分。本项目的全部代码由 AI 编写，不含任何人类编写成分。人类负责提出需求、审阅与验收（All code in this project is AI-written; humans define requirements and provide review and acceptance）。
+## AI 使用声明
+
+本项目不含任何人类成分。本项目的全部代码由 AI 编写，不含任何人类编写成分。人类负责提出需求、审阅与验收。
+
+This project contains no human ingredients. AI wrote all project code. The maintainer defines requirements, reviews the work and approves releases.
 
 ---
 
