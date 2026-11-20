@@ -29,6 +29,16 @@ NODE = ROOT / 'tools/node-portable/node-v24.22.1-win-x64/node.exe'
 EXCLUDE_DIRS = {'node_modules', '.output', '.wxt', '__pycache__', 'probe_out'}
 EXCLUDE_FILES = {'.c01_bundle.mjs'}
 CONTRACTS = ROOT / 'contracts'
+SNAPSHOT_HOME = """# SDGun 浏览器客户端 · 2.0 预览版
+
+本分支保存 2.0 预发布源码。选择预览版本、核对下载文件或从源码构建时，请使用本分支的说明。
+
+[预览版使用说明](nextclient/README.md) · [逐版更新日志](nextclient/CHANGELOG.md) · [构建与校验记录](BUILD-INFO.md) · [经典稳定版](https://github.com/deserthouse/sdgun-extension/tree/main)
+
+## AI 使用声明
+
+本项目不含任何人类成分。项目代码由 AI 编写，需求、审阅与验收由维护者负责。
+"""
 
 
 def run(args, cwd=None, check=True):
@@ -150,7 +160,9 @@ def main():
 
     info_tmp = NEXT / '.output/BUILD-INFO.md'
     info_tmp.write_text(build_info, encoding='utf-8')
-    tree = tree + [(info_tmp, 'BUILD-INFO.md')]
+    home_tmp = NEXT / '.output/README.md'
+    home_tmp.write_text(SNAPSHOT_HOME, encoding='utf-8')
+    tree = tree + [(info_tmp, 'BUILD-INFO.md'), (home_tmp, 'README.md')]
     top = build_tree(tree)
     parent = run(['git', 'ls-remote', args.remote, f'refs/heads/{args.branch}'])
     if parent:
